@@ -106,3 +106,85 @@ export const validateCPF = (cpf: string): CPFValidation => {
 
   return { valid: true, message: "CPF válido." };
 };
+
+// ===================== Validações de Endereço =====================
+
+export interface AddressValidation {
+  valid: boolean;
+  message: string;
+}
+
+export const validateCEP = (cep: string): AddressValidation => {
+  const numbers = cep.replace(/\D/g, "");
+  if (!numbers) return { valid: false, message: "O CEP é obrigatório." };
+  if (numbers.length !== 8) return { valid: false, message: "CEP deve conter 8 dígitos." };
+  return { valid: true, message: "" };
+};
+
+export const validateStreet = (street: string): AddressValidation => {
+  const trimmed = street.trim();
+  if (!trimmed) return { valid: false, message: "A rua é obrigatória." };
+  if (trimmed.length < 3) return { valid: false, message: "A rua deve ter pelo menos 3 caracteres." };
+  return { valid: true, message: "" };
+};
+
+export const validateNumber = (number: string): AddressValidation => {
+  const trimmed = number.trim();
+  if (!trimmed) return { valid: false, message: "O número é obrigatório." };
+  return { valid: true, message: "" };
+};
+
+export const validateNeighborhood = (neighborhood: string): AddressValidation => {
+  const trimmed = neighborhood.trim();
+  if (!trimmed) return { valid: false, message: "O bairro é obrigatório." };
+  if (trimmed.length < 2) return { valid: false, message: "O bairro deve ter pelo menos 2 caracteres." };
+  return { valid: true, message: "" };
+};
+
+export const validateCity = (city: string): AddressValidation => {
+  const trimmed = city.trim();
+  if (!trimmed) return { valid: false, message: "A cidade é obrigatória." };
+  if (trimmed.length < 2) return { valid: false, message: "A cidade deve ter pelo menos 2 caracteres." };
+  return { valid: true, message: "" };
+};
+
+export const validateState = (state: string): AddressValidation => {
+  const trimmed = state.trim();
+  if (!trimmed) return { valid: false, message: "O estado é obrigatório." };
+  if (trimmed.length !== 2) return { valid: false, message: "Use a sigla do estado (ex: SP)." };
+  return { valid: true, message: "" };
+};
+
+export const isAddressValid = (
+  cep: string,
+  street: string,
+  number: string,
+  neighborhood: string,
+  city: string,
+  state: string
+): boolean => {
+  return (
+    validateCEP(cep).valid &&
+    validateStreet(street).valid &&
+    validateNumber(number).valid &&
+    validateNeighborhood(neighborhood).valid &&
+    validateCity(city).valid &&
+    validateState(state).valid
+  );
+};
+
+export const formatCEP = (value: string): string => {
+  const numbers = value.replace(/\D/g, "").slice(0, 8);
+  if (numbers.length > 5) {
+    return numbers.slice(0, 5) + "-" + numbers.slice(5);
+  }
+  return numbers;
+};
+
+export interface ViaCEPResponse {
+  logradouro: string;
+  bairro: string;
+  localidade: string;
+  uf: string;
+  complemento: string;
+}
