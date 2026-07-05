@@ -102,7 +102,60 @@ const SignUp = () => {
    display: "flex",
    alignItems: "center",
    justifyContent: "center",
-   height: "100vh"
+   minHeight: "100vh",
+   background: "#f5f5f7",
+   padding: "20px",
+  },
+  formContainer: {
+   background: "white",
+   borderRadius: "12px",
+   padding: "32px",
+   width: "100%",
+   maxWidth: "480px",
+   boxShadow: "0 1px 3px rgba(0,0,0,0.1)",
+  },
+  stepTitle: {
+   fontSize: "20px",
+   fontWeight: "600",
+   color: "#1a1a1a",
+   marginBottom: "4px",
+   display: "block"
+  },
+  stepSubtitle: {
+   fontSize: "13px",
+   color: "#666",
+   marginBottom: "24px",
+  },
+  input: {
+   width: "100%",
+   padding: "10px 12px",
+   borderRadius: "6px",
+   border: "1px solid #e0e0e0",
+   fontSize: "14px",
+   transition: "border-color 0.2s",
+   outline: "none",
+  },
+  button: {
+   background: "#1a1a1a",
+   color: "white",
+   border: "none",
+   padding: "10px 24px",
+   borderRadius: "6px",
+   fontSize: "14px",
+   fontWeight: "500",
+   cursor: "pointer",
+   transition: "opacity 0.2s",
+  },
+  buttonSecondary: {
+   background: "white",
+   color: "#666",
+   border: "1px solid #e0e0e0",
+   padding: "10px 24px",
+   borderRadius: "6px",
+   fontSize: "14px",
+   fontWeight: "500",
+   cursor: "pointer",
+   transition: "all 0.2s",
   },
  };
 
@@ -240,6 +293,32 @@ const SignUp = () => {
   );
  };
 
+ // Função auxiliar para renderizar cards de negócio
+ const renderBusinessCard = (type: string, label: string, iconPaths: React.ReactNode) => {
+  const isSelected = businessType === type;
+  return (
+   <button
+    type="button"
+    onClick={() => setBusinessType(type)}
+    style={{
+     display: "flex",
+     flexDirection: "column",
+     alignItems: "center",
+     gap: "6px",
+     padding: "12px",
+     borderRadius: "8px",
+     border: isSelected ? "1px solid #1a1a1a" : "1px solid #e8e8e8",
+     background: isSelected ? "#f5f5f7" : "white",
+     cursor: "pointer",
+     transition: "all 0.2s",
+    }}
+   >
+    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke={isSelected ? "#1a1a1a" : "#999"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">{iconPaths}</svg>
+    <span style={{fontSize: "12px", fontWeight: "500", color: isSelected ? "#1a1a1a" : "#666"}}>{label}</span>
+   </button>
+  );
+ };
+
  // Busca automática de CEP via ViaCEP
  useEffect(() => {
   if (skipCepAutoFill) {
@@ -289,17 +368,30 @@ const SignUp = () => {
  return (
   // Aqui estamos centralizando o form
   <div style={style.windowsignup}>
-   <form action="" method="post" className="border p-4">
-
-    {/* Aqui é cada Step  */}
+   <div style={style.formContainer}>
 
     {/* Step 1 - Dados Pessoais */}
     {step === 1 && (
      <div className="step-info-user flex flex-col gap-4">
-      <span>Dados do Clinte</span>
+      <div>
+       <span style={style.stepTitle}>Dados Pessoais</span>
+       <span style={style.stepSubtitle}>Preencha suas informações básicas</span>
+      </div>
 
-      <input type="text" placeholder="Nome completo" value={name} onChange={(e) => setName(e.target.value)} />
-      <input type="text" placeholder="CPF/CNPJ" value={cpfCnpj} onChange={(e) => setCpfCnpj(formatDocument(e.target.value))} />
+      <input 
+       type="text" 
+       placeholder="Nome completo" 
+       value={name} 
+       onChange={(e) => setName(e.target.value)}
+       style={style.input}
+      />
+      <input 
+       type="text" 
+       placeholder="CPF/CNPJ" 
+       value={cpfCnpj} 
+       onChange={(e) => setCpfCnpj(formatDocument(e.target.value))}
+       style={style.input}
+      />
       {cpfCnpjStatus && (
        <span className={`text-xs ${cpfCnpjStatus.type === "success" ? "text-green-500" : cpfCnpjStatus.type === "loading" ? "text-yellow-500" : "text-red-500"}`}>
         {cpfCnpjStatus.type === "loading" ? "⏳" : cpfCnpjStatus.type === "success" ? "✓" : "✗"} {cpfCnpjStatus.message}
@@ -308,34 +400,51 @@ const SignUp = () => {
 
 
       <div className="flex items-center gap-2">
-       {/* Preciso pegar esse valor */}
-       <input type={typePassword} placeholder="Crie uma senha" value={password} onChange={(e) => { setPassWord(e.target.value); setPasswordError(""); }} />
-       <button type="button" onClick={togglePasswordVisibility}>
+       <input 
+        type={typePassword} 
+        placeholder="Crie uma senha" 
+        value={password} 
+        onChange={(e) => { setPassWord(e.target.value); setPasswordError(""); }}
+        style={{...style.input, width: "calc(100% - 50px)"}}
+       />
+       <button 
+        type="button" 
+        onClick={togglePasswordVisibility}
+        style={{background: "none", border: "none", cursor: "pointer", padding: "8px"}}
+       >
         {typePassword === "password" ? <FiEyeOff /> : <FiEye />}
        </button>
       </div>
 
       <div className="flex items-center gap-2">
-       {/* E esse valor */}
-       <input type={typePassword} placeholder="Confirme a senha" value={confirmPassword} onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(""); }} />
+       <input 
+        type={typePassword} 
+        placeholder="Confirme a senha" 
+        value={confirmPassword} 
+        onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(""); }}
+        style={style.input}
+       />
       </div>
-
 
       {/* Requisitos da senha em tempo real */}
       {password.length > 0 && (
-       <div className="text-xs text-gray-500 flex flex-col gap-1">
+       <div className="text-xs text-gray-500 flex flex-col gap-1" style={{background: "#f9f9f9", padding: "12px", borderRadius: "8px"}}>
         {passwordRequirements.map((req) => (
-         <span key={req.key} className={checks[req.key] ? "text-green-500" : "text-red-500"}>
+         <span key={req.key} className={checks[req.key] ? "text-green-500" : "text-red-500"} style={{fontWeight: checks[req.key] ? "600" : "400"}}>
           {checks[req.key] ? "✓" : "✗"} {req.label}
          </span>
         ))}
        </div>
       )}
-      {/* Termina aqui */}
 
-      <div className="flex justify-between mt-5">
-       <div></div>
-       <button type="button" onClick={handleNext}>Próximo</button>
+      <div className="flex justify-end mt-5">
+       <button 
+        type="button" 
+        onClick={handleNext}
+        style={style.button}
+       >
+        Próximo →
+       </button>
       </div>
 
      </div>
@@ -345,17 +454,28 @@ const SignUp = () => {
     {/* Step 2 - Endereço */}
     {step === 2 && (
      <div className="step-address flex flex-col gap-4">
-      <span className="text-lg font-semibold">Endereço</span>
+      <div>
+       <span style={style.stepTitle}>Endereço</span>
+       <span style={style.stepSubtitle}>Preencha seu endereço completo</span>
+      </div>
 
       {/* Botão usar localização */}
       <button
        type="button"
        onClick={handleUseLocation}
        disabled={locationLoading}
-       className="flex items-center justify-center gap-2 rounded border px-3 py-2 text-sm hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+       style={{
+        ...style.buttonSecondary,
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: "8px",
+        opacity: locationLoading ? 0.5 : 1,
+        cursor: locationLoading ? "not-allowed" : "pointer",
+       }}
       >
        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" /><circle cx="12" cy="10" r="3" /></svg>
-       {locationLoading ? "Localizando..." : "Usar minha localização"}
+       {locationLoading ? "Localizando..." : "📍 Usar minha localização"}
       </button>
 
       {/* CEP */}
@@ -366,9 +486,10 @@ const SignUp = () => {
         value={cep}
         onChange={(e) => setCep(formatCEP(e.target.value))}
         maxLength={9}
+        style={style.input}
        />
        {cepStatus && (
-        <span className={`text-xs ${cepStatus.type === "success" ? "text-green-500" : cepStatus.type === "loading" ? "text-yellow-500" : "text-red-500"}`}>
+        <span className={`text-xs ${cepStatus.type === "success" ? "text-green-500" : cepStatus.type === "loading" ? "text-yellow-500" : "text-red-500"}`} style={{fontWeight: "500"}}>
          {cepStatus.type === "loading" ? "⏳" : cepStatus.type === "success" ? "✓" : "✗"} {cepStatus.message}
         </span>
        )}
@@ -378,9 +499,10 @@ const SignUp = () => {
       <div className="flex flex-col gap-1">
        <input
         type="text"
-        placeholder="Rua *"
+        placeholder="Rua"
         value={street}
         onChange={(e) => setStreet(e.target.value)}
+        style={style.input}
        />
        {street && !validateStreet(street).valid && (
         <span className="text-xs text-red-500">✗ {validateStreet(street).message}</span>
@@ -392,9 +514,10 @@ const SignUp = () => {
        <div className="flex flex-col gap-1 flex-1">
         <input
          type="text"
-         placeholder="Número *"
+         placeholder="Número"
          value={addressNumber}
          onChange={(e) => setAddressNumber(e.target.value)}
+         style={style.input}
         />
         {addressNumber && !validateNumber(addressNumber).valid && (
          <span className="text-xs text-red-500">✗ {validateNumber(addressNumber).message}</span>
@@ -403,9 +526,10 @@ const SignUp = () => {
        <div className="flex flex-col gap-1 flex-1">
         <input
          type="text"
-         placeholder="Complemento"
+         placeholder="Complemento (opcional)"
          value={complement}
          onChange={(e) => setComplement(e.target.value)}
+         style={style.input}
         />
        </div>
       </div>
@@ -414,9 +538,10 @@ const SignUp = () => {
       <div className="flex flex-col gap-1">
        <input
         type="text"
-        placeholder="Bairro *"
+        placeholder="Bairro"
         value={neighborhood}
         onChange={(e) => setNeighborhood(e.target.value)}
+        style={style.input}
        />
        {neighborhood && !validateNeighborhood(neighborhood).valid && (
         <span className="text-xs text-red-500">✗ {validateNeighborhood(neighborhood).message}</span>
@@ -428,9 +553,10 @@ const SignUp = () => {
        <div className="flex flex-col gap-1 flex-1">
         <input
          type="text"
-         placeholder="Cidade *"
+         placeholder="Cidade"
          value={city}
          onChange={(e) => setCity(e.target.value)}
+         style={style.input}
         />
         {city && !validateCity(city).valid && (
          <span className="text-xs text-red-500">✗ {validateCity(city).message}</span>
@@ -439,10 +565,11 @@ const SignUp = () => {
        <div className="flex flex-col gap-1 w-20">
         <input
          type="text"
-         placeholder="UF *"
+         placeholder="UF"
          value={state}
          onChange={(e) => setState(e.target.value.toUpperCase().slice(0, 2))}
          maxLength={2}
+         style={style.input}
         />
         {state && !validateState(state).valid && (
          <span className="text-xs text-red-500">✗ {validateState(state).message}</span>
@@ -450,9 +577,21 @@ const SignUp = () => {
        </div>
       </div>
 
-      <div className="flex justify-between mt-5">
-       <button type="button" onClick={handlePrev}>Voltar</button>
-       <button type="button" onClick={handleNext}>Próximo</button>
+      <div className="flex gap-3 mt-5">
+       <button 
+        type="button" 
+        onClick={handlePrev}
+        style={style.buttonSecondary}
+       >
+        ← Voltar
+       </button>
+       <button 
+        type="button" 
+        onClick={handleNext}
+        style={style.button}
+       >
+        Próximo →
+       </button>
       </div>
      </div>
     )}
@@ -460,61 +599,122 @@ const SignUp = () => {
     {/* Step 3 - Tipo de Conta */}
     {step === 3 && (
      <div className="step-account-type flex flex-col gap-4">
-      <span className="text-lg font-semibold">Como você deseja se cadastrar?</span>
+      <div>
+       <span style={style.stepTitle}>Tipo de Conta</span>
+       <span style={style.stepSubtitle}>Como você deseja se cadastrar?</span>
+      </div>
 
       {/* Opção Estabelecimento */}
       <button
        type="button"
        onClick={() => { setAccountType("establishment"); setHomeService(false); }}
-       className={`flex flex-col items-start gap-1 rounded-lg border-2 p-4 text-left transition-all ${accountType === "establishment" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-400"}`}
+       style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-start",
+        gap: "6px",
+        padding: "16px",
+        borderRadius: "8px",
+        border: accountType === "establishment" ? "1px solid #1a1a1a" : "1px solid #e8e8e8",
+        background: accountType === "establishment" ? "#f5f5f7" : "white",
+        textAlign: "left",
+        cursor: "pointer",
+        transition: "all 0.2s",
+       }}
       >
-       <div className="flex items-center gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
-        <span className="font-semibold">Estabelecimento</span>
+       <div style={{display: "flex", alignItems: "center", gap: "10px"}}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={accountType === "establishment" ? "#1a1a1a" : "#999"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /><polyline points="9 22 9 12 15 12 15 22" /></svg>
+        <span style={{fontSize: "14px", fontWeight: "500", color: accountType === "establishment" ? "#1a1a1a" : "#333"}}>Estabelecimento</span>
        </div>
-       <span className="text-sm text-gray-500">Salão, clínica, barbearia ou qualquer negócio com endereço fixo.</span>
+       <span style={{fontSize: "12px", color: "#666", lineHeight: "1.4"}}>Salão, clínica, barbearia ou qualquer negócio com endereço fixo.</span>
       </button>
 
       {/* Opção Profissional Individual */}
       <button
        type="button"
        onClick={() => setAccountType("professional")}
-       className={`flex flex-col items-start gap-1 rounded-lg border-2 p-4 text-left transition-all ${accountType === "professional" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-400"}`}
+       style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-start",
+        gap: "6px",
+        padding: "16px",
+        borderRadius: "8px",
+        border: accountType === "professional" ? "1px solid #1a1a1a" : "1px solid #e8e8e8",
+        background: accountType === "professional" ? "#f5f5f7" : "white",
+        textAlign: "left",
+        cursor: "pointer",
+        transition: "all 0.2s",
+       }}
       >
-       <div className="flex items-center gap-2">
-        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
-        <span className="font-semibold">Profissional Individual</span>
+       <div style={{display: "flex", alignItems: "center", gap: "10px"}}>
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={accountType === "professional" ? "#1a1a1a" : "#999"} strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" /><circle cx="12" cy="7" r="4" /></svg>
+        <span style={{fontSize: "14px", fontWeight: "500", color: accountType === "professional" ? "#1a1a1a" : "#333"}}>Profissional Individual</span>
        </div>
-       <span className="text-sm text-gray-500">Autônomo que atende em casa, no estabelecimento ou a domicílio.</span>
+       <span style={{fontSize: "12px", color: "#666", lineHeight: "1.4"}}>Autônomo que atende em casa, no estabelecimento ou a domicílio.</span>
       </button>
 
       {/* Atendimento domiciliar - só aparece para profissional */}
       {accountType === "professional" && (
-       <div className="flex flex-col gap-2 rounded-lg border border-gray-200 bg-gray-50 p-4">
-        <span className="text-sm font-medium">Deseja disponibilizar atendimento domiciliar?</span>
-        <span className="text-xs text-gray-500">Seus clientes poderão agendar um atendimento no local deles.</span>
-        <div className="flex gap-3 mt-1">
+       <div style={{display: "flex", flexDirection: "column", gap: "6px", borderRadius: "6px", border: "1px solid #e8e8e8", background: "#fafafa", padding: "12px"}}>
+        <span style={{fontSize: "13px", fontWeight: "500", color: "#333"}}>Deseja disponibilizar atendimento domiciliar?</span>
+        <span style={{fontSize: "12px", color: "#666"}}>Seus clientes poderão agendar um atendimento no local deles.</span>
+        <div style={{display: "flex", gap: "8px", marginTop: "6px"}}>
          <button
           type="button"
           onClick={() => setHomeService(true)}
-          className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-all ${homeService ? "border-green-500 bg-green-50 text-green-700" : "border-gray-200 text-gray-600 hover:border-gray-400"}`}
+          style={{
+           flex: 1,
+           padding: "8px",
+           borderRadius: "6px",
+           border: homeService ? "1px solid #1a1a1a" : "1px solid #e8e8e8",
+           background: homeService ? "#1a1a1a" : "white",
+           color: homeService ? "white" : "#666",
+           fontSize: "12px",
+           fontWeight: "500",
+           cursor: "pointer",
+           transition: "all 0.2s",
+          }}
          >
-          Sim, atender a domicílio
+          Sim
          </button>
          <button
           type="button"
           onClick={() => setHomeService(false)}
-          className={`flex-1 rounded-md border px-4 py-2 text-sm font-medium transition-all ${!homeService ? "border-red-500 bg-red-50 text-red-700" : "border-gray-200 text-gray-600 hover:border-gray-400"}`}
+          style={{
+           flex: 1,
+           padding: "8px",
+           borderRadius: "6px",
+           border: !homeService ? "1px solid #1a1a1a" : "1px solid #e8e8e8",
+           background: !homeService ? "white" : "white",
+           color: !homeService ? "#1a1a1a" : "#666",
+           fontSize: "12px",
+           fontWeight: "500",
+           cursor: "pointer",
+           transition: "all 0.2s",
+          }}
          >
-          Não, só no local
+          Não
          </button>
         </div>
        </div>
       )}
 
-      <div className="flex justify-between mt-5">
-       <button type="button" onClick={handlePrev}>Voltar</button>
-       <button type="button" onClick={handleNext}>Próximo</button>
+      <div className="flex gap-3 mt-5">
+       <button 
+        type="button" 
+        onClick={handlePrev}
+        style={style.buttonSecondary}
+       >
+        ← Voltar
+       </button>
+       <button 
+        type="button" 
+        onClick={handleNext}
+        style={style.button}
+       >
+        Próximo →
+       </button>
       </div>
      </div>
     )}
@@ -522,114 +722,39 @@ const SignUp = () => {
     {/* Step 4 - Tipo de Negócio */}
     {step === 4 && (
      <div className="step-business-type flex flex-col gap-4">
-      <span className="text-lg font-semibold">Qual é o seu tipo de negócio?</span>
-      <span className="text-sm text-gray-500">Selecione a categoria que melhor descreve o que você faz.</span>
-
-      <div className="grid grid-cols-2 gap-3">
-       {/* Barbearia */}
-       <button
-        type="button"
-        onClick={() => setBusinessType("barbearia")}
-        className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 text-center transition-all ${businessType === "barbearia" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-400"}`}
-       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5h11v11h-11z" /><path d="M12 6.5v11" /><path d="M6.5 12h11" /></svg>
-        <span className="text-sm font-medium">Barbearia</span>
-       </button>
-
-       {/* Salão de Beleza */}
-       <button
-        type="button"
-        onClick={() => setBusinessType("salao")}
-        className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 text-center transition-all ${businessType === "salao" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-400"}`}
-       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a5 5 0 0 1 5 5c0 2.76-2.24 5-5 5s-5-2.24-5-5a5 5 0 0 1 5-5z" /><path d="M12 12v10" /><path d="M8 22h8" /></svg>
-        <span className="text-sm font-medium">Salão de Beleza</span>
-       </button>
-
-       {/* Clínica Estética */}
-       <button
-        type="button"
-        onClick={() => setBusinessType("clinica-estetica")}
-        className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 text-center transition-all ${businessType === "clinica-estetica" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-400"}`}
-       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></svg>
-        <span className="text-sm font-medium">Clínica Estética</span>
-       </button>
-
-       {/* Manicure / Nail Designer */}
-       <button
-        type="button"
-        onClick={() => setBusinessType("nail")}
-        className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 text-center transition-all ${businessType === "nail" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-400"}`}
-       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a10 10 0 1 0 10 10" /><path d="M12 12l8-8" /><circle cx="12" cy="12" r="3" /></svg>
-        <span className="text-sm font-medium">Nail Designer</span>
-       </button>
-
-       {/* Cabeleireiro */}
-       <button
-        type="button"
-        onClick={() => setBusinessType("cabeleireiro")}
-        className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 text-center transition-all ${businessType === "cabeleireiro" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-400"}`}
-       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><line x1="9" y1="9" x2="9.01" y2="9" /><line x1="15" y1="9" x2="15.01" y2="9" /></svg>
-        <span className="text-sm font-medium">Cabeleireiro(a)</span>
-       </button>
-
-       {/* Massoterapia / Spa */}
-       <button
-        type="button"
-        onClick={() => setBusinessType("massoterapia")}
-        className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 text-center transition-all ${businessType === "massoterapia" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-400"}`}
-       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></svg>
-        <span className="text-sm font-medium">Massoterapia / Spa</span>
-       </button>
-
-       {/* Maquiador(a) */}
-       <button
-        type="button"
-        onClick={() => setBusinessType("maquiador")}
-        className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 text-center transition-all ${businessType === "maquiador" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-400"}`}
-       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 3l1.912 5.813h6.147l-4.985 3.587 1.912 5.813L12 14.626l-4.986 3.587 1.912-5.813-4.985-3.587h6.147z" /></svg>
-        <span className="text-sm font-medium">Maquiador(a)</span>
-       </button>
-
-       {/* Tatuador */}
-       <button
-        type="button"
-        onClick={() => setBusinessType("tatuador")}
-        className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 text-center transition-all ${businessType === "tatuador" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-400"}`}
-       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 19l7-7 3 3-7 7-3-3z" /><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" /><path d="M2 2l7.586 7.586" /><circle cx="11" cy="11" r="2" /></svg>
-        <span className="text-sm font-medium">Tatuador(a)</span>
-       </button>
-
-       {/* Personal Trainer */}
-       <button
-        type="button"
-        onClick={() => setBusinessType("personal")}
-        className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 text-center transition-all ${businessType === "personal" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-400"}`}
-       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6.5 6.5h11v11h-11z" /><path d="M12 6.5v11" /><path d="M6.5 12h11" /></svg>
-        <span className="text-sm font-medium">Personal Trainer</span>
-       </button>
-
-       {/* Outro */}
-       <button
-        type="button"
-        onClick={() => setBusinessType("outro")}
-        className={`flex flex-col items-center gap-2 rounded-lg border-2 p-4 text-center transition-all ${businessType === "outro" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-400"}`}
-       >
-        <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></svg>
-        <span className="text-sm font-medium">Outro</span>
-       </button>
+      <div>
+       <span style={style.stepTitle}>Tipo de Negócio</span>
+       <span style={style.stepSubtitle}>Selecione a categoria que melhor descreve o que você faz.</span>
       </div>
 
-      <div className="flex justify-between mt-5">
-       <button type="button" onClick={handlePrev}>Voltar</button>
-       <button type="button" onClick={handleNext}>Próximo</button>
+      <div style={{display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: "12px"}}>
+       {renderBusinessCard("barbearia", "Barbearia", <><path d="M6.5 6.5h11v11h-11z" /><path d="M12 6.5v11" /><path d="M6.5 12h11" /></>)}
+       {renderBusinessCard("salao", "Salão de Beleza", <><path d="M12 2a5 5 0 0 1 5 5c0 2.76-2.24 5-5 5s-5-2.24-5-5a5 5 0 0 1 5-5z" /><path d="M12 12v10" /><path d="M8 22h8" /></>)}
+       {renderBusinessCard("clinica-estetica", "Clínica Estética", <><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></>)}
+       {renderBusinessCard("nail", "Nail Designer", <><path d="M12 2a10 10 0 1 0 10 10" /><path d="M12 12l8-8" /><circle cx="12" cy="12" r="3" /></>)}
+       {renderBusinessCard("cabeleireiro", "Cabeleireiro(a)", <><circle cx="12" cy="12" r="10" /><path d="M8 14s1.5 2 4 2 4-2 4-2" /><line x1="9" y1="9" x2="9.01" y2="9" /><line x1="15" y1="9" x2="15.01" y2="9" /></>)}
+       {renderBusinessCard("massoterapia", "Massoterapia / Spa", <><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" /><path d="M13.73 21a2 2 0 0 1-3.46 0" /></>)}
+       {renderBusinessCard("maquiador", "Maquiador(a)", <><path d="M12 3l1.912 5.813h6.147l-4.985 3.587 1.912 5.813L12 14.626l-4.986 3.587 1.912-5.813-4.985-3.587h6.147z" /></>)}
+       {renderBusinessCard("tatuador", "Tatuador(a)", <><path d="M12 19l7-7 3 3-7 7-3-3z" /><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z" /><path d="M2 2l7.586 7.586" /><circle cx="11" cy="11" r="2" /></>)}
+       {renderBusinessCard("personal", "Personal Trainer", <><path d="M6.5 6.5h11v11h-11z" /><path d="M12 6.5v11" /><path d="M6.5 12h11" /></>)}
+       {renderBusinessCard("outro", "Outro", <><circle cx="12" cy="12" r="1" /><circle cx="19" cy="12" r="1" /><circle cx="5" cy="12" r="1" /></>)}
+      </div>
+
+      <div className="flex gap-3 mt-5">
+       <button 
+        type="button" 
+        onClick={handlePrev}
+        style={style.buttonSecondary}
+       >
+        ← Voltar
+       </button>
+       <button 
+        type="button" 
+        onClick={handleNext}
+        style={style.button}
+       >
+        Próximo →
+       </button>
       </div>
      </div>
     )}
@@ -637,55 +762,105 @@ const SignUp = () => {
     {/* Step 5 - Estilo de Atendimento da IA */}
     {step === 5 && (
      <div className="step-ai-style flex flex-col gap-4">
-      <span className="text-lg font-semibold">Como a IA deve atender seus clientes?</span>
-      <span className="text-sm text-gray-500">Escolha o estilo que melhor representa como você falaria com seus clientes.</span>
+      <div>
+       <span style={style.stepTitle}>Estilo de Atendimento da IA</span>
+       <span style={style.stepSubtitle}>Como a IA deve atender seus clientes?</span>
+      </div>
 
       {/* Opção 1 - Direto ao ponto */}
       <button
        type="button"
        onClick={() => { setAiStyle("direto"); setCustomAiStyle(""); }}
-       className={`flex flex-col items-start gap-2 rounded-lg border-2 p-4 text-left transition-all ${aiStyle === "direto" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-400"}`}
+       style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-start",
+        gap: "6px",
+        padding: "16px",
+        borderRadius: "8px",
+        border: aiStyle === "direto" ? "1px solid #1a1a1a" : "1px solid #e8e8e8",
+        background: aiStyle === "direto" ? "#f5f5f7" : "white",
+        textAlign: "left",
+        cursor: "pointer",
+        transition: "all 0.2s",
+       }}
       >
-       <span className="font-semibold">🎯 Direto ao ponto</span>
-       <span className="text-sm text-gray-500">Respostas curtas e objetivas, sem enrolação. Vai direto ao que o cliente precisa.</span>
+       <span style={{fontSize: "14px", fontWeight: "500", color: aiStyle === "direto" ? "#1a1a1a" : "#333"}}>🎯 Direto ao ponto</span>
+       <span style={{fontSize: "12px", color: "#666", lineHeight: "1.4"}}>Respostas curtas e objetivas, sem enrolação.</span>
       </button>
 
       {/* Opção 2 - Amigável e acolhedor */}
       <button
        type="button"
        onClick={() => { setAiStyle("amigavel"); setCustomAiStyle(""); }}
-       className={`flex flex-col items-start gap-2 rounded-lg border-2 p-4 text-left transition-all ${aiStyle === "amigavel" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-400"}`}
+       style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-start",
+        gap: "6px",
+        padding: "16px",
+        borderRadius: "8px",
+        border: aiStyle === "amigavel" ? "1px solid #1a1a1a" : "1px solid #e8e8e8",
+        background: aiStyle === "amigavel" ? "#f5f5f7" : "white",
+        textAlign: "left",
+        cursor: "pointer",
+        transition: "all 0.2s",
+       }}
       >
-       <span className="font-semibold">😊 Amigável e acolhedor</span>
-       <span className="text-sm text-gray-500">Conversa com naturalidade, é simpático e faz o cliente se sentir em casa.</span>
+       <span style={{fontSize: "14px", fontWeight: "500", color: aiStyle === "amigavel" ? "#1a1a1a" : "#333"}}>😊 Amigável e acolhedor</span>
+       <span style={{fontSize: "12px", color: "#666", lineHeight: "1.4"}}>Conversa com naturalidade e simpatia.</span>
       </button>
 
       {/* Opção 3 - Personalizado */}
       <button
        type="button"
        onClick={() => setAiStyle("profissional")}
-       className={`flex flex-col items-start gap-2 rounded-lg border-2 p-4 text-left transition-all ${aiStyle === "profissional" ? "border-blue-500 bg-blue-50" : "border-gray-200 hover:border-gray-400"}`}
+       style={{
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "flex-start",
+        gap: "6px",
+        padding: "16px",
+        borderRadius: "8px",
+        border: aiStyle === "profissional" ? "1px solid #1a1a1a" : "1px solid #e8e8e8",
+        background: aiStyle === "profissional" ? "#f5f5f7" : "white",
+        textAlign: "left",
+        cursor: "pointer",
+        transition: "all 0.2s",
+       }}
       >
-       <span className="font-semibold">✍️ Personalizado</span>
-       <span className="text-sm text-gray-500">Você descreve como quer que a IA atenda. Escreva no seu estilo!</span>
+       <span style={{fontSize: "14px", fontWeight: "500", color: aiStyle === "profissional" ? "#1a1a1a" : "#333"}}>✍️ Personalizado</span>
+       <span style={{fontSize: "12px", color: "#666", lineHeight: "1.4"}}>Você descreve como quer que a IA atenda.</span>
       </button>
 
       {/* Campo de texto personalizado */}
       {aiStyle === "profissional" && (
        <div className="flex flex-col gap-2">
-        <span className="text-sm font-medium">Descreva como você atende seus clientes:</span>
+        <span style={{fontSize: "13px", fontWeight: "500", color: "#333"}}>Descreva como você atende seus clientes:</span>
         <textarea
-         className="min-h-[100px] rounded-md border border-gray-300 p-3 text-sm focus:border-blue-500 focus:outline-none"
-         placeholder="Ex: Sempre cumprimento pelo nome, pergunto como foi a semana, ofereço horários flexíveis e confirmo por WhatsApp..."
+         style={{...style.input, minHeight: "80px", resize: "vertical"}}
+         placeholder="Ex: Sempre cumprimento pelo nome, pergunto como foi a semana..."
          value={customAiStyle}
          onChange={(e) => setCustomAiStyle(e.target.value)}
         />
        </div>
       )}
 
-      <div className="flex justify-between mt-5">
-       <button type="button" onClick={handlePrev}>Voltar</button>
-       <button type="button" onClick={handleNext}>Próximo</button>
+      <div className="flex gap-3 mt-5">
+       <button 
+        type="button" 
+        onClick={handlePrev}
+        style={style.buttonSecondary}
+       >
+        ← Voltar
+       </button>
+       <button 
+        type="button" 
+        onClick={handleNext}
+        style={style.button}
+       >
+        Próximo →
+       </button>
       </div>
      </div>
     )}
@@ -693,102 +868,115 @@ const SignUp = () => {
     {/* Step 6 - Confirmação */}
     {step === 6 && (
      <div className="step-confirmation flex flex-col gap-4">
-      <span className="text-lg font-semibold">Confirme seus dados</span>
-      <span className="text-sm text-gray-500">Verifique se tudo está correto antes de finalizar.</span>
+      <div>
+       <span style={style.stepTitle}>Confirme seus dados</span>
+       <span style={style.stepSubtitle}>Verifique se tudo está correto antes de finalizar.</span>
+      </div>
 
       {/* Dados pessoais */}
-      <div className="flex flex-col gap-1 rounded-lg border border-gray-200 p-3">
-       <span className="text-xs font-semibold text-gray-400 uppercase">Dados Pessoais</span>
-       <div className="flex justify-between">
-        <span className="text-sm text-gray-500">Nome</span>
-        <span className="text-sm font-medium">{name}</span>
+      <div style={{display: "flex", flexDirection: "column", gap: "6px", borderRadius: "8px", border: "1px solid #e8e8e8", padding: "12px"}}>
+       <span style={{fontSize: "11px", fontWeight: "600", color: "#999", textTransform: "uppercase"}}>Dados Pessoais</span>
+       <div style={{display: "flex", justifyContent: "space-between"}}>
+        <span style={{fontSize: "13px", color: "#666"}}>Nome</span>
+        <span style={{fontSize: "13px", fontWeight: "500", color: "#1a1a1a"}}>{name}</span>
        </div>
-       <div className="flex justify-between">
-        <span className="text-sm text-gray-500">CPF/CNPJ</span>
-        <span className="text-sm font-medium">{cpfCnpj}</span>
+       <div style={{display: "flex", justifyContent: "space-between"}}>
+        <span style={{fontSize: "13px", color: "#666"}}>CPF/CNPJ</span>
+        <span style={{fontSize: "13px", fontWeight: "500", color: "#1a1a1a"}}>{cpfCnpj}</span>
        </div>
       </div>
 
       {/* Endereço */}
-      <div className="flex flex-col gap-1 rounded-lg border border-gray-200 p-3">
-       <span className="text-xs font-semibold text-gray-400 uppercase">Endereço</span>
-       <div className="flex justify-between">
-        <span className="text-sm text-gray-500">CEP</span>
-        <span className="text-sm font-medium">{cep}</span>
+      <div style={{display: "flex", flexDirection: "column", gap: "6px", borderRadius: "8px", border: "1px solid #e8e8e8", padding: "12px"}}>
+       <span style={{fontSize: "11px", fontWeight: "600", color: "#999", textTransform: "uppercase"}}>Endereço</span>
+       <div style={{display: "flex", justifyContent: "space-between"}}>
+        <span style={{fontSize: "13px", color: "#666"}}>CEP</span>
+        <span style={{fontSize: "13px", fontWeight: "500", color: "#1a1a1a"}}>{cep}</span>
        </div>
-       <div className="flex justify-between">
-        <span className="text-sm text-gray-500">Rua</span>
-        <span className="text-sm font-medium">{street}{addressNumber ? `, ${addressNumber}` : ""}{complement ? ` - ${complement}` : ""}</span>
+       <div style={{display: "flex", justifyContent: "space-between"}}>
+        <span style={{fontSize: "13px", color: "#666"}}>Rua</span>
+        <span style={{fontSize: "13px", fontWeight: "500", color: "#1a1a1a"}}>{street}{addressNumber ? `, ${addressNumber}` : ""}{complement ? ` - ${complement}` : ""}</span>
        </div>
-       <div className="flex justify-between">
-        <span className="text-sm text-gray-500">Bairro</span>
-        <span className="text-sm font-medium">{neighborhood}</span>
+       <div style={{display: "flex", justifyContent: "space-between"}}>
+        <span style={{fontSize: "13px", color: "#666"}}>Bairro</span>
+        <span style={{fontSize: "13px", fontWeight: "500", color: "#1a1a1a"}}>{neighborhood}</span>
        </div>
-       <div className="flex justify-between">
-        <span className="text-sm text-gray-500">Cidade/UF</span>
-        <span className="text-sm font-medium">{city}/{state}</span>
+       <div style={{display: "flex", justifyContent: "space-between"}}>
+        <span style={{fontSize: "13px", color: "#666"}}>Cidade/UF</span>
+        <span style={{fontSize: "13px", fontWeight: "500", color: "#1a1a1a"}}>{city}/{state}</span>
        </div>
       </div>
 
       {/* Tipo de conta */}
-      <div className="flex flex-col gap-1 rounded-lg border border-gray-200 p-3">
-       <span className="text-xs font-semibold text-gray-400 uppercase">Tipo de Conta</span>
-       <div className="flex justify-between">
-        <span className="text-sm text-gray-500">Tipo</span>
-        <span className="text-sm font-medium">{accountType === "establishment" ? "Estabelecimento" : "Profissional Individual"}</span>
+      <div style={{display: "flex", flexDirection: "column", gap: "6px", borderRadius: "8px", border: "1px solid #e8e8e8", padding: "12px"}}>
+       <span style={{fontSize: "11px", fontWeight: "600", color: "#999", textTransform: "uppercase"}}>Tipo de Conta</span>
+       <div style={{display: "flex", justifyContent: "space-between"}}>
+        <span style={{fontSize: "13px", color: "#666"}}>Tipo</span>
+        <span style={{fontSize: "13px", fontWeight: "500", color: "#1a1a1a"}}>{accountType === "establishment" ? "Estabelecimento" : "Profissional Individual"}</span>
        </div>
        {accountType === "professional" && (
-        <div className="flex justify-between">
-         <span className="text-sm text-gray-500">Atendimento domiciliar</span>
-         <span className="text-sm font-medium">{homeService ? "Sim" : "Não"}</span>
+        <div style={{display: "flex", justifyContent: "space-between"}}>
+         <span style={{fontSize: "13px", color: "#666"}}>Atendimento domiciliar</span>
+         <span style={{fontSize: "13px", fontWeight: "500", color: "#1a1a1a"}}>{homeService ? "Sim" : "Não"}</span>
         </div>
        )}
       </div>
 
       {/* Tipo de negócio */}
-      <div className="flex flex-col gap-1 rounded-lg border border-gray-200 p-3">
-       <span className="text-xs font-semibold text-gray-400 uppercase">Tipo de Negócio</span>
-       <div className="flex justify-between">
-        <span className="text-sm text-gray-500">Categoria</span>
-        <span className="text-sm font-medium">{(() => { const m: Record<string, string> = {"barbearia": "Barbearia", "salao": "Salão de Beleza", "clinica-estetica": "Clínica Estética", "nail": "Nail Designer", "cabeleireiro": "Cabeleireiro(a)", "massoterapia": "Massoterapia / Spa", "maquiador": "Maquiador(a)", "tatuador": "Tatuador(a)", "personal": "Personal Trainer", "outro": "Outro"}; return m[businessType] || businessType; })()}</span>
+      <div style={{display: "flex", flexDirection: "column", gap: "6px", borderRadius: "8px", border: "1px solid #e8e8e8", padding: "12px"}}>
+       <span style={{fontSize: "11px", fontWeight: "600", color: "#999", textTransform: "uppercase"}}>Tipo de Negócio</span>
+       <div style={{display: "flex", justifyContent: "space-between"}}>
+        <span style={{fontSize: "13px", color: "#666"}}>Categoria</span>
+        <span style={{fontSize: "13px", fontWeight: "500", color: "#1a1a1a"}}>{(() => { const m: Record<string, string> = {"barbearia": "Barbearia", "salao": "Salão de Beleza", "clinica-estetica": "Clínica Estética", "nail": "Nail Designer", "cabeleireiro": "Cabeleireiro(a)", "massoterapia": "Massoterapia / Spa", "maquiador": "Maquiador(a)", "tatuador": "Tatuador(a)", "personal": "Personal Trainer", "outro": "Outro"}; return m[businessType] || businessType; })()}</span>
        </div>
       </div>
 
       {/* Estilo de atendimento */}
-      <div className="flex flex-col gap-1 rounded-lg border border-gray-200 p-3">
-       <span className="text-xs font-semibold text-gray-400 uppercase">Estilo de Atendimento da IA</span>
-       <div className="flex justify-between">
-        <span className="text-sm text-gray-500">Estilo</span>
-        <span className="text-sm font-medium">{(() => { const m: Record<string, string> = {"direto": "Direto ao ponto", "amigavel": "Amigável e acolhedor", "profissional": "Personalizado"}; return m[aiStyle] || ""; })()}</span>
+      <div style={{display: "flex", flexDirection: "column", gap: "6px", borderRadius: "8px", border: "1px solid #e8e8e8", padding: "12px"}}>
+       <span style={{fontSize: "11px", fontWeight: "600", color: "#999", textTransform: "uppercase"}}>Estilo de Atendimento</span>
+       <div style={{display: "flex", justifyContent: "space-between"}}>
+        <span style={{fontSize: "13px", color: "#666"}}>Estilo</span>
+        <span style={{fontSize: "13px", fontWeight: "500", color: "#1a1a1a"}}>{(() => { const m: Record<string, string> = {"direto": "Direto ao ponto", "amigavel": "Amigável e acolhedor", "profissional": "Personalizado"}; return m[aiStyle] || ""; })()}</span>
        </div>
        {aiStyle === "profissional" && customAiStyle && (
-        <div className="flex flex-col gap-1 mt-1">
-         <span className="text-sm text-gray-500">Descrição</span>
-         <span className="text-sm font-medium rounded bg-gray-50 p-2">{customAiStyle}</span>
+        <div style={{display: "flex", flexDirection: "column", gap: "4px", marginTop: "6px"}}>
+         <span style={{fontSize: "12px", color: "#666"}}>Descrição</span>
+         <span style={{fontSize: "12px", color: "#333", background: "#fafafa", padding: "8px", borderRadius: "6px"}}>{customAiStyle}</span>
         </div>
        )}
       </div>
 
       {/* Política de privacidade */}
-      <label className="flex items-start gap-3 mt-2 cursor-pointer">
+      <label style={{display: "flex", alignItems: "flex-start", gap: "10px", cursor: "pointer", marginTop: "6px"}}>
        <input
         type="checkbox"
         checked={privacyAccepted}
         onChange={(e) => setPrivacyAccepted(e.target.checked)}
-        className="mt-1 h-4 w-4 accent-blue-500"
+        style={{marginTop: "2px", width: "16px", height: "16px", accentColor: "#1a1a1a"}}
        />
-       <span className="text-sm text-gray-600">
-        Li e aceito a <a href="#" className="text-blue-500 underline">Política de Privacidade</a> e os <a href="#" className="text-blue-500 underline">Termos de Uso</a>.
+       <span style={{fontSize: "12px", color: "#666", lineHeight: "1.4"}}>
+        Li e aceito a <a href="#" style={{color: "#1a1a1a", textDecoration: "underline"}}>Política de Privacidade</a> e os <a href="#" style={{color: "#1a1a1a", textDecoration: "underline"}}>Termos de Uso</a>.
        </span>
       </label>
 
-      <div className="flex justify-between mt-5">
-       <button type="button" onClick={handlePrev}>Voltar</button>
-       <button
-        type="submit"
+      <div className="flex gap-3 mt-5">
+       <button 
+        type="button" 
+        onClick={handlePrev}
+        style={style.buttonSecondary}
+       >
+        ← Voltar
+       </button>
+       <button 
+        type="button" 
         onClick={handleNext}
         disabled={!privacyAccepted}
-        className={!privacyAccepted ? "opacity-50 cursor-not-allowed" : ""}>
+        style={{
+         ...style.button,
+         opacity: !privacyAccepted ? 0.5 : 1,
+         cursor: !privacyAccepted ? "not-allowed" : "pointer",
+        }}
+       >
         Criar conta
        </button>
       </div>
@@ -796,7 +984,7 @@ const SignUp = () => {
     )}
 
 
-   </form>
+   </div>
   </div>
  );
 };
