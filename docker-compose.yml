@@ -1,26 +1,48 @@
 services:
+
   api:
-    build: .
-    container_name: yuu
+    build:
+      context: .
+      dockerfile: backend/Dockerfile.backend
+
+    container_name: yuu-api
 
     ports:
       - "3000:3000"
 
     volumes:
-      - .:/app
+      - ./backend:/app
       - /app/node_modules
 
     env_file:
       - .env
 
-    restart: unless-stopped
-
     depends_on:
       - postgres
 
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile.frontend
+
+    container_name: yuu-frontend
+
+    ports:
+      - "5173:5173"
+
+    volumes:
+      - .:/app
+      - /app/node_modules
+
+    depends_on:
+      - api
+
+
   postgres:
     image: postgres:17-alpine
-    container_name: ai.yuu
+
+    container_name: yuu-postgres
 
     environment:
       POSTGRES_USER: ${POSTGRES_USER}
@@ -33,7 +55,6 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-    restart: unless-stopped
 
 volumes:
   postgres_data:
