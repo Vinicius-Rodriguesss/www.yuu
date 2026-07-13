@@ -17,6 +17,10 @@ services:
     env_file:
       - .env
 
+    environment:
+      - CHOKIDAR_USEPOLLING=true
+      - CHOKIDAR_INTERVAL=300
+
     depends_on:
       - postgres
 
