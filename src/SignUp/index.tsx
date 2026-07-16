@@ -1,6 +1,6 @@
 import { useEffect, useState, type CSSProperties } from "react";
 import { FiEye, FiEyeOff } from "react-icons/fi";
-import { validatePassword, isAllValid, isPasswordMatch, passwordRequirements, validateFullName, validateCPF, validateCEP, validateStreet, validateNumber, validateNeighborhood, validateCity, validateState, isAddressValid, formatCEP, type ViaCEPResponse } from "./passwordValidation";
+import { validatePassword, isAllValid, isPasswordMatch, passwordRequirements, validateFullName, validateCPF, isAddressValid, formatCEP, type ViaCEPResponse } from "./passwordValidation";
 import Toast from "../Components/Toast";
 import Header from "@/Components/Header";
 import { Link } from "react-router";

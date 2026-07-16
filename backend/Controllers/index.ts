@@ -6,6 +6,8 @@ import UpdateService from "../Services/CreatedServicesUser/updateService.js";
 import ToggleServiceStatus from "../Services/CreatedServicesUser/toggleServiceStatus.js";
 import DeleteService from "../Services/CreatedServicesUser/deleteService.js";
 import { authMiddleware } from "../Auth/Middleware/index.js"; // ← Importa o middleware
+import UpdateSettings from "../Services/UpdateSettings.js"; // 
+import GetProfile from "../Services/GetProfile.js";
 
 const Controllers = Router();
 
@@ -33,6 +35,14 @@ Controllers.patch("/services/:id/toggle", authMiddleware, async (req, res) => {
 
 Controllers.delete("/services/:id", authMiddleware, async (req, res) => {
   DeleteService(req, res);
+});
+
+Controllers.put("/user/settings", authMiddleware, async (req, res) => {
+  UpdateSettings(req, res);
+});
+
+Controllers.get("/user/profile", authMiddleware, async (req, res) => {
+  GetProfile(req, res);
 });
 
 export default Controllers;

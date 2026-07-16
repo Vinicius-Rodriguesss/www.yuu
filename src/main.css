@@ -11,11 +11,36 @@
 .mainDashboardLayout{
  padding: 2rem;
  width: 100%;
- height: 100vh;
+ height: 100%;
 }
 
 @media screen and (max-width: 991px) {
  .mainDashboardLayout{
   padding-top: 7rem;
  }
+}
+
+/* Para navegadores Chrome, Edge e Safari */
+::-webkit-scrollbar {
+  width: 5px; /* Largura do scroll vertical */
+  height: 5px; /* Altura do scroll horizontal */
+}
+
+::-webkit-scrollbar-track {
+  background: #CCCCCC; /* Cor do fundo do trilho */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CCCCCC; /* Cor do puxador */
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+ transition: all .5s;
+  background: #CCCCCC; /* Cor do puxador ao passar o mouse */
+}
+
+html {
+  scroll-behavior: smooth;
 }

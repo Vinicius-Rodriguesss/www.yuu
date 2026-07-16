@@ -9,6 +9,7 @@ import {
 } from "react-icons/md";
 import { HiMenuAlt1 } from "react-icons/hi";
 import "./index.css";
+import { FaRobot } from "react-icons/fa";
 
 const NavBar = () => {
  const navigate = useNavigate();
@@ -28,16 +29,19 @@ const NavBar = () => {
  };
 
  const menuDesktop = {
-  menu: isCollapsed ? "containerMenuClose" : "containerMenu",
-  hidden: isCollapsed ? "hidden" : "visibility",
+  menu: isCollapsed ?  "containerMenu" : "containerMenuClose",
+  hidden: isCollapsed ? "hiddenMenu" : "visibility",
   center: isCollapsed ? "center" : "header-menu",
+  texture: isCollapsed ? 'textureMenuOff' : 'textureMenuOn',
+  navDesktop: isCollapsed ? 'navDesktopOff' : 'navDesktop'
  };
 
  const links = [
+  { to: "/calender", label: "Agenda", icon: <MdEventNote size={20} /> },
   { to: "/dashboard", label: "Dashboard", icon: <MdSpaceDashboard size={20} /> },
-  { to: "/agendas", label: "Agenda", icon: <MdEventNote size={20} /> },
   { to: "/service", label: "Serviços", icon: <MdContentCut size={20} /> },
-  { to: "/configuracoes", label: "Configurações", icon: <MdSettings size={20} /> },
+  { to: "/config", label: "Configurações", icon: <MdSettings size={20} /> },
+  // {to: "/ai", label: "IA", icon: <FaRobot size={20} />,}
  ];
 
  const handleLogout = () => {
@@ -49,9 +53,10 @@ const NavBar = () => {
  return (
   <>
    {/* Menu desktop */}
-   <div className={menuDesktop.menu}>
 
-    <nav className="navDesktop" >
+   <div className={menuDesktop.texture}></div>
+
+    <nav className={menuDesktop.navDesktop} >
      <div className={menuDesktop.center}>
       <img className={menuDesktop.hidden} src="https://yu-u.vercel.app/assets/FAICON.png" alt="YuU" />
       <button style={{ cursor: "pointer"}} onClick={toggleMenu}><HiMenuAlt1 size={20}/></button>
@@ -72,7 +77,7 @@ const NavBar = () => {
       <span className={menuDesktop.hidden}>Sair</span>
      </button>
     </nav>
-   </div>
+
 
 
 

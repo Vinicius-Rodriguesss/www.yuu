@@ -5,6 +5,8 @@ import { ProtectedRoute } from './ProtectedRoute'
 import { DashboardLayout } from './DashboardLayout'
 import Dashboard from '@/Pages/Dashboard'
 import Services from './Pages/Services'
+import Settings from './Pages/Configuracoes'
+import Calendar from './Pages/Calendar'
 
 const AppRoutes = () => {
   return (
@@ -18,6 +20,8 @@ const AppRoutes = () => {
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/service" element={<Services />} />
+          <Route path="/config" element={<Settings />} />
+          <Route path="/calender" element={<Calendar />} />
         </Route>
       </Route>
 
