@@ -5,6 +5,7 @@ import { db } from "../db/index.js";
 import { usersTable } from "../db/schema/users.js";
 import { addressesTable } from "../db/schema/addresses.js";
 import { workSchedulesTable } from "../db/schema/workSchedules.js";
+import { workScheduleDaysTable } from "../db/schema/workScheduleDays.js";
 
 const GetProfile = async (req: Request, res: Response) => {
  try {
@@ -20,6 +21,10 @@ const GetProfile = async (req: Request, res: Response) => {
     aiStyle: usersTable.aiStyle,
     customAiStyle: usersTable.customAiStyle,
     privacyAccepted: usersTable.privacyAccepted,
+    phone: usersTable.phone,
+    scheduleInterval: usersTable.scheduleInterval,
+    appointmentBuffer: usersTable.appointmentBuffer,
+    publicSlug: usersTable.publicSlug,
    })
    .from(usersTable)
    .where(eq(usersTable.id, userId))
@@ -45,16 +50,22 @@ const GetProfile = async (req: Request, res: Response) => {
 
   const [schedule] = await db
    .select({
-    startTime: workSchedulesTable.startTime,
-    endTime: workSchedulesTable.endTime,
-    daysOfWeek: workSchedulesTable.daysOfWeek,
-    // lunchStart: workSchedulesTable.lunchStart,
-    // lunchEnd: workSchedulesTable.lunchEnd,
-    // ^ descomente depois de rodar a migration em work_schedules
+    id: workSchedulesTable.id,
+    name: workSchedulesTable.name,
+    isActive: workSchedulesTable.isActive,
    })
    .from(workSchedulesTable)
    .where(eq(workSchedulesTable.userId, userId))
    .limit(1);
+
+  // Busca os dias da jornada na tabela work_schedule_days
+  let scheduleDays: any[] = [];
+  if (schedule) {
+    scheduleDays = await db
+      .select()
+      .from(workScheduleDaysTable)
+      .where(eq(workScheduleDaysTable.workScheduleId, schedule.id));
+  }
 
   return res.status(200).json({
    ...user,
@@ -63,16 +74,21 @@ const GetProfile = async (req: Request, res: Response) => {
     : { cep: "", street: "", number: "", complement: "", neighborhood: "", city: "", state: "" },
    workSchedule: schedule
     ? {
-     startTime: schedule.startTime,
-     endTime: schedule.endTime,
-     daysOfWeek: schedule.daysOfWeek.split(",").filter(Boolean).map(Number),
-     lunchStart: null, // troque por schedule.lunchStart quando a coluna existir
-     lunchEnd: null,
+     id: schedule.id,
+     name: schedule.name,
+     isActive: schedule.isActive,
+     days: scheduleDays.map((d) => ({
+       dayOfWeek: d.dayOfWeek,
+       startTime: d.startTime,
+       endTime: d.endTime,
+       appointmentInterval: d.appointmentInterval,
+       isActive: d.isActive,
+     })),
     }
-    : { startTime: "", endTime: "", daysOfWeek: [], lunchStart: null, lunchEnd: null },
+    : null,
   });
  } catch (error) {
-  console.error("ERRO DETALHADO:", error); // <-- adiciona isso
+  console.error("ERRO DETALHADO:", error);
   return res.status(500).json({ error: "Erro ao carregar dados" });
  }
 };

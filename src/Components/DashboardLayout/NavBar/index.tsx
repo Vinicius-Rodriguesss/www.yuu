@@ -9,7 +9,6 @@ import {
 } from "react-icons/md";
 import { HiMenuAlt1 } from "react-icons/hi";
 import "./index.css";
-import { FaRobot } from "react-icons/fa";
 
 const NavBar = () => {
  const navigate = useNavigate();

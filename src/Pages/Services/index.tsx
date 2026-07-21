@@ -25,6 +25,8 @@ interface Service {
   price: number;
   category: string;
   active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // Paleta de cores para categorias dinâmicas

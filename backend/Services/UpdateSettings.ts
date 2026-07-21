@@ -6,6 +6,7 @@ import { db } from "../db/index.js";
 import { usersTable } from "../db/schema/users.js";
 import { addressesTable } from "../db/schema/addresses.js";
 import { workSchedulesTable } from "../db/schema/workSchedules.js";
+import { workScheduleDaysTable } from "../db/schema/workScheduleDays.js";
 
 const SALT_ROUNDS = 10;
 
@@ -17,6 +18,7 @@ const UpdateSettings = async (req: Request, res: Response) => {
    document,
    password,
    address,
+   phone,
    accountType,
    homeService,
    businessType,
@@ -24,9 +26,22 @@ const UpdateSettings = async (req: Request, res: Response) => {
    customAiStyle,
    workSchedule,
    privacyAccepted,
+   scheduleInterval,
+   appointmentBuffer,
   } = req.body;
 
-  if (!name || !document || !address || !accountType || !businessType || !aiStyle || !workSchedule) {
+  const validIntervals = [5, 10, 15, 20, 30, 40, 60];
+  if (scheduleInterval !== undefined && !validIntervals.includes(Number(scheduleInterval))) {
+   return res.status(400).json({ error: "Intervalo da agenda inválido" });
+  }
+  if (
+   appointmentBuffer !== undefined &&
+   (isNaN(Number(appointmentBuffer)) || Number(appointmentBuffer) < 0 || Number(appointmentBuffer) > 240)
+  ) {
+   return res.status(400).json({ error: "Delay entre atendimentos inválido" });
+  }
+
+  if (!name || !document || !address || !accountType || !businessType || !aiStyle) {
    return res.status(400).json({ error: "Campos obrigatórios ausentes" });
   }
   if (
@@ -39,8 +54,10 @@ const UpdateSettings = async (req: Request, res: Response) => {
   ) {
    return res.status(400).json({ error: "Endereço incompleto" });
   }
-  if (!workSchedule.startTime || !workSchedule.endTime || !Array.isArray(workSchedule.daysOfWeek)) {
-   return res.status(400).json({ error: "Horário de trabalho incompleto" });
+
+  // workSchedule.days agora é um array de dias (opcional na atualização)
+  if (workSchedule && workSchedule.days && !Array.isArray(workSchedule.days)) {
+   return res.status(400).json({ error: "Dias da jornada devem ser um array" });
   }
 
   const documentDigits = String(document).replace(/\D/g, "");
@@ -66,7 +83,15 @@ const UpdateSettings = async (req: Request, res: Response) => {
     aiStyle,
     customAiStyle: customAiStyle || null,
     privacyAccepted: privacyAccepted ?? false,
+    phone: phone || null,
    };
+
+   if (scheduleInterval !== undefined) {
+    userUpdate.scheduleInterval = Number(scheduleInterval);
+   }
+   if (appointmentBuffer !== undefined) {
+    userUpdate.appointmentBuffer = Number(appointmentBuffer);
+   }
 
    // senha só entra no update se foi enviada
    if (password) {
@@ -108,36 +133,69 @@ const UpdateSettings = async (req: Request, res: Response) => {
     throw new Error("ADDRESS_UPDATE_FAILED");
    }
 
-   // Horário de trabalho: mesma lógica de update-ou-insere
-   const [existingSchedule] = await tx
-    .select({ id: workSchedulesTable.id })
-    .from(workSchedulesTable)
-    .where(eq(workSchedulesTable.userId, userId))
-    .limit(1);
+   // Horário de trabalho: atualiza o template e os dias
+   let updatedScheduleData: any = null;
+   let updatedScheduleDays: any[] = [];
 
-   const scheduleData = {
-    startTime: workSchedule.startTime,
-    endTime: workSchedule.endTime,
-    daysOfWeek: workSchedule.daysOfWeek.join(","),
-    // lunchStart: workSchedule.lunchStart ?? null,
-    // lunchEnd: workSchedule.lunchEnd ?? null,
-    // ^ descomente depois de rodar a migration adicionando lunch_start/lunch_end em work_schedules
-    updatedAt: new Date(),
-   };
-
-   const [updatedSchedule] = existingSchedule
-    ? await tx
-     .update(workSchedulesTable)
-     .set(scheduleData)
+   if (workSchedule) {
+    const [existingSchedule] = await tx
+     .select({ id: workSchedulesTable.id })
+     .from(workSchedulesTable)
      .where(eq(workSchedulesTable.userId, userId))
-     .returning()
-    : await tx
-     .insert(workSchedulesTable)
-     .values({ userId, ...scheduleData })
-     .returning();
+     .limit(1);
 
-   if (!updatedSchedule) {
-    throw new Error("SCHEDULE_UPDATE_FAILED");
+    const scheduleTemplateData = {
+     name: workSchedule.name || "Jornada Padrão",
+     isActive: workSchedule.isActive ?? true,
+     updatedAt: new Date(),
+    };
+
+    let scheduleId: number;
+
+    if (existingSchedule) {
+     const [updated] = await tx
+      .update(workSchedulesTable)
+      .set(scheduleTemplateData)
+      .where(eq(workSchedulesTable.userId, userId))
+      .returning();
+     scheduleId = updated!.id;
+    } else {
+     const [created] = await tx
+      .insert(workSchedulesTable)
+      .values({ userId, ...scheduleTemplateData })
+      .returning();
+     scheduleId = created!.id;
+    }
+
+    // Atualiza os dias da jornada
+    if (workSchedule.days && Array.isArray(workSchedule.days) && workSchedule.days.length > 0) {
+     // Remove dias antigos
+     await tx
+      .delete(workScheduleDaysTable)
+      .where(eq(workScheduleDaysTable.workScheduleId, scheduleId));
+
+     // Insere novos dias
+     const daysToInsert = workSchedule.days.map((day: any) => ({
+      workScheduleId: scheduleId,
+      dayOfWeek: day.dayOfWeek,
+      startTime: day.startTime,
+      endTime: day.endTime,
+      appointmentInterval: day.appointmentInterval,
+      isActive: day.isActive ?? true,
+     }));
+
+     updatedScheduleDays = await tx
+      .insert(workScheduleDaysTable)
+      .values(daysToInsert)
+      .returning();
+    }
+
+    updatedScheduleData = {
+     id: scheduleId,
+     name: scheduleTemplateData.name,
+     isActive: scheduleTemplateData.isActive,
+     days: updatedScheduleDays,
+    };
    }
 
    const { password: _password, ...userWithoutPassword } = updatedUser;
@@ -145,10 +203,7 @@ const UpdateSettings = async (req: Request, res: Response) => {
    return {
     ...userWithoutPassword,
     address: updatedAddress,
-    workSchedule: {
-     ...updatedSchedule,
-     daysOfWeek: updatedSchedule.daysOfWeek.split(",").filter(Boolean).map(Number),
-    },
+    workSchedule: updatedScheduleData,
    };
   });
 

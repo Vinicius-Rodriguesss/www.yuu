@@ -1,0 +1,590 @@
+/* ═══════════ Fluxo de agendamento em etapas ═══════════ */
+
+.sched-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.2);
+  z-index: 999;
+  animation: sched-fade 0.15s ease;
+}
+
+@keyframes sched-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.sched-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.sched-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  background: none;
+  border: 1px solid #ececec;
+  border-radius: 0.5rem;
+  cursor: pointer;
+  color: #1a1a1a;
+  transition: background-color 0.15s ease;
+}
+
+.sched-back:hover { background: #f5f5f5; }
+
+/* Progresso */
+.sched-progress {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 1.5rem;
+  position: relative;
+}
+
+.sched-progress::before {
+  content: "";
+  position: absolute;
+  top: 11px;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: #ececec;
+}
+
+.sched-progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  position: relative;
+  z-index: 1;
+  flex: 1;
+}
+
+.sched-progress-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #ffffff;
+  border: 1px solid #d4d4d4;
+  color: #9b9b9b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+
+.sched-progress-step.done .sched-progress-dot {
+  background: #000000;
+  border-color: #000000;
+  color: #ffffff;
+}
+
+.sched-progress-step.current .sched-progress-dot {
+  transform: scale(1.15);
+  box-shadow: 0 0 0 3px #ececec;
+}
+
+.sched-progress-step small {
+  font-size: 0.625rem;
+  color: #9b9b9b;
+  font-weight: 500;
+}
+
+.sched-progress-step.current small { color: #1a1a1a; }
+
+/* Erro */
+.sched-error {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  background: #fef2f2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+  border-radius: 0.5rem;
+  padding: 0.625rem 0.875rem;
+  font-size: 0.8125rem;
+  margin-bottom: 1rem;
+  animation: sched-fade 0.2s ease;
+}
+
+/* Corpo */
+.sched-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding-bottom: 1rem;
+}
+
+/* Busca */
+.sched-search {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  border: 1px solid #ececec;
+  border-radius: 0.5rem;
+  padding: 0 0.75rem;
+  color: #9b9b9b;
+  transition: border-color 0.15s ease;
+}
+
+.sched-search:focus-within { border-color: #1a1a1a; color: #1a1a1a; }
+
+.sched-search input {
+  flex: 1;
+  border: none;
+  outline: none;
+  padding: 0.65rem 0;
+  font-size: 0.875rem;
+  font-family: inherit;
+  background: transparent;
+}
+
+.sched-quickcreate-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.6rem;
+  background: #fafafa;
+  border: 1px dashed #d4d4d4;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  font-family: inherit;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.sched-quickcreate-btn:hover { background: #f0f0f0; border-color: #9b9b9b; }
+
+/* Listas (clientes/serviços) */
+.sched-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sched-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  background: #ffffff;
+  border: 1px solid #ececec;
+  border-radius: 0.625rem;
+  cursor: pointer;
+  font-family: inherit;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+
+.sched-item:hover { border-color: #1a1a1a; transform: translateY(-1px); }
+.sched-item.selected { border-color: #000000; background: #fafafa; }
+
+.sched-avatar {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #f1f1ef;
+  color: #1a1a1a;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.sched-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sched-item-info strong {
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sched-item-info small {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: #9b9b9b;
+}
+
+.sched-item-arrow {
+  transform: rotate(180deg);
+  color: #d4d4d4;
+}
+
+.sched-price {
+  font-size: 0.875rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+/* Vazio */
+.sched-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.375rem;
+  padding: 2.5rem 1rem;
+  color: #9b9b9b;
+  text-align: center;
+}
+
+.sched-empty p { margin: 0; font-size: 0.875rem; color: #6b6b6b; }
+.sched-empty small { font-size: 0.75rem; }
+
+/* Cadastro rápido */
+.sched-quickform {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  animation: sched-fade 0.2s ease;
+}
+
+.sched-ghost-btn {
+  width: 100%;
+  padding: 0.6rem;
+  margin-top: 0.5rem;
+  background: none;
+  border: none;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  color: #6b6b6b;
+  cursor: pointer;
+  text-decoration: underline;
+}
+
+.sched-ghost-btn:hover { color: #1a1a1a; }
+
+/* Data & slots */
+.sched-datebar {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  border: 1px solid #ececec;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  color: #6b6b6b;
+}
+
+.sched-datebar input {
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: 0.875rem;
+  color: #1a1a1a;
+  background: transparent;
+}
+
+.sched-datebar-label {
+  margin-left: auto;
+  font-size: 0.75rem;
+  color: #9b9b9b;
+  text-transform: capitalize;
+}
+
+.sched-slots-meta {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  font-size: 0.6875rem;
+  color: #9b9b9b;
+}
+
+.sched-slots {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  gap: 0.5rem;
+}
+
+.sched-slot {
+  padding: 0.5rem 0;
+  border-radius: 0.5rem;
+  border: 1px solid #ececec;
+  background: #ffffff;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: #1a1a1a;
+  cursor: pointer;
+  transition: all 0.12s ease;
+  text-align: center;
+}
+
+.sched-slot-available:hover {
+  border-color: #000000;
+  background: #000000;
+  color: #ffffff;
+  transform: translateY(-1px);
+}
+
+.sched-slot.selected {
+  border-color: #000000;
+  background: #000000;
+  color: #ffffff;
+}
+
+.sched-slot:disabled { cursor: not-allowed; }
+
+.sched-slot-occupied {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+  color: #8a8a8a;
+  text-decoration: line-through;
+}
+
+.sched-slot-blocked {
+  background: repeating-linear-gradient(45deg, #faf1f1, #faf1f1 4px, #f5e4e4 4px, #f5e4e4 8px);
+  border-color: #f1c4c2;
+  color: #b06663;
+}
+
+.sched-slot-past {
+  background: #fafafa;
+  color: #c4c4c4;
+}
+
+.sched-slot-unavailable {
+  background: #fafafa;
+  color: #c4c4c4;
+  border-style: dashed;
+}
+
+/* Skeleton */
+.sched-slots-skeleton {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
+  gap: 0.5rem;
+}
+
+.sched-slots-skeleton span {
+  height: 34px;
+  border-radius: 0.5rem;
+  background: linear-gradient(90deg, #f0f0f0 25%, #fafafa 50%, #f0f0f0 75%);
+  background-size: 200% 100%;
+  animation: sched-shimmer 1.2s infinite;
+}
+
+@keyframes sched-shimmer {
+  from { background-position: 200% 0; }
+  to { background-position: -200% 0; }
+}
+
+/* Legenda */
+.sched-legend {
+  display: flex;
+  gap: 1rem;
+  flex-wrap: wrap;
+  font-size: 0.6875rem;
+  color: #6b6b6b;
+}
+
+.sched-legend span { display: flex; align-items: center; gap: 0.3rem; }
+
+.lg {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+  display: inline-block;
+  border: 1px solid #ececec;
+}
+
+.lg-available { background: #ffffff; }
+.lg-occupied { background: #1a1a1a; border-color: #1a1a1a; }
+.lg-blocked { background: repeating-linear-gradient(45deg, #faf1f1, #faf1f1 2px, #f1c4c2 2px, #f1c4c2 4px); border-color: #f1c4c2; }
+.lg-past { background: #fafafa; }
+
+/* Resumo (etapa 4) */
+.sched-summary {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid #ececec;
+  border-radius: 0.75rem;
+  overflow: hidden;
+}
+
+.sched-summary-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  padding: 0.875rem 1rem;
+  border-bottom: 1px solid #f5f5f5;
+  color: #6b6b6b;
+}
+
+.sched-summary-row:last-child { border-bottom: none; }
+
+.sched-summary-row > div {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.sched-summary-row small {
+  font-size: 0.6875rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: #9b9b9b;
+}
+
+.sched-summary-row strong {
+  font-size: 0.875rem;
+  color: #1a1a1a;
+}
+
+.sched-summary-row span {
+  font-size: 0.8125rem;
+  color: #6b6b6b;
+}
+
+.sched-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.sched-check input { accent-color: #000000; }
+
+/* Sucesso */
+.sched-success {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.75rem;
+  text-align: center;
+  padding: 2rem 1rem;
+  animation: sched-fade 0.25s ease;
+}
+
+.sched-success-icon {
+  color: #448361;
+  animation: sched-pop 0.3s ease;
+}
+
+@keyframes sched-pop {
+  from { transform: scale(0.6); opacity: 0; }
+  to { transform: scale(1); opacity: 1; }
+}
+
+.sched-success h3 { margin: 0; font-size: 1.125rem; }
+
+.sched-success p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #6b6b6b;
+  max-width: 320px;
+}
+
+.sched-success p strong { color: #1a1a1a; }
+
+.sched-success-actions {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 280px;
+  margin-top: 0.5rem;
+}
+
+/* Domicílio */
+.sched-check-card {
+  border: 1px solid #ececec;
+  border-radius: 0.625rem;
+  padding: 0.75rem 0.875rem;
+  flex-wrap: wrap;
+}
+
+.sched-check-card small {
+  width: 100%;
+  margin-left: 1.75rem;
+  color: #9b9b9b;
+  font-size: 0.6875rem;
+}
+
+.sched-addressbox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  animation: sched-fade 0.2s ease;
+}
+
+.sched-address {
+  display: flex;
+  align-items: center;
+  gap: 0.625rem;
+  border: 1px solid #ececec;
+  border-radius: 0.625rem;
+  padding: 0.625rem 0.75rem;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+}
+
+.sched-address:hover { border-color: #9b9b9b; }
+.sched-address.selected { border-color: #000000; background: #fafafa; }
+
+.sched-address input { accent-color: #000000; }
+
+.sched-address span {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+  flex: 1;
+}
+
+.sched-address strong {
+  font-size: 0.8125rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sched-address small { font-size: 0.6875rem; color: #9b9b9b; }
+
+.sched-address-tag {
+  font-style: normal;
+  font-size: 0.625rem;
+  background: #f1f1ef;
+  color: #6b6b6b;
+  border-radius: 999px;
+  padding: 0.125rem 0.5rem;
+  flex-shrink: 0;
+}
+
+.sched-travel-note {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  color: #448361;
+  background: #edf3ec;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+}
+
+.sched-travel-warn {
+  color: #cb912f;
+  background: #fbf3db;
+}

@@ -10,10 +10,11 @@ import {
   FiClock,
   FiChevronDown,
   FiShield,
-  FiCoffee,
   FiAlertCircle,
   FiCheck,
   FiNavigation,
+  FiLink,
+  FiCopy,
 } from "react-icons/fi";
 import {
   validatePassword,
@@ -50,9 +51,9 @@ interface FormState {
   workStart: string;
   workEnd: string;
   workDays: number[];
-  hasLunchBreak: boolean;
-  lunchStart: string;
-  lunchEnd: string;
+  appointmentInterval: number;
+  scheduleInterval: number;
+  appointmentBuffer: number;
   privacyAccepted: boolean;
 }
 
@@ -66,13 +67,19 @@ interface ProfileResponse {
   aiStyle: "direto" | "amigavel" | "profissional";
   customAiStyle?: string;
   workSchedule: {
-    startTime: string;
-    endTime: string;
-    daysOfWeek: number[];
-    lunchStart?: string | null;
-    lunchEnd?: string | null;
+    name?: string;
+    days: {
+      dayOfWeek: number;
+      startTime: string;
+      endTime: string;
+      appointmentInterval: number;
+      isActive: boolean;
+    }[];
   };
   privacyAccepted?: boolean;
+  scheduleInterval?: number;
+  appointmentBuffer?: number;
+  publicSlug?: string | null;
 }
 
 const emptyForm: FormState = {
@@ -87,9 +94,9 @@ const emptyForm: FormState = {
   workStart: "",
   workEnd: "",
   workDays: [1, 2, 3, 4, 5],
-  hasLunchBreak: false,
-  lunchStart: "",
-  lunchEnd: "",
+  appointmentInterval: 30,
+  scheduleInterval: 15,
+  appointmentBuffer: 0,
   privacyAccepted: true,
 };
 
@@ -129,7 +136,7 @@ const formatDocument = (value: string) => {
     .replace(/(\d{4})(\d)/, "$1-$2");
 };
 
-type SectionId = "personal" | "password" | "address" | "account" | "ai" | "schedule";
+type SectionId = "personal" | "password" | "address" | "account" | "ai" | "schedule" | "public";
 
 const SECTIONS: { id: SectionId; icon: typeof FiUser; label: string; subtitle: string }[] = [
   { id: "personal", icon: FiUser, label: "Dados pessoais", subtitle: "Nome e documento" },
@@ -137,7 +144,8 @@ const SECTIONS: { id: SectionId; icon: typeof FiUser; label: string; subtitle: s
   { id: "address", icon: FiMapPin, label: "Endereço", subtitle: "Onde você atende" },
   { id: "account", icon: FiBriefcase, label: "Tipo de conta", subtitle: "Estabelecimento ou profissional" },
   { id: "ai", icon: FiMessageSquare, label: "Estilo da IA", subtitle: "Como ela fala com seus clientes" },
-  { id: "schedule", icon: FiClock, label: "Horários", subtitle: "Jornada e intervalo" },
+  { id: "schedule", icon: FiClock, label: "Horários", subtitle: "Jornada, intervalo da agenda e delay" },
+  { id: "public", icon: FiLink, label: "Divulgação", subtitle: "Seu link público de agendamento" },
 ];
 
 const Settings = () => {
@@ -148,6 +156,10 @@ const Settings = () => {
 
   const [form, setForm] = useState<FormState>(emptyForm);
   const initialSnapshot = useRef<string>(JSON.stringify(emptyForm));
+
+  const [publicSlug, setPublicSlug] = useState<string | null>(null);
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
 
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -203,16 +215,17 @@ const Settings = () => {
         businessType: data.businessType,
         aiStyle: data.aiStyle,
         customAiStyle: data.customAiStyle || "",
-        workStart: data.workSchedule.startTime,
-        workEnd: data.workSchedule.endTime,
-        workDays: data.workSchedule.daysOfWeek,
-        hasLunchBreak: Boolean(data.workSchedule.lunchStart && data.workSchedule.lunchEnd),
-        lunchStart: data.workSchedule.lunchStart || "",
-        lunchEnd: data.workSchedule.lunchEnd || "",
+        workStart: data.workSchedule.days[0]?.startTime || "",
+        workEnd: data.workSchedule.days[0]?.endTime || "",
+        workDays: data.workSchedule.days.map(d => d.dayOfWeek),
+        appointmentInterval: data.workSchedule.days[0]?.appointmentInterval || 30,
+        scheduleInterval: data.scheduleInterval ?? 15,
+        appointmentBuffer: data.appointmentBuffer ?? 0,
         privacyAccepted: data.privacyAccepted ?? true,
       };
 
       setForm(next);
+      setPublicSlug(data.publicSlug ?? null);
       initialSnapshot.current = JSON.stringify(next);
     } catch {
       setToast({ show: true, type: "error", message: "Erro ao carregar dados" });
@@ -359,8 +372,7 @@ const Settings = () => {
 
     if (!form.workStart || !form.workEnd) errors.push({ section: "schedule", message: "Informe o horário de trabalho" });
     if (form.workDays.length === 0) errors.push({ section: "schedule", message: "Selecione ao menos um dia" });
-    if (form.hasLunchBreak && (!form.lunchStart || !form.lunchEnd))
-      errors.push({ section: "schedule", message: "Informe o intervalo de almoço ou desative-o" });
+    if (!form.scheduleInterval || form.scheduleInterval <= 0) errors.push({ section: "schedule", message: "Informe o intervalo da agenda" });
 
     if (!form.privacyAccepted) errors.push({ section: "schedule", message: "Confirme a política de privacidade" });
 
@@ -399,12 +411,17 @@ const Settings = () => {
       aiStyle: form.aiStyle,
       customAiStyle: form.customAiStyle || undefined,
       workSchedule: {
-        startTime: form.workStart,
-        endTime: form.workEnd,
-        daysOfWeek: form.workDays,
-        lunchStart: form.hasLunchBreak ? form.lunchStart : null,
-        lunchEnd: form.hasLunchBreak ? form.lunchEnd : null,
+        name: "Jornada Padrão",
+        days: form.workDays.map(day => ({
+          dayOfWeek: day,
+          startTime: form.workStart,
+          endTime: form.workEnd,
+          appointmentInterval: form.scheduleInterval,
+          isActive: true,
+        })),
       },
+      scheduleInterval: form.scheduleInterval,
+      appointmentBuffer: form.appointmentBuffer,
       privacyAccepted: form.privacyAccepted,
     };
     if (password) payload.password = password;
@@ -429,6 +446,37 @@ const Settings = () => {
       setToast({ show: true, type: "error", message: "Erro ao salvar. Tente novamente." });
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleGeneratePublicLink = async () => {
+    setGeneratingLink(true);
+    try {
+      const res = await fetch("http://localhost:3000/user/public-link", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      if (!res.ok) throw new Error("Erro ao gerar link");
+      const data = await res.json();
+      setPublicSlug(data.publicSlug);
+      setToast({ show: true, type: "success", message: "Link de divulgação gerado!" });
+    } catch {
+      setToast({ show: true, type: "error", message: "Erro ao gerar link de divulgação" });
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
+
+  const publicUrl = publicSlug ? `${window.location.origin}/p/${publicSlug}` : null;
+
+  const handleCopyPublicLink = async () => {
+    if (!publicUrl) return;
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2500);
+    } catch {
+      setToast({ show: true, type: "error", message: "Não foi possível copiar o link" });
     }
   };
 
@@ -473,6 +521,7 @@ const Settings = () => {
               case "account": return form.accountType || form.businessType;
               case "ai": return form.aiStyle;
               case "schedule": return form.workStart || form.workEnd;
+              case "public": return Boolean(publicSlug);
               default: return false;
             }
           })();
@@ -867,6 +916,60 @@ const Settings = () => {
 
                   {id === "schedule" && (
                     <div className="space-y-5 pt-4">
+                      {/* Intervalo da Agenda */}
+                      <div>
+                        <label className={labelClass}>Intervalo da Agenda</label>
+                        <p className="text-xs text-gray-400 mb-2">
+                          Define de quanto em quanto tempo os horários são oferecidos (ex: 09:00, 09:15...)
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {[5, 10, 15, 20, 30, 40, 60].map((min) => {
+                            const active = form.scheduleInterval === min;
+                            return (
+                              <button
+                                key={min}
+                                type="button"
+                                onClick={() => update("scheduleInterval", min)}
+                                className={`px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                                  active
+                                    ? "bg-gray-900 text-white shadow-sm"
+                                    : "border border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50"
+                                }`}
+                              >
+                                {min} min
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Delay entre atendimentos */}
+                      <div>
+                        <label className={labelClass}>Delay entre atendimentos</label>
+                        <p className="text-xs text-gray-400 mb-2">
+                          Tempo de descanso após cada atendimento. O próximo cliente só pode iniciar depois desse período.
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {[0, 5, 10, 15, 20, 30].map((min) => {
+                            const active = form.appointmentBuffer === min;
+                            return (
+                              <button
+                                key={min}
+                                type="button"
+                                onClick={() => update("appointmentBuffer", min)}
+                                className={`px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                                  active
+                                    ? "bg-gray-900 text-white shadow-sm"
+                                    : "border border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50"
+                                }`}
+                              >
+                                {min === 0 ? "Sem delay" : `${min} min`}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+
                       <div>
                         <label className={labelClass}>Horário de trabalho</label>
                         <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
@@ -884,40 +987,6 @@ const Settings = () => {
                             className={inputClass}
                           />
                         </div>
-                      </div>
-
-                      <div>
-                        <label className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer mb-3">
-                          <div className="relative">
-                            <input
-                              type="checkbox"
-                              checked={form.hasLunchBreak}
-                              onChange={(e) => update("hasLunchBreak", e.target.checked)}
-                              className="sr-only peer"
-                            />
-                            <div className="w-9 h-5 bg-gray-200 rounded-full peer-checked:bg-gray-900 transition-colors duration-200"></div>
-                            <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm peer-checked:translate-x-4 transition-transform duration-200"></div>
-                          </div>
-                          <FiCoffee size={15} className="text-gray-400" />
-                          Tenho intervalo de almoço
-                        </label>
-                        {form.hasLunchBreak && (
-                          <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
-                            <input
-                              type="time"
-                              value={form.lunchStart}
-                              onChange={(e) => update("lunchStart", e.target.value)}
-                              className={inputClass}
-                            />
-                            <span className="text-xs text-gray-300 font-medium">até</span>
-                            <input
-                              type="time"
-                              value={form.lunchEnd}
-                              onChange={(e) => update("lunchEnd", e.target.value)}
-                              className={inputClass}
-                            />
-                          </div>
-                        )}
                       </div>
 
                       <div>
@@ -967,6 +1036,50 @@ const Settings = () => {
                           Confirmo que meus dados estão corretos e aceito os Termos de Uso e a Política de Privacidade.
                         </span>
                       </label>
+                    </div>
+                  )}
+
+                  {id === "public" && (
+                    <div className="space-y-4 pt-4">
+                      <p className="text-xs text-gray-400">
+                        Sua página pública permite que clientes vejam seus serviços e façam
+                        agendamentos direto pelo link — ideal para colocar na bio do Instagram
+                        ou enviar no WhatsApp.
+                      </p>
+
+                      {publicUrl ? (
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <code className="flex-1 min-w-0 truncate text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-gray-700">
+                            {publicUrl}
+                          </code>
+                          <button
+                            type="button"
+                            onClick={handleCopyPublicLink}
+                            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-all duration-200"
+                          >
+                            {linkCopied ? <FiCheck size={13} className="text-green-600" /> : <FiCopy size={13} />}
+                            {linkCopied ? "Copiado!" : "Copiar"}
+                          </button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleGeneratePublicLink}
+                          disabled={generatingLink}
+                          className="inline-flex items-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-lg text-xs font-semibold hover:bg-gray-800 transition-all duration-200 disabled:opacity-40"
+                        >
+                          {generatingLink ? (
+                            <div className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <FiLink size={13} />
+                          )}
+                          Gerar Link de Divulgação
+                        </button>
+                      )}
+
+                      <p className="text-[11px] text-gray-300">
+                        O link é único e não muda depois de gerado.
+                      </p>
                     </div>
                   )}
                 </div>

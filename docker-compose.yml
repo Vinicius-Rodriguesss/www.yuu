@@ -20,6 +20,7 @@ services:
     environment:
       - CHOKIDAR_USEPOLLING=true
       - CHOKIDAR_INTERVAL=300
+      - TZ=UTC
 
     depends_on:
       - postgres

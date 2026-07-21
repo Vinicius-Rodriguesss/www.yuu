@@ -1,12 +1,12 @@
-// db/schema/addresses.ts
-import { pgTable, integer, varchar, timestamp } from "drizzle-orm/pg-core";
-import { usersTable } from "./users.js";
+// db/schema/customerAddresses.ts
+import { pgTable, integer, varchar, boolean, timestamp } from "drizzle-orm/pg-core";
+import { customersTable } from "./customers.js";
 
-export const addressesTable = pgTable("addresses", {
+export const customerAddressesTable = pgTable("customer_addresses", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
-  userId: integer("user_id")
+  customerId: integer("customer_id")
     .notNull()
-    .references(() => usersTable.id, { onDelete: "cascade" }),
+    .references(() => customersTable.id, { onDelete: "cascade" }),
   cep: varchar({ length: 10 }).notNull(),
   street: varchar({ length: 255 }).notNull(),
   number: varchar({ length: 20 }).notNull(),
@@ -14,6 +14,7 @@ export const addressesTable = pgTable("addresses", {
   neighborhood: varchar({ length: 100 }).notNull(),
   city: varchar({ length: 100 }).notNull(),
   state: varchar({ length: 2 }).notNull(),
+  isPrimary: boolean("is_primary").default(false).notNull(),
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp().defaultNow().notNull(),
 });

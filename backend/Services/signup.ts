@@ -6,6 +6,7 @@ import { db } from "../db/index.js";
 import { usersTable } from "../db/schema/users.js";
 import { addressesTable } from "../db/schema/addresses.js";
 import { workSchedulesTable } from "../db/schema/workSchedules.js";
+import { workScheduleDaysTable } from "../db/schema/workScheduleDays.js";
 
 // Estrutura esperada no body da requisição
 interface SignupBody {
@@ -14,7 +15,7 @@ interface SignupBody {
   password: string;
 
   address: {
-    cep: string;
+    cep: string;  
     street: string;
     number: string;
     complement?: string;
@@ -31,11 +32,14 @@ interface SignupBody {
   customAiStyle?: string;
 
   workSchedule: {
-    startTime: string;
-    endTime: string;
-    daysOfWeek: number[];
-    lunchStart?: string | null;
-    lunchEnd?: string | null;
+    name?: string;
+    days: {
+      dayOfWeek: number;
+      startTime: string;
+      endTime: string;
+      appointmentInterval: number;
+      isActive?: boolean;
+    }[];
   };
 
   privacyAccepted: boolean;
@@ -72,15 +76,9 @@ const Signup = async (req: Request<{}, {}, SignupBody>, res: Response) => {
     }
 
     // Validação da jornada de trabalho
-    if (!workSchedule || !workSchedule.startTime || !workSchedule.endTime) {
+    if (!workSchedule || !Array.isArray(workSchedule.days) || workSchedule.days.length === 0) {
       return res.status(400).json({
-        message: "Horário de início e fim são obrigatórios",
-      });
-    }
-
-    if (workSchedule.daysOfWeek.length === 0) {
-      return res.status(400).json({
-        message: "Selecione pelo menos um dia da semana",
+        message: "Informe pelo menos um dia de trabalho",
       });
     }
 
@@ -99,9 +97,6 @@ const Signup = async (req: Request<{}, {}, SignupBody>, res: Response) => {
 
     // Criptografa senha
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Converte array de dias para string separada por vírgula
-    const daysOfWeekString = workSchedule.daysOfWeek.join(",");
 
     // Transaction garante consistência
     const result = await db.transaction(async (tx) => {
@@ -137,14 +132,27 @@ const Signup = async (req: Request<{}, {}, SignupBody>, res: Response) => {
         state: address.state,
       });
 
-      // 3. Criando jornada de trabalho
-      await tx.insert(workSchedulesTable).values({
-        userId: user.id,
-        startTime: workSchedule.startTime,
-        endTime: workSchedule.endTime,
-        daysOfWeek: daysOfWeekString,
-        isActive: true,
-      });
+      // 3. Criando jornada de trabalho (template)
+      const [schedule] = await tx
+        .insert(workSchedulesTable)
+        .values({
+          userId: user.id,
+          name: workSchedule.name || "Jornada Padrão",
+          isActive: true,
+        })
+        .returning();
+
+      // 4. Criando os dias da jornada
+      const daysToInsert = workSchedule.days.map((day) => ({
+        workScheduleId: schedule!.id,
+        dayOfWeek: day.dayOfWeek,
+        startTime: day.startTime,
+        endTime: day.endTime,
+        appointmentInterval: day.appointmentInterval,
+        isActive: day.isActive ?? true,
+      }));
+
+      await tx.insert(workScheduleDaysTable).values(daysToInsert);
 
       return user;
     });
