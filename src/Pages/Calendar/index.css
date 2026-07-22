@@ -694,6 +694,69 @@
   }
 }
 
+/* ── Modal de cancelamento ── */
+.cal-cancel-modal {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 360px;
+  max-width: calc(100% - 2rem);
+  background: #ffffff;
+  border: 1px solid #ececec;
+  border-radius: 0.75rem;
+  padding: 1.25rem;
+  z-index: 902;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.14);
+  animation: cal-fade 0.15s ease;
+}
+
+.cal-cancel-modal h3 {
+  margin: 0 0 0.375rem;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.cal-cancel-modal p {
+  margin: 0 0 0.75rem;
+  font-size: 0.8125rem;
+  color: #6b6b6b;
+}
+
+.cal-cancel-textarea {
+  width: 100%;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  padding: 0.5rem 0.625rem;
+  border: 1px solid #ececec;
+  border-radius: 0.5rem;
+  resize: vertical;
+  color: #1a1a1a;
+}
+
+.cal-cancel-textarea:focus {
+  outline: none;
+  border-color: #9b9b9b;
+}
+
+.cal-cancel-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.875rem;
+}
+
+.cal-action-danger-solid {
+  background: #d44c47;
+  border-color: #d44c47;
+  color: #ffffff;
+}
+
+.cal-action-danger-solid:hover:not(:disabled) {
+  background: #bd3f3a;
+  border-color: #bd3f3a;
+}
+
 /* ══ Fita de dias + painel inline (mobile) ══ */
 
 /* Desktop: escondidos */

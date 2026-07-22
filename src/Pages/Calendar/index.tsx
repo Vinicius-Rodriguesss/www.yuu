@@ -106,6 +106,8 @@ const Calendar = () => {
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [dayAvailability, setDayAvailability] = useState<DayAvailability | null>(null);
   const [copiedId, setCopiedId] = useState<number | null>(null);
+  const [cancelTarget, setCancelTarget] = useState<number | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
   const stripRef = useRef<HTMLDivElement>(null);
 
   const loadData = useCallback(async () => {
@@ -207,12 +209,12 @@ const Calendar = () => {
     setSelectedDay(now);
   };
 
-  const updateStatus = async (id: number, status: string) => {
+  const updateStatus = async (id: number, status: string, cancellationReason?: string) => {
     setUpdatingId(id);
     try {
       await apiFetch(`/appointments/${id}/status`, {
         method: "PATCH",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ status, cancellationReason }),
       });
       await loadData();
     } catch (error) {
@@ -220,6 +222,23 @@ const Calendar = () => {
     } finally {
       setUpdatingId(null);
     }
+  };
+
+  const openCancelModal = (id: number) => {
+    setCancelReason("");
+    setCancelTarget(id);
+  };
+
+  const closeCancelModal = () => {
+    setCancelTarget(null);
+    setCancelReason("");
+  };
+
+  const confirmCancel = async () => {
+    if (cancelTarget == null) return;
+    const reason = cancelReason.trim();
+    await updateStatus(cancelTarget, "cancelled", reason || undefined);
+    closeCancelModal();
   };
 
   const todayKey = dayKey(today);
@@ -370,7 +389,7 @@ const Calendar = () => {
                         <button
                           disabled={busy}
                           className="cal-action cal-action-danger"
-                          onClick={() => updateStatus(appt.id, "cancelled")}
+                          onClick={() => openCancelModal(appt.id)}
                         >
                           Cancelar
                         </button>
@@ -551,6 +570,41 @@ const Calendar = () => {
 
             <div className="cal-drawer-body">{dayPanelBody}</div>
           </aside>
+        </>
+      )}
+
+      {/* ── Modal de cancelamento ── */}
+      {cancelTarget != null && (
+        <>
+          <div className="cal-overlay" onClick={closeCancelModal} />
+          <div className="cal-cancel-modal" role="dialog" aria-modal="true">
+            <h3>Cancelar agendamento</h3>
+            <p>Tem certeza que deseja cancelar este atendimento? Você pode informar um motivo (opcional).</p>
+            <textarea
+              className="cal-cancel-textarea"
+              placeholder="Motivo do cancelamento (opcional)"
+              value={cancelReason}
+              onChange={(e) => setCancelReason(e.target.value)}
+              rows={3}
+              autoFocus
+            />
+            <div className="cal-cancel-actions">
+              <button
+                className="cal-action"
+                onClick={closeCancelModal}
+                disabled={updatingId === cancelTarget}
+              >
+                Voltar
+              </button>
+              <button
+                className="cal-action cal-action-danger cal-action-danger-solid"
+                onClick={confirmCancel}
+                disabled={updatingId === cancelTarget}
+              >
+                {updatingId === cancelTarget ? "Cancelando..." : "Confirmar cancelamento"}
+              </button>
+            </div>
+          </div>
         </>
       )}
 

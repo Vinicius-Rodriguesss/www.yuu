@@ -7,12 +7,15 @@ import { usersTable } from "../db/schema/users.js";
 import { addressesTable } from "../db/schema/addresses.js";
 import { workSchedulesTable } from "../db/schema/workSchedules.js";
 import { workScheduleDaysTable } from "../db/schema/workScheduleDays.js";
+import { welcomeEmailTemplate } from "./Email/templates.js";
+import { sendMail } from "./Email/mailer.js";
 
 // Estrutura esperada no body da requisição
 interface SignupBody {
   name: string;
   document: string;
   password: string;
+  email: string;
 
   address: {
     cep: string;  
@@ -52,6 +55,7 @@ const Signup = async (req: Request<{}, {}, SignupBody>, res: Response) => {
       name,
       document,
       password,
+      email,
       address,
       accountType,
       homeService,
@@ -68,6 +72,13 @@ const Signup = async (req: Request<{}, {}, SignupBody>, res: Response) => {
         message: "Nome, documento e senha são obrigatórios",
       });
     }
+
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({
+        message: "Email válido é obrigatório (usado para login e recuperação de senha)",
+      });
+    }
+    const cleanEmail = email.trim().toLowerCase();
 
     if (!privacyAccepted) {
       return res.status(400).json({
@@ -95,6 +106,19 @@ const Signup = async (req: Request<{}, {}, SignupBody>, res: Response) => {
       });
     }
 
+    // Verifica se o email já está em uso
+    const existingEmail = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.email, cleanEmail))
+      .limit(1);
+
+    if (existingEmail.length > 0) {
+      return res.status(409).json({
+        message: "Este email já está cadastrado no sistema",
+      });
+    }
+
     // Criptografa senha
     const hashedPassword = await bcrypt.hash(password, 10);
 
@@ -107,6 +131,7 @@ const Signup = async (req: Request<{}, {}, SignupBody>, res: Response) => {
           name,
           document,
           password: hashedPassword,
+          email: cleanEmail,
           accountType,
           homeService,
           businessType,
@@ -157,6 +182,14 @@ const Signup = async (req: Request<{}, {}, SignupBody>, res: Response) => {
       return user;
     });
 
+    // Email de boas-vindas não bloqueia o cadastro se falhar
+    try {
+      const { subject, html } = welcomeEmailTemplate(result.name);
+      await sendMail(cleanEmail, subject, html);
+    } catch (emailError) {
+      console.warn("Falha ao enviar email de boas-vindas:", emailError);
+    }
+
     return res.status(201).json({
       message: "Usuário criado com sucesso",
       user: {
@@ -172,8 +205,11 @@ const Signup = async (req: Request<{}, {}, SignupBody>, res: Response) => {
 
     // Erro de chave duplicada (PostgreSQL)
     if (error?.code === "23505") {
+      const isEmailConflict = String(error?.constraint || "").includes("email");
       return res.status(409).json({
-        message: "Registro duplicado. Este dado já existe no sistema.",
+        message: isEmailConflict
+          ? "Este email já está cadastrado no sistema"
+          : "Registro duplicado. Este dado já existe no sistema.",
         detail: error?.detail,
         constraint: error?.constraint,
       });

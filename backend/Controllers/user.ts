@@ -6,6 +6,8 @@ import UpdateSettings from "../Services/UpdateSettings.js";
 import GetProfile from "../Services/GetProfile.js";
 import GeneratePublicLink from "../Services/PublicProfile/generatePublicLink.js";
 import GetPublicProfile from "../Services/PublicProfile/getPublicProfile.js";
+import RequestPasswordChangeCode from "../Services/Password/requestPasswordChangeCode.js";
+import ConfirmPasswordChange from "../Services/Password/confirmPasswordChange.js";
 
 const router = Router();
 
@@ -24,6 +26,14 @@ router.get("/user/profile", authMiddleware, async (req, res) => {
 
 router.post("/user/public-link", authMiddleware, async (req, res) => {
   GeneratePublicLink(req, res);
+});
+
+router.post("/user/password/request-code", authMiddleware, async (req, res) => {
+  RequestPasswordChangeCode(req, res);
+});
+
+router.post("/user/password/confirm", authMiddleware, async (req, res) => {
+  ConfirmPasswordChange(req, res);
 });
 
 // Página pública do profissional (sem autenticação)

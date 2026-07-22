@@ -48,6 +48,12 @@ export const authMiddleware = (
   try {
     const decoded = jwt.verify(token, secret) as TokenPayload;
 
+    // Tokens temporários (ex: pendingToken do login 2FA) não dão acesso a rotas protegidas
+    if ((decoded as any).type) {
+      res.status(401).json({ error: "Token inválido" });
+      return;
+    }
+
     (req as any).userId = decoded.id;
     next();
   } catch (error) {

@@ -1018,8 +1018,13 @@ Authorization: Bearer <token>
 
 | Método | Rota | Autenticação | Descrição |
 |--------|------|-------------|-----------|
-| POST | /authentication | ❌ | Login |
+| POST | /authentication | ❌ | Login (etapa 1 — valida credenciais, envia código por email) |
+| POST | /authentication/verify-code | ❌ | Login (etapa 2 — confirma o código de 6 dígitos) |
 | POST | /validate-token | ✅ | Valida token |
+| POST | /forgot-password | ❌ | Solicita código para redefinir senha |
+| POST | /reset-password | ❌ | Redefine a senha com o código recebido |
+| POST | /user/password/request-code | ✅ | Solicita código para trocar a senha (usuário logado) |
+| POST | /user/password/confirm | ✅ | Confirma a troca de senha com o código |
 | POST | /signup | ❌ | Cadastro de usuário |
 | GET | /user/profile | ✅ | Perfil do usuário |
 | PUT | /user/settings | ✅ | Atualizar configurações |
@@ -1048,4 +1053,27 @@ Authorization: Bearer <token>
 | GET | /work-schedules/:workScheduleId/days | ✅ | Listar dias da jornada |
 | POST | /blocked-slots | ✅ | Criar bloqueio |
 | GET | /blocked-slots | ✅ | Listar bloqueios |
+| POST | /user/public-link | ✅ | Gerar link público do profissional |
+| GET | /public/:slug | ❌ | Perfil público do profissional |
+| POST | /public/:slug/chat | ❌ | Enviar mensagem ao assistente de IA |
+
+---
+
+## Chat com IA (assistente do profissional)
+
+O assistente que responde em `/public/:slug/chat` usa o "treinamento" definido
+pelo profissional em `aiStyle`/`customAiStyle` (cadastro ou Configurações) e
+funciona com qualquer provedor de IA compatível com o formato de "chat
+completions" (OpenAI, Groq, OpenRouter, Together, DeepSeek, Ollama, etc.).
+
+Para ativar, defina no `.env` da raiz:
+
+```
+AI_API_URL=https://api.openai.com/v1
+AI_API_KEY=sua-chave-aqui
+AI_MODEL=gpt-4o-mini
+```
+
+Sem essas variáveis configuradas, o endpoint responde `503` informando que o
+assistente de IA ainda não foi configurado.
 | DELETE | /blocked-slots/:id | ✅ | Deletar bloqueio |

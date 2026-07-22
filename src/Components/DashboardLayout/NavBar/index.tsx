@@ -4,6 +4,7 @@ import {
  MdSpaceDashboard,
  MdEventNote,
  MdContentCut,
+ MdPeople,
  MdSettings,
  MdLogout,
 } from "react-icons/md";
@@ -36,9 +37,10 @@ const NavBar = () => {
  };
 
  const links = [
-  { to: "/calender", label: "Agenda", icon: <MdEventNote size={20} /> },
+  { to: "/calendar", label: "Agenda", icon: <MdEventNote size={20} /> },
   { to: "/dashboard", label: "Dashboard", icon: <MdSpaceDashboard size={20} /> },
   { to: "/service", label: "Serviços", icon: <MdContentCut size={20} /> },
+  { to: "/customers", label: "Clientes", icon: <MdPeople size={20} /> },
   { to: "/config", label: "Configurações", icon: <MdSettings size={20} /> },
   // {to: "/ai", label: "IA", icon: <FaRobot size={20} />,}
  ];

@@ -4,6 +4,7 @@ import { validatePassword, isAllValid, isPasswordMatch, passwordRequirements, va
 import Toast from "../Components/Toast";
 import Header from "@/Components/Header";
 import { Link } from "react-router";
+import { API_URL } from "@/api/client";
 
 const SignUp = () => {
   const [step, setStep] = useState(1);
@@ -12,6 +13,7 @@ const SignUp = () => {
   const [password, setPassWord] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
 
   const [cpfCnpj, setCpfCnpj] = useState("");
   const [cpfCnpjStatus, setCpfCnpjStatus] = useState<{ type: "success" | "error" | "loading"; message: string } | null>(null);
@@ -87,6 +89,10 @@ const SignUp = () => {
     if (step === 1) {
       if (!nameValidation.valid) {
         setToast({ show: true, type: "error", message: nameValidation.message });
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setToast({ show: true, type: "error", message: "Informe um email válido — ele será usado para login e recuperação de senha." });
         return;
       }
       if (!cpfCnpjStatus || cpfCnpjStatus.type !== "success") {
@@ -175,6 +181,7 @@ const SignUp = () => {
       name,
       document: cleanDocument,
       password,
+      email,
       address: {
         cep,
         street,
@@ -203,7 +210,7 @@ const SignUp = () => {
     };
 
     try {
-      const response = await fetch("http://localhost:3000/signup", {
+      const response = await fetch(`${API_URL}/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -579,6 +586,18 @@ const SignUp = () => {
                   placeholder="Nome completo"
                   value={name}
                   onChange={(e) => setName(e.target.value)}
+                  style={styles.input}
+                  onFocus={(e) => e.currentTarget.style.borderColor = "#1a1a1a"}
+                  onBlur={(e) => e.currentTarget.style.borderColor = "#eaeaea"}
+                />
+              </div>
+
+              <div style={styles.inputGroup}>
+                <input
+                  type="email"
+                  placeholder="Email (usado para login e recuperação de senha)"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   style={styles.input}
                   onFocus={(e) => e.currentTarget.style.borderColor = "#1a1a1a"}
                   onBlur={(e) => e.currentTarget.style.borderColor = "#eaeaea"}

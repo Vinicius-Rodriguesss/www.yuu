@@ -4,12 +4,17 @@ import Toast from "../Components/Toast";
 import Header from "@/Components/Header";
 import { Link } from "react-router";
 import { useNavigate } from "react-router";
+import { API_URL } from "@/api/client";
 
 const Login = () => {
   const [document, setDocument] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+
+  // Segunda etapa do login (código enviado por email)
+  const [pendingToken, setPendingToken] = useState<string | null>(null);
+  const [code, setCode] = useState("");
 
   const navigate = useNavigate();
 
@@ -59,7 +64,7 @@ const Login = () => {
     setToast({ show: false, type: "error", message: "" });
 
     try {
-      const response = await fetch("http://localhost:3000/authentication", {
+      const response = await fetch(`${API_URL}/authentication`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ document: numbers, password }),
@@ -71,11 +76,17 @@ const Login = () => {
         throw new Error(data.message || "Erro ao fazer login");
       }
 
+      if (data.requiresCode) {
+        setPendingToken(data.pendingToken);
+        setToast({ show: true, type: "success", message: "Enviamos um código de verificação para o seu email." });
+        setIsLoading(false);
+        return;
+      }
+
       setToast({ show: true, type: "success", message: "Login realizado!" });
 
       localStorage.setItem("token", data.token)
       setTimeout(() => {
-        console.log("Redirecionando...");
         navigate("/dashboard");
         setIsLoading(false);
       }, 1500);
@@ -86,6 +97,46 @@ const Login = () => {
         show: true,
         type: "error",
         message: error instanceof Error ? error.message : "Erro ao fazer login",
+      });
+      setIsLoading(false);
+    }
+  };
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+
+    if (code.trim().length !== 6) {
+      setToast({ show: true, type: "error", message: "Informe o código de 6 dígitos." });
+      return;
+    }
+
+    setIsLoading(true);
+    setToast({ show: false, type: "error", message: "" });
+
+    try {
+      const response = await fetch(`${API_URL}/authentication/verify-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ pendingToken, code: code.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.message || "Código inválido");
+      }
+
+      setToast({ show: true, type: "success", message: "Login realizado!" });
+      localStorage.setItem("token", data.token);
+      setTimeout(() => {
+        navigate("/dashboard");
+        setIsLoading(false);
+      }, 1000);
+    } catch (error) {
+      setToast({
+        show: true,
+        type: "error",
+        message: error instanceof Error ? error.message : "Erro ao verificar código",
       });
       setIsLoading(false);
     }
@@ -117,121 +168,209 @@ const Login = () => {
             onClose={() => setToast({ show: false, type: "error", message: "" })}
           />
 
-          <h1 style={{
-            fontSize: "20px",
-            fontWeight: "600",
-            color: "#1a1a1a",
-            margin: "0 0 4px",
-          }}>Entrar</h1>
-
-          <p style={{
-            fontSize: "13px",
-            color: "#999",
-            margin: "0 0 24px",
-          }}>Bem-vindo de volta</p>
-
-          <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
-            <input
-              type="text"
-              placeholder="CPF ou CNPJ"
-              value={document}
-              onChange={(e) => setDocument(formatDocument(e.target.value))}
-              maxLength={18}
-              style={{
-                width: "100%",
-                padding: "10px 12px",
-                borderRadius: "6px",
-                border: "1px solid #e8e8e8",
-                fontSize: "14px",
-                outline: "none",
-                boxSizing: "border-box",
-                transition: "border 0.15s",
-              }}
-              onFocus={(e) => e.currentTarget.style.borderColor = "#1a1a1a"}
-              onBlur={(e) => e.currentTarget.style.borderColor = "#e8e8e8"}
-            />
-
-            <div style={{ position: "relative" }}>
-              <input
-                type={showPassword ? "text" : "password"}
-                placeholder="Senha"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: "10px 40px 10px 12px",
-                  borderRadius: "6px",
-                  border: "1px solid #e8e8e8",
-                  fontSize: "14px",
-                  outline: "none",
-                  boxSizing: "border-box",
-                  transition: "border 0.15s",
-                }}
-                onFocus={(e) => e.currentTarget.style.borderColor = "#1a1a1a"}
-                onBlur={(e) => e.currentTarget.style.borderColor = "#e8e8e8"}
-              />
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                style={{
-                  position: "absolute",
-                  right: "10px",
-                  top: "50%",
-                  transform: "translateY(-50%)",
-                  background: "none",
-                  border: "none",
-                  cursor: "pointer",
-                  padding: "4px",
-                  color: "#bbb",
-                }}
-              >
-                {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
-              </button>
-            </div>
-
-            <button
-              type="submit"
-              disabled={isLoading}
-              style={{
-                width: "100%",
-                padding: "10px",
-                background: "#1a1a1a",
-                color: "white",
-                border: "none",
-                borderRadius: "6px",
-                fontSize: "14px",
-                fontWeight: "500",
-                cursor: isLoading ? "not-allowed" : "pointer",
-                opacity: isLoading ? 0.6 : 1,
-                transition: "opacity 0.15s",
-              }}
-            >
-              {isLoading ? "Entrando..." : "Entrar"}
-            </button>
-          </form>
-
-          <div style={{
-            display: "flex",
-            justifyContent: "space-between",
-            marginTop: "14px",
-            fontSize: "12px",
-          }}>
-
-            <span style={{ color: "#999" }}>
-              Não tem conta?{" "}
-              <Link to="signup" style={{
-                background: "none",
-                border: "none",
+          {!pendingToken ? (
+            <>
+              <h1 style={{
+                fontSize: "20px",
+                fontWeight: "600",
                 color: "#1a1a1a",
-                fontWeight: "500",
-                cursor: "pointer",
-                padding: 0,
-                textDecoration: "underline",
+                margin: "0 0 4px",
+              }}>Entrar</h1>
+
+              <p style={{
+                fontSize: "13px",
+                color: "#999",
+                margin: "0 0 24px",
+              }}>Bem-vindo de volta</p>
+
+              <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                <input
+                  type="text"
+                  placeholder="CPF ou CNPJ"
+                  value={document}
+                  onChange={(e) => setDocument(formatDocument(e.target.value))}
+                  maxLength={18}
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: "6px",
+                    border: "1px solid #e8e8e8",
+                    fontSize: "14px",
+                    outline: "none",
+                    boxSizing: "border-box",
+                    transition: "border 0.15s",
+                  }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = "#1a1a1a"}
+                  onBlur={(e) => e.currentTarget.style.borderColor = "#e8e8e8"}
+                />
+
+                <div style={{ position: "relative" }}>
+                  <input
+                    type={showPassword ? "text" : "password"}
+                    placeholder="Senha"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    style={{
+                      width: "100%",
+                      padding: "10px 40px 10px 12px",
+                      borderRadius: "6px",
+                      border: "1px solid #e8e8e8",
+                      fontSize: "14px",
+                      outline: "none",
+                      boxSizing: "border-box",
+                      transition: "border 0.15s",
+                    }}
+                    onFocus={(e) => e.currentTarget.style.borderColor = "#1a1a1a"}
+                    onBlur={(e) => e.currentTarget.style.borderColor = "#e8e8e8"}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    style={{
+                      position: "absolute",
+                      right: "10px",
+                      top: "50%",
+                      transform: "translateY(-50%)",
+                      background: "none",
+                      border: "none",
+                      cursor: "pointer",
+                      padding: "4px",
+                      color: "#bbb",
+                    }}
+                  >
+                    {showPassword ? <FiEyeOff size={18} /> : <FiEye size={18} />}
+                  </button>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    background: "#1a1a1a",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    cursor: isLoading ? "not-allowed" : "pointer",
+                    opacity: isLoading ? 0.6 : 1,
+                    transition: "opacity 0.15s",
+                  }}
+                >
+                  {isLoading ? "Entrando..." : "Entrar"}
+                </button>
+              </form>
+
+              <div style={{
+                display: "flex",
+                justifyContent: "space-between",
+                marginTop: "14px",
+                fontSize: "12px",
               }}>
-                Cadastre-se
-              </Link>
-            </span>
-          </div>
+
+                <span style={{ color: "#999" }}>
+                  Não tem conta?{" "}
+                  <Link to="signup" style={{
+                    background: "none",
+                    border: "none",
+                    color: "#1a1a1a",
+                    fontWeight: "500",
+                    cursor: "pointer",
+                    padding: 0,
+                    textDecoration: "underline",
+                  }}>
+                    Cadastre-se
+                  </Link>
+                </span>
+
+                <Link to="/forgot-password" style={{
+                  color: "#1a1a1a",
+                  fontWeight: "500",
+                  textDecoration: "underline",
+                }}>
+                  Esqueci minha senha
+                </Link>
+              </div>
+            </>
+          ) : (
+            <>
+              <h1 style={{
+                fontSize: "20px",
+                fontWeight: "600",
+                color: "#1a1a1a",
+                margin: "0 0 4px",
+              }}>Confirme seu login</h1>
+
+              <p style={{
+                fontSize: "13px",
+                color: "#999",
+                margin: "0 0 24px",
+              }}>Digite o código de 6 dígitos enviado para o seu email</p>
+
+              <form onSubmit={handleVerifyCode} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  placeholder="000000"
+                  value={code}
+                  onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                  maxLength={6}
+                  autoFocus
+                  style={{
+                    width: "100%",
+                    padding: "10px 12px",
+                    borderRadius: "6px",
+                    border: "1px solid #e8e8e8",
+                    fontSize: "20px",
+                    letterSpacing: "6px",
+                    textAlign: "center",
+                    outline: "none",
+                    boxSizing: "border-box",
+                    transition: "border 0.15s",
+                  }}
+                  onFocus={(e) => e.currentTarget.style.borderColor = "#1a1a1a"}
+                  onBlur={(e) => e.currentTarget.style.borderColor = "#e8e8e8"}
+                />
+
+                <button
+                  type="submit"
+                  disabled={isLoading}
+                  style={{
+                    width: "100%",
+                    padding: "10px",
+                    background: "#1a1a1a",
+                    color: "white",
+                    border: "none",
+                    borderRadius: "6px",
+                    fontSize: "14px",
+                    fontWeight: "500",
+                    cursor: isLoading ? "not-allowed" : "pointer",
+                    opacity: isLoading ? 0.6 : 1,
+                    transition: "opacity 0.15s",
+                  }}
+                >
+                  {isLoading ? "Verificando..." : "Confirmar código"}
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => { setPendingToken(null); setCode(""); }}
+                  style={{
+                    background: "none",
+                    border: "none",
+                    color: "#999",
+                    fontSize: "12px",
+                    cursor: "pointer",
+                    textDecoration: "underline",
+                  }}
+                >
+                  Voltar
+                </button>
+              </form>
+            </>
+          )}
         </div>
       </div>
     </>

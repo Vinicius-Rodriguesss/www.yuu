@@ -6,6 +6,7 @@ export const usersTable = pgTable("users", {
   name: varchar({ length: 255 }).notNull(),
   document: varchar({ length: 20 }).notNull().unique(),
   password: varchar({ length: 255 }).notNull(),
+  email: varchar({ length: 255 }).unique(), // usado para login (2FA), boas-vindas, recuperação e troca de senha
   phone: varchar({ length: 20 }),
   accountType: varchar({ length: 50 }).notNull(),
   homeService: boolean().notNull(),

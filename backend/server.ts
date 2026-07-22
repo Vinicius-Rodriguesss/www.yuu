@@ -11,12 +11,15 @@ import WorkScheduleDaysController from "./Controllers/workScheduleDays.js";
 import BlockedSlotsController from "./Controllers/blockedSlots.js";
 import DashboardController from "./Controllers/dashboard.js";
 import AvailabilityController from "./Controllers/availability.js";
+import ChatController from "./Controllers/chat.js";
 
 const app = express();
 
+const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:5173";
+
 app.use(
   cors({
-    origin: "http://localhost:5173", // endereço do seu frontend
+    origin: corsOrigin.split(",").map((o) => o.trim()),
     credentials: true, // se for usar cookies/sessão futuramente
   })
 );
@@ -36,7 +39,10 @@ app.use(WorkScheduleDaysController);
 app.use(BlockedSlotsController);
 app.use(DashboardController);
 app.use(AvailabilityController);
+app.use(ChatController);
 
-app.listen(3000, () => {
-  console.log("Servidor rodando na porta 3000");
+const port = Number(process.env.PORT) || 3000;
+
+app.listen(port, () => {
+  console.log(`Servidor rodando na porta ${port}`);
 });

@@ -5,6 +5,7 @@ import jwt from "jsonwebtoken";
 import { eq } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { usersTable } from "../../db/schema/users.js";
+import { generateAndSendCode } from "../../Services/Email/authCode.js";
 import { config } from "dotenv";
 config({ path: "../.env" });
 
@@ -48,34 +49,57 @@ const Authentication = async (req: Request<{}, {}, LoginBody>, res: Response) =>
       });
     }
 
-    const token = jwt.sign(
-      { 
-        id: user.id,
-        name: user.name,
-        document: user.document,
-        accountType: user.accountType,
-      },
-      process.env.JWT_SECRET || "default_secret_key",
-      { expiresIn: "1d" }
-    );
- 
-    const userWithoutPassword = {
-      id: user.id,
-      name: user.name,
-      document: user.document,
-      accountType: user.accountType,
-      homeService: user.homeService,
-      businessType: user.businessType,
-      aiStyle: user.aiStyle,
-      customAiStyle: user.customAiStyle,
-      privacyAccepted: user.privacyAccepted,
-      createdAt: user.createdAt,
+    const issueDirectLogin = () => {
+      const token = jwt.sign(
+        { id: user.id, name: user.name, document: user.document, accountType: user.accountType },
+        process.env.JWT_SECRET || "default_secret_key",
+        { expiresIn: "1d" }
+      );
+      return res.status(200).json({
+        message: "Login realizado com sucesso",
+        token,
+        user: {
+          id: user.id,
+          name: user.name,
+          document: user.document,
+          accountType: user.accountType,
+          homeService: user.homeService,
+          businessType: user.businessType,
+          aiStyle: user.aiStyle,
+          customAiStyle: user.customAiStyle,
+          privacyAccepted: user.privacyAccepted,
+          createdAt: user.createdAt,
+        },
+      });
     };
 
+    // Sem email cadastrado (contas antigas), não dá pra mandar código —
+    // segue o login direto em vez de travar o acesso.
+    if (!user.email) {
+      return issueDirectLogin();
+    }
+
+    // 2FA: gera e envia o código, retorna um token temporário (10 min) que
+    // só serve para confirmar o código — não dá acesso a nenhuma rota.
+    // Se o envio falhar (SMTP não configurado, fora do ar etc.), não trava
+    // o acesso — cai para login direto, já que o código nunca chegaria mesmo.
+    try {
+      await generateAndSendCode(user.id, "login", user.email, user.name);
+    } catch (emailError) {
+      console.warn("Falha ao enviar código de login, seguindo sem 2FA:", emailError);
+      return issueDirectLogin();
+    }
+
+    const pendingToken = jwt.sign(
+      { id: user.id, type: "pending_login" },
+      process.env.JWT_SECRET || "default_secret_key",
+      { expiresIn: "10m" }
+    );
+
     return res.status(200).json({
-      message: "Login realizado com sucesso",
-      token,
-      user: userWithoutPassword,
+      message: "Enviamos um código de verificação para o seu email",
+      requiresCode: true,
+      pendingToken,
     });
 
   } catch (error: any) {

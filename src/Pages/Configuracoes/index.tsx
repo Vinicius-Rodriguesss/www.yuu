@@ -25,6 +25,7 @@ import {
   type ViaCEPResponse,
 } from "../../SignUp/passwordValidation";
 import Toast from "../../Components/Toast";
+import { API_URL } from "@/api/client";
 
 interface AddressState {
   cep: string;
@@ -42,6 +43,7 @@ type AiStyleType = "direto" | "amigavel" | "profissional" | "";
 interface FormState {
   name: string;
   document: string;
+  email: string;
   address: AddressState;
   accountType: AccountType;
   homeService: boolean;
@@ -60,6 +62,7 @@ interface FormState {
 interface ProfileResponse {
   name: string;
   document: string;
+  email?: string | null;
   address: AddressState;
   accountType: "establishment" | "professional";
   homeService: boolean;
@@ -85,6 +88,7 @@ interface ProfileResponse {
 const emptyForm: FormState = {
   name: "",
   document: "",
+  email: "",
   address: { cep: "", street: "", number: "", complement: "", neighborhood: "", city: "", state: "" },
   accountType: "",
   homeService: false,
@@ -140,7 +144,7 @@ type SectionId = "personal" | "password" | "address" | "account" | "ai" | "sched
 
 const SECTIONS: { id: SectionId; icon: typeof FiUser; label: string; subtitle: string }[] = [
   { id: "personal", icon: FiUser, label: "Dados pessoais", subtitle: "Nome e documento" },
-  { id: "password", icon: FiEye, label: "Senha", subtitle: "Opcional — deixe em branco para manter" },
+  { id: "password", icon: FiEye, label: "Senha", subtitle: "Trocar com confirmação por email" },
   { id: "address", icon: FiMapPin, label: "Endereço", subtitle: "Onde você atende" },
   { id: "account", icon: FiBriefcase, label: "Tipo de conta", subtitle: "Estabelecimento ou profissional" },
   { id: "ai", icon: FiMessageSquare, label: "Estilo da IA", subtitle: "Como ela fala com seus clientes" },
@@ -161,9 +165,14 @@ const Settings = () => {
   const [generatingLink, setGeneratingLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
 
+  // Troca de senha (fluxo separado, com código enviado por email)
+  const [passwordCodeSent, setPasswordCodeSent] = useState(false);
+  const [passwordCode, setPasswordCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [requestingPasswordCode, setRequestingPasswordCode] = useState(false);
+  const [confirmingPasswordChange, setConfirmingPasswordChange] = useState(false);
 
   const [cpfCnpjStatus, setCpfCnpjStatus] = useState<{ type: "success" | "error" | "loading"; message: string } | null>(
     null
@@ -178,7 +187,61 @@ const Settings = () => {
 
   const nameValidation = validateFullName(form.name);
   const passwordChecks = validatePassword(password);
-  const isDirty = JSON.stringify(form) !== initialSnapshot.current || password.length > 0;
+  const isDirty = JSON.stringify(form) !== initialSnapshot.current;
+
+  const handleRequestPasswordCode = async () => {
+    setRequestingPasswordCode(true);
+    try {
+      const res = await fetch(`${API_URL}/user/password/request-code`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Erro ao enviar código");
+      setPasswordCodeSent(true);
+      setToast({ show: true, type: "success", message: "Código enviado para o seu email" });
+    } catch (error) {
+      setToast({ show: true, type: "error", message: error instanceof Error ? error.message : "Erro ao enviar código" });
+    } finally {
+      setRequestingPasswordCode(false);
+    }
+  };
+
+  const handleConfirmPasswordChange = async () => {
+    if (passwordCode.trim().length !== 6) {
+      setToast({ show: true, type: "error", message: "Informe o código de 6 dígitos" });
+      return;
+    }
+    const allValid = Object.values(passwordChecks).every(Boolean);
+    if (!allValid) {
+      setToast({ show: true, type: "error", message: "A nova senha não atende aos requisitos" });
+      return;
+    }
+    if (password !== confirmPassword) {
+      setToast({ show: true, type: "error", message: "As senhas não conferem" });
+      return;
+    }
+
+    setConfirmingPasswordChange(true);
+    try {
+      const res = await fetch(`${API_URL}/user/password/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+        body: JSON.stringify({ code: passwordCode.trim(), newPassword: password }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Erro ao alterar senha");
+      setToast({ show: true, type: "success", message: "Senha alterada com sucesso!" });
+      setPasswordCodeSent(false);
+      setPasswordCode("");
+      setPassword("");
+      setConfirmPassword("");
+    } catch (error) {
+      setToast({ show: true, type: "error", message: error instanceof Error ? error.message : "Erro ao alterar senha" });
+    } finally {
+      setConfirmingPasswordChange(false);
+    }
+  };
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -200,7 +263,7 @@ const Settings = () => {
 
   const fetchProfile = async () => {
     try {
-      const response = await fetch("http://localhost:3000/user/profile", {
+      const response = await fetch(`${API_URL}/user/profile`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
       if (!response.ok) throw new Error("Erro ao carregar dados");
@@ -209,6 +272,7 @@ const Settings = () => {
       const next: FormState = {
         name: data.name,
         document: formatDocument(data.document),
+        email: data.email || "",
         address: { ...data.address, complement: data.address.complement || "" },
         accountType: data.accountType,
         homeService: data.homeService,
@@ -352,12 +416,8 @@ const Settings = () => {
     const docNumbers = form.document.replace(/\D/g, "");
     if (docNumbers.length !== 11 && docNumbers.length !== 14)
       errors.push({ section: "personal", message: "Informe um CPF ou CNPJ válido" });
-
-    if (password || confirmPassword) {
-      const allValid = Object.values(passwordChecks).every(Boolean);
-      if (!allValid) errors.push({ section: "password", message: "A nova senha não atende aos requisitos" });
-      if (password !== confirmPassword) errors.push({ section: "password", message: "As senhas não conferem" });
-    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
+      errors.push({ section: "personal", message: "Informe um email válido" });
 
     const { cep, street, number, neighborhood, city, state } = form.address;
     if (!cep || !street || !number || !neighborhood || !city || !state)
@@ -396,6 +456,7 @@ const Settings = () => {
     const payload: Record<string, unknown> = {
       name: form.name,
       document: form.document.replace(/\D/g, ""),
+      email: form.email,
       address: {
         cep: form.address.cep.replace(/\D/g, ""),
         street: form.address.street,
@@ -424,10 +485,9 @@ const Settings = () => {
       appointmentBuffer: form.appointmentBuffer,
       privacyAccepted: form.privacyAccepted,
     };
-    if (password) payload.password = password;
 
     try {
-      const res = await fetch("http://localhost:3000/user/settings", {
+      const res = await fetch(`${API_URL}/user/settings`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -452,7 +512,7 @@ const Settings = () => {
   const handleGeneratePublicLink = async () => {
     setGeneratingLink(true);
     try {
-      const res = await fetch("http://localhost:3000/user/public-link", {
+      const res = await fetch(`${API_URL}/user/public-link`, {
         method: "POST",
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
@@ -618,70 +678,130 @@ const Settings = () => {
                           </p>
                         )}
                       </div>
+                      <div>
+                        <label className={labelClass}>Email</label>
+                        <input
+                          type="email"
+                          value={form.email}
+                          onChange={(e) => update("email", e.target.value)}
+                          placeholder="seu@email.com"
+                          className={inputClass}
+                        />
+                        <p className="text-xs text-gray-400 mt-1.5 ml-0.5">
+                          Usado para login (código de verificação), recuperação e troca de senha.
+                        </p>
+                      </div>
                     </div>
                   )}
 
                   {id === "password" && (
                     <div className="space-y-4 pt-4">
-                      <div>
-                        <label className={labelClass}>Nova senha</label>
-                        <div className="flex gap-2">
-                          <input
-                            type={showPassword ? "text" : "password"}
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Deixe em branco para manter a atual"
-                            className={inputClass}
-                            autoComplete="new-password"
-                          />
+                      {!passwordCodeSent ? (
+                        <>
+                          <p className="text-sm text-gray-500">
+                            Por segurança, para trocar sua senha enviamos um código de confirmação para o seu email cadastrado.
+                          </p>
                           <button
                             type="button"
-                            onClick={() => setShowPassword((p) => !p)}
-                            className="flex-shrink-0 px-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all text-gray-400 hover:text-gray-600"
+                            onClick={handleRequestPasswordCode}
+                            disabled={requestingPasswordCode}
+                            className="px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-all disabled:opacity-50"
                           >
-                            {showPassword ? <FiEyeOff size={17} /> : <FiEye size={17} />}
+                            {requestingPasswordCode ? "Enviando..." : "Enviar código de confirmação"}
                           </button>
-                        </div>
-                      </div>
-                      {password && (
+                        </>
+                      ) : (
                         <>
                           <div>
-                            <label className={labelClass}>Confirmar senha</label>
+                            <label className={labelClass}>Código recebido por email</label>
                             <input
-                              type={showPassword ? "text" : "password"}
-                              value={confirmPassword}
-                              onChange={(e) => setConfirmPassword(e.target.value)}
-                              placeholder="Repita a senha"
-                              className={inputClass}
-                              autoComplete="new-password"
+                              type="text"
+                              inputMode="numeric"
+                              value={passwordCode}
+                              onChange={(e) => setPasswordCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                              placeholder="000000"
+                              maxLength={6}
+                              className={`${inputClass} text-center tracking-[6px] text-lg`}
                             />
-                            {confirmPassword && password !== confirmPassword && (
-                              <p className="text-xs text-red-500 mt-1.5 ml-0.5 flex items-center gap-1">
-                                <FiAlertCircle size={12} />
-                                As senhas não conferem
-                              </p>
-                            )}
                           </div>
-                          <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                            {passwordRequirements.map((req) => (
-                              <p
-                                key={req.key}
-                                className={`text-xs flex items-center gap-2 ${
-                                  passwordChecks[req.key] ? "text-green-600" : "text-gray-400"
-                                }`}
+                          <div>
+                            <label className={labelClass}>Nova senha</label>
+                            <div className="flex gap-2">
+                              <input
+                                type={showPassword ? "text" : "password"}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Nova senha"
+                                className={inputClass}
+                                autoComplete="new-password"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowPassword((p) => !p)}
+                                className="flex-shrink-0 px-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all text-gray-400 hover:text-gray-600"
                               >
-                                <span
-                                  className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
-                                    passwordChecks[req.key]
-                                      ? "bg-green-100 text-green-600"
-                                      : "bg-gray-200 text-gray-400"
-                                  }`}
-                                >
-                                  {passwordChecks[req.key] ? "✓" : ""}
-                                </span>
-                                {req.label}
-                              </p>
-                            ))}
+                                {showPassword ? <FiEyeOff size={17} /> : <FiEye size={17} />}
+                              </button>
+                            </div>
+                          </div>
+                          {password && (
+                            <>
+                              <div>
+                                <label className={labelClass}>Confirmar senha</label>
+                                <input
+                                  type={showPassword ? "text" : "password"}
+                                  value={confirmPassword}
+                                  onChange={(e) => setConfirmPassword(e.target.value)}
+                                  placeholder="Repita a senha"
+                                  className={inputClass}
+                                  autoComplete="new-password"
+                                />
+                                {confirmPassword && password !== confirmPassword && (
+                                  <p className="text-xs text-red-500 mt-1.5 ml-0.5 flex items-center gap-1">
+                                    <FiAlertCircle size={12} />
+                                    As senhas não conferem
+                                  </p>
+                                )}
+                              </div>
+                              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                                {passwordRequirements.map((req) => (
+                                  <p
+                                    key={req.key}
+                                    className={`text-xs flex items-center gap-2 ${
+                                      passwordChecks[req.key] ? "text-green-600" : "text-gray-400"
+                                    }`}
+                                  >
+                                    <span
+                                      className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                                        passwordChecks[req.key]
+                                          ? "bg-green-100 text-green-600"
+                                          : "bg-gray-200 text-gray-400"
+                                      }`}
+                                    >
+                                      {passwordChecks[req.key] ? "✓" : ""}
+                                    </span>
+                                    {req.label}
+                                  </p>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                          <div className="flex gap-2.5">
+                            <button
+                              type="button"
+                              onClick={() => { setPasswordCodeSent(false); setPasswordCode(""); setPassword(""); setConfirmPassword(""); }}
+                              className="px-4 py-2.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-all"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleConfirmPasswordChange}
+                              disabled={confirmingPasswordChange}
+                              className="px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-all disabled:opacity-50"
+                            >
+                              {confirmingPasswordChange ? "Confirmando..." : "Confirmar nova senha"}
+                            </button>
                           </div>
                         </>
                       )}

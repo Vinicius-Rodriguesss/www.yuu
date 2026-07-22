@@ -1,14 +1,11 @@
 // Services/UpdateSettings.ts
 import type { Request, Response } from "express";
 import { and, eq, ne } from "drizzle-orm";
-import bcrypt from "bcryptjs";
 import { db } from "../db/index.js";
 import { usersTable } from "../db/schema/users.js";
 import { addressesTable } from "../db/schema/addresses.js";
 import { workSchedulesTable } from "../db/schema/workSchedules.js";
 import { workScheduleDaysTable } from "../db/schema/workScheduleDays.js";
-
-const SALT_ROUNDS = 10;
 
 const UpdateSettings = async (req: Request, res: Response) => {
  try {
@@ -16,7 +13,7 @@ const UpdateSettings = async (req: Request, res: Response) => {
   const {
    name,
    document,
-   password,
+   email,
    address,
    phone,
    accountType,
@@ -44,6 +41,10 @@ const UpdateSettings = async (req: Request, res: Response) => {
   if (!name || !document || !address || !accountType || !businessType || !aiStyle) {
    return res.status(400).json({ error: "Campos obrigatórios ausentes" });
   }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+   return res.status(400).json({ error: "Email inválido" });
+  }
+  const cleanEmail = email ? String(email).trim().toLowerCase() : null;
   if (
    !address.cep ||
    !address.street ||
@@ -73,10 +74,24 @@ const UpdateSettings = async (req: Request, res: Response) => {
    return res.status(409).json({ error: "Este CPF/CNPJ já está em uso por outra conta" });
   }
 
+  // Garante que o email não pertence a outro usuário
+  if (cleanEmail) {
+   const [emailOwner] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(and(eq(usersTable.email, cleanEmail), ne(usersTable.id, userId)))
+    .limit(1);
+
+   if (emailOwner) {
+    return res.status(409).json({ error: "Este email já está em uso por outra conta" });
+   }
+  }
+
   const result = await db.transaction(async (tx) => {
    const userUpdate: Record<string, unknown> = {
     name,
     document: documentDigits,
+    email: cleanEmail,
     accountType,
     homeService: homeService ?? false,
     businessType,
@@ -91,11 +106,6 @@ const UpdateSettings = async (req: Request, res: Response) => {
    }
    if (appointmentBuffer !== undefined) {
     userUpdate.appointmentBuffer = Number(appointmentBuffer);
-   }
-
-   // senha só entra no update se foi enviada
-   if (password) {
-    userUpdate.password = await bcrypt.hash(password, SALT_ROUNDS);
    }
 
    const [updatedUser] = await tx
@@ -213,7 +223,10 @@ const UpdateSettings = async (req: Request, res: Response) => {
    return res.status(404).json({ error: "Usuário não encontrado" });
   }
   if (error?.code === "23505") {
-   return res.status(409).json({ error: "Este CPF/CNPJ já está em uso por outra conta" });
+   const isEmailConflict = String(error?.constraint || "").includes("email");
+   return res.status(409).json({
+    error: isEmailConflict ? "Este email já está em uso por outra conta" : "Este CPF/CNPJ já está em uso por outra conta",
+   });
   }
   console.error("ERRO DETALHADO:", error); // <-- adiciona isso
   return res.status(500).json({ error: "Erro ao salvar configurações" });

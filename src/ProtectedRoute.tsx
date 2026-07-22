@@ -1,6 +1,7 @@
 // ProtectedRoute.tsx
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
+import { API_URL } from "@/api/client";
 
 export function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const [status, setStatus] = useState<"loading" | "valid" | "invalid">("loading");
@@ -14,7 +15,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
       return;
     }
 
-    fetch("http://localhost:3000/validate-token", {
+    fetch(`${API_URL}/validate-token`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
