@@ -6,8 +6,11 @@ import {
   FiUser,
   FiX,
   FiDollarSign,
-  FiLink,
   FiCheck,
+  FiPlus,
+  FiRotateCcw,
+  FiSlash,
+  FiTrash2,
 } from "react-icons/fi";
 import ClientSchedulingForm from "@/Components/CreatedCliente";
 import { apiFetch, tzOffsetMin } from "@/api/client";
@@ -45,6 +48,14 @@ const statusLabels: Record<string, string> = {
   cancelled: "Cancelado",
   no_show: "Não compareceu",
 };
+
+interface BlockedSlot {
+  id: number;
+  type: string;
+  title: string;
+  startAt: string;
+  endAt: string;
+}
 
 interface DaySlot {
   time: string;
@@ -105,21 +116,32 @@ const Calendar = () => {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [dayAvailability, setDayAvailability] = useState<DayAvailability | null>(null);
-  const [copiedId, setCopiedId] = useState<number | null>(null);
   const [cancelTarget, setCancelTarget] = useState<number | null>(null);
   const [cancelReason, setCancelReason] = useState("");
+  // Pedido de abertura do formulário de agendamento com data pré-selecionada
+  const [scheduleRequest, setScheduleRequest] = useState<{ date: string; nonce: number } | null>(null);
+  // "Serviço feito" com janela de 30s para desfazer clique acidental
+  const [undoInfo, setUndoInfo] = useState<{ id: number; prevStatus: string; expiresAt: number } | null>(null);
+  const [undoSecondsLeft, setUndoSecondsLeft] = useState(0);
+  // Bloqueios de agenda (pausa, folga, compromisso pessoal) com anotação
+  const [blocks, setBlocks] = useState<BlockedSlot[]>([]);
+  const [blockFormOpen, setBlockFormOpen] = useState(false);
+  const [blockForm, setBlockForm] = useState({ title: "", startTime: "12:00", endTime: "13:00" });
+  const [savingBlock, setSavingBlock] = useState(false);
   const stripRef = useRef<HTMLDivElement>(null);
 
   const loadData = useCallback(async () => {
     try {
-      const [appts, custs, servs] = await Promise.all([
+      const [appts, custs, servs, blks] = await Promise.all([
         apiFetch("/appointments"),
         apiFetch("/customers"),
         apiFetch("/services"),
+        apiFetch("/blocked-slots"),
       ]);
       setAppointments(appts);
       setCustomers(custs);
       setServices(servs);
+      setBlocks(blks);
     } catch (error) {
       console.error("Erro ao carregar agenda:", error);
     } finally {
@@ -146,19 +168,18 @@ const Calendar = () => {
     el?.scrollIntoView({ inline: "center", block: "nearest", behavior: "smooth" });
   }, [selectedDay, viewDate]);
 
-  const generateMeetingLink = async (appointmentId: number) => {
-    try {
-      const data = await apiFetch(`/appointments/${appointmentId}/meeting-link`, {
-        method: "POST",
-      });
-      const url = `${window.location.origin}${data.meetingPath}`;
-      await navigator.clipboard.writeText(url).catch(() => {});
-      setCopiedId(appointmentId);
-      setTimeout(() => setCopiedId(null), 2500);
-    } catch (error) {
-      alert(error instanceof Error ? error.message : "Erro ao gerar link");
-    }
-  };
+  // Countdown do "Desfazer" (serviço feito)
+  useEffect(() => {
+    if (!undoInfo) return;
+    const update = () => {
+      const left = Math.max(0, Math.ceil((undoInfo.expiresAt - Date.now()) / 1000));
+      setUndoSecondsLeft(left);
+      if (left === 0) setUndoInfo(null);
+    };
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [undoInfo]);
 
   // Agrupa agendamentos por dia, ordenados por horário
   const byDay = useMemo(() => {
@@ -241,6 +262,67 @@ const Calendar = () => {
     closeCancelModal();
   };
 
+  // "Serviço feito": marca como concluído e abre janela de 30s para desfazer
+  const markDone = async (appt: Appointment) => {
+    await updateStatus(appt.id, "completed");
+    setUndoInfo({ id: appt.id, prevStatus: appt.status, expiresAt: Date.now() + 30_000 });
+  };
+
+  const undoDone = async () => {
+    if (!undoInfo) return;
+    await updateStatus(undoInfo.id, undoInfo.prevStatus);
+    setUndoInfo(null);
+  };
+
+  // Abre o formulário de novo agendamento já no dia clicado
+  const scheduleOnDay = (d: Date) => {
+    setPanelOpen(false);
+    setScheduleRequest({ date: dayKey(d), nonce: Date.now() });
+  };
+
+  // ── Bloqueio de agenda ──
+  const createBlock = async () => {
+    const title = blockForm.title.trim();
+    if (!title) {
+      alert("Escreva uma anotação para o bloqueio (ex: Almoço, Consulta médica...)");
+      return;
+    }
+    if (blockForm.endTime <= blockForm.startTime) {
+      alert("O horário final precisa ser depois do inicial");
+      return;
+    }
+    setSavingBlock(true);
+    try {
+      // Hora de parede no frame UTC — mesmo formato dos agendamentos
+      const day = dayKey(selectedDay);
+      await apiFetch("/blocked-slots", {
+        method: "POST",
+        body: JSON.stringify({
+          type: "block",
+          title,
+          startAt: `${day}T${blockForm.startTime}:00.000Z`,
+          endAt: `${day}T${blockForm.endTime}:00.000Z`,
+        }),
+      });
+      setBlockFormOpen(false);
+      setBlockForm({ title: "", startTime: "12:00", endTime: "13:00" });
+      await loadData();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Erro ao criar bloqueio");
+    } finally {
+      setSavingBlock(false);
+    }
+  };
+
+  const deleteBlock = async (id: number) => {
+    try {
+      await apiFetch(`/blocked-slots/${id}`, { method: "DELETE" });
+      await loadData();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Erro ao remover bloqueio");
+    }
+  };
+
   const todayKey = dayKey(today);
   const selectedKey = dayKey(selectedDay);
   const dayAppointments = byDay.get(selectedKey) ?? [];
@@ -256,8 +338,83 @@ const Calendar = () => {
   });
 
   // ── Conteúdo do painel do dia (usado no drawer desktop e inline no mobile) ──
+  const dayBlocks = blocks
+    .filter((b) => dayKeyISO(b.startAt) === selectedKey)
+    .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+
   const dayPanelBody = (
     <>
+      {/* Agendar direto neste dia + bloquear horário */}
+      <div className="cal-day-actions">
+        <button className="cal-schedule-day" onClick={() => scheduleOnDay(selectedDay)}>
+          <FiPlus size={14} /> Agendar neste dia
+        </button>
+        <button
+          className={`cal-block-toggle ${blockFormOpen ? "open" : ""}`}
+          onClick={() => setBlockFormOpen((v) => !v)}
+        >
+          <FiSlash size={13} /> Bloquear horário
+        </button>
+      </div>
+
+      {/* Formulário de bloqueio: anotação + faixa de horário */}
+      {blockFormOpen && (
+        <div className="cal-block-form">
+          <input
+            type="text"
+            placeholder="Anotação — ex: Almoço, Consulta médica, Buscar material..."
+            value={blockForm.title}
+            onChange={(e) => setBlockForm((p) => ({ ...p, title: e.target.value }))}
+            maxLength={255}
+            autoFocus
+          />
+          <div className="cal-block-form-times">
+            <label>
+              De
+              <input
+                type="time"
+                value={blockForm.startTime}
+                onChange={(e) => setBlockForm((p) => ({ ...p, startTime: e.target.value }))}
+              />
+            </label>
+            <label>
+              Até
+              <input
+                type="time"
+                value={blockForm.endTime}
+                onChange={(e) => setBlockForm((p) => ({ ...p, endTime: e.target.value }))}
+              />
+            </label>
+            <button className="cal-block-save" disabled={savingBlock} onClick={createBlock}>
+              {savingBlock ? "Salvando..." : "Bloquear"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Bloqueios do dia, com a anotação do profissional */}
+      {dayBlocks.length > 0 && (
+        <div className="cal-block-list">
+          {dayBlocks.map((b) => (
+            <div key={b.id} className="cal-block-item">
+              <FiSlash size={12} />
+              <span className="cal-block-item-time">
+                {timeOf(b.startAt)} – {timeOf(b.endAt)}
+              </span>
+              <span className="cal-block-item-title">{b.title}</span>
+              <button
+                className="cal-block-item-delete"
+                onClick={() => deleteBlock(b.id)}
+                title="Remover bloqueio"
+                aria-label="Remover bloqueio"
+              >
+                <FiTrash2 size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Timeline de disponibilidade */}
       {dayAvailability && dayAvailability.isWorkDay && (
         <div className="cal-timeline">
@@ -301,7 +458,7 @@ const Calendar = () => {
         <div className="cal-empty">
           <FiClock size={22} />
           <p>Nenhum agendamento neste dia</p>
-          <small>Use o botão "+ Novo Agendamento" para criar um.</small>
+          <small>Clique em "Agendar neste dia" para criar um.</small>
         </div>
       ) : (
         dayAppointments.map((appt) => {
@@ -350,62 +507,36 @@ const Calendar = () => {
 
                 {!finished && (
                   <div className="cal-appt-actions">
-                    {appt.status === "scheduled" && (
-                      <button
-                        disabled={busy}
-                        className="cal-action cal-action-primary"
-                        onClick={() => updateStatus(appt.id, "confirmed")}
-                      >
-                        Confirmar
-                      </button>
-                    )}
-                    {(appt.status === "scheduled" || appt.status === "confirmed") && (
-                      <button
-                        disabled={busy}
-                        className="cal-action cal-action-primary"
-                        onClick={() => updateStatus(appt.id, "in_progress")}
-                      >
-                        Iniciar
-                      </button>
-                    )}
-                    {appt.status === "in_progress" && (
-                      <button
-                        disabled={busy}
-                        className="cal-action cal-action-primary"
-                        onClick={() => updateStatus(appt.id, "completed")}
-                      >
-                        Finalizar
-                      </button>
-                    )}
-                    {appt.status !== "in_progress" && (
-                      <>
-                        <button
-                          disabled={busy}
-                          className="cal-action"
-                          onClick={() => updateStatus(appt.id, "no_show")}
-                        >
-                          Não veio
-                        </button>
-                        <button
-                          disabled={busy}
-                          className="cal-action cal-action-danger"
-                          onClick={() => openCancelModal(appt.id)}
-                        >
-                          Cancelar
-                        </button>
-                      </>
-                    )}
                     <button
                       disabled={busy}
-                      className="cal-action cal-action-link"
-                      onClick={() => generateMeetingLink(appt.id)}
-                      title="Gera o link único do atendimento e copia para a área de transferência"
+                      className="cal-action cal-action-primary"
+                      onClick={() => markDone(appt)}
+                      title="Marca o atendimento como concluído — o próximo cliente já pode ser chamado"
                     >
-                      {copiedId === appt.id ? (
-                        <><FiCheck size={12} /> Link copiado</>
-                      ) : (
-                        <><FiLink size={12} /> Gerar Link do Atendimento</>
-                      )}
+                      <FiCheck size={12} /> Serviço feito
+                    </button>
+                    <button
+                      disabled={busy}
+                      className="cal-action"
+                      onClick={() => updateStatus(appt.id, "no_show")}
+                    >
+                      Não veio
+                    </button>
+                    <button
+                      disabled={busy}
+                      className="cal-action cal-action-danger"
+                      onClick={() => openCancelModal(appt.id)}
+                    >
+                      Cancelar
+                    </button>
+                  </div>
+                )}
+
+                {/* Janela de 30s pra desfazer um "Serviço feito" acidental */}
+                {undoInfo?.id === appt.id && appt.status === "completed" && (
+                  <div className="cal-appt-actions">
+                    <button disabled={busy} className="cal-action cal-action-undo" onClick={undoDone}>
+                      <FiRotateCcw size={12} /> Desfazer ({undoSecondsLeft}s)
                     </button>
                   </div>
                 )}
@@ -608,7 +739,7 @@ const Calendar = () => {
         </>
       )}
 
-      <ClientSchedulingForm onAppointmentCreated={loadData} />
+      <ClientSchedulingForm onAppointmentCreated={loadData} openRequest={scheduleRequest} />
     </div>
   );
 };

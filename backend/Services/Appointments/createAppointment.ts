@@ -14,13 +14,12 @@
  */
 
 import type { Request, Response } from "express";
-import { eq, and, sql } from "drizzle-orm";
+import { eq, and } from "drizzle-orm";
 import { db } from "../../db/index.js";
-import { appointmentsTable } from "../../db/schema/appointments.js";
 import { servicesTable } from "../../db/schema/services.js";
 import { customersTable } from "../../db/schema/customers.js";
-import { validateSlot } from "../Availability/computeDaySlots.js";
 import { resolveHomeServiceTravel } from "../Travel/estimateTravel.js";
+import { createAppointmentCore } from "./createAppointmentCore.js";
 
 const CreateAppointment = async (req: Request, res: Response) => {
   try {
@@ -62,6 +61,8 @@ const CreateAppointment = async (req: Request, res: Response) => {
 
     // Domicílio: endereço do cliente é obrigatório e o deslocamento entra no tempo ocupado
     let travelMinutes = 0;
+    let travelDistanceKm = 0;
+    let travelCost = 0;
     let resolvedAddressId: number | null = null;
     if (homeService) {
       const travel = await resolveHomeServiceTravel(
@@ -74,48 +75,35 @@ const CreateAppointment = async (req: Request, res: Response) => {
           error: "Atendimento a domicílio exige um endereço cadastrado para o cliente",
         });
       }
+      if (travel.exceedsMaxDistance) {
+        return res.status(400).json({
+          error: `Endereço fora do raio de atendimento a domicílio (máximo ${travel.maxDistanceKm} km)`,
+        });
+      }
       resolvedAddressId = travel.addressId;
       // Se a estimativa falhar (API fora do ar), segue com 0 e registra no log
       travelMinutes = travel.minutes ?? 0;
+      travelDistanceKm = travel.km ?? 0;
+      travelCost = travel.travelCost;
       if (travel.minutes === null) {
         console.warn(`Deslocamento não calculado para agendamento (cliente ${customerId})`);
       }
     }
 
-    // Transação com advisory lock por profissional: serializa agendamentos
-    // concorrentes e revalida a disponibilidade já com o lock em mãos.
-    const result = await db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(${userId})`);
-
-      const conflict = await validateSlot(
-        userId,
-        scheduledDate,
-        service.duration,
-        tzOffset,
-        travelMinutes
-      );
-      if (conflict) {
-        return { error: conflict };
-      }
-
-      const [created] = await tx
-        .insert(appointmentsTable)
-        .values({
-          userId,
-          customerId: Number(customerId),
-          serviceId: Number(serviceId),
-          scheduledAt: scheduledDate,
-          duration: service.duration,
-          price: service.price,
-          status: "scheduled",
-          notes: notes || null,
-          isHomeService: homeService,
-          travelMinutes,
-          customerAddressId: resolvedAddressId,
-        })
-        .returning();
-
-      return { appointment: created };
+    const result = await createAppointmentCore({
+      userId,
+      customerId: Number(customerId),
+      serviceId: Number(serviceId),
+      duration: service.duration,
+      price: service.price,
+      scheduledAt: scheduledDate,
+      tzOffsetMin: tzOffset,
+      notes: notes || null,
+      isHomeService: homeService,
+      travelMinutes,
+      travelDistanceKm,
+      travelCost,
+      customerAddressId: resolvedAddressId,
     });
 
     if ("error" in result) {

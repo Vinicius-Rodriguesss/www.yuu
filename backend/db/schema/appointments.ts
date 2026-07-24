@@ -24,9 +24,12 @@ export const appointmentsTable = pgTable("appointments", {
   meetingToken: varchar("meeting_token", { length: 64 }).unique(), // link único do atendimento (futuro: IA)
   isHomeService: boolean("is_home_service").default(false).notNull(),
   travelMinutes: integer("travel_minutes").default(0).notNull(), // deslocamento até o cliente; soma no tempo ocupado
+  travelDistanceKm: numeric("travel_distance_km", { precision: 6, scale: 2 }).default("0").notNull(),
+  travelCost: numeric("travel_cost", { precision: 10, scale: 2 }).default("0").notNull(), // custo de deslocamento (combustível) repassado ao cliente
   customerAddressId: integer("customer_address_id").references(() => customerAddressesTable.id, {
     onDelete: "set null",
   }),
+  reminderSentAt: timestamp("reminder_sent_at"), // lembrete de 20 min antes já enviado
   cancelledAt: timestamp("cancelled_at"),
   cancellationReason: varchar("cancellation_reason", { length: 255 }),
   createdAt: timestamp().defaultNow().notNull(),

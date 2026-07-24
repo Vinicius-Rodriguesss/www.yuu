@@ -120,6 +120,8 @@
   flex-direction: column;
   gap: 0.875rem;
   padding-bottom: 1rem;
+  margin-top: 1rem;
+  padding: 1rem 2rem;
 }
 
 /* Busca */

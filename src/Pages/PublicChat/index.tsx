@@ -1,7 +1,8 @@
 import { useState, useEffect, useRef, useCallback } from "react";
-import { useParams } from "react-router-dom";
-import { FiSend } from "react-icons/fi";
-import { apiFetch } from "@/api/client";
+import { useParams, Link } from "react-router-dom";
+import { FiSend, FiCalendar, FiLogOut } from "react-icons/fi";
+import { apiFetch, clientApiFetch, getClientSession, clearClientSession } from "@/api/client";
+import ClientAuthGate from "@/Components/ClientAuthGate";
 import "./index.css";
 
 interface ChatMessage {
@@ -16,22 +17,13 @@ interface PublicProfile {
   services: { id: number; title: string; description: string | null; duration: number; price: string; category: string | null }[];
 }
 
-const PublicChat = () => {
-  const { slug } = useParams<{ slug: string }>();
-  const [profile, setProfile] = useState<PublicProfile | null>(null);
-  const [notFound, setNotFound] = useState(false);
+const PublicChatInner = ({ profile, slug }: { profile: PublicProfile | null; slug: string }) => {
+  const client = getClientSession();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const bottomRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    if (!slug) return;
-    apiFetch(`/public/${slug}`)
-      .then((data) => setProfile(data))
-      .catch(() => setNotFound(true));
-  }, [slug]);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -48,7 +40,7 @@ const PublicChat = () => {
     setSending(true);
 
     try {
-      const data = await apiFetch(`/public/${slug}/chat`, {
+      const data = await clientApiFetch(`/public/${slug}/chat`, {
         method: "POST",
         body: JSON.stringify({ message: text, history: messages }),
       });
@@ -67,28 +59,35 @@ const PublicChat = () => {
     }
   };
 
-  if (notFound) {
-    return (
-      <div className="pchat-page pchat-center">
-        <p>Página não encontrada.</p>
-      </div>
-    );
-  }
-
   return (
     <div className="pchat-page">
       <header className="pchat-header">
         <div className="pchat-avatar">{profile?.name?.[0]?.toUpperCase() ?? "?"}</div>
-        <div>
+        <div className="pchat-header-info">
           <strong>{profile?.name ?? "Carregando..."}</strong>
           <small>{profile?.businessType ?? ""}</small>
         </div>
+        {slug && (
+          <Link to={`/p/${slug}/agendar`} className="pchat-header-link">
+            <FiCalendar size={13} /> Agendar direto
+          </Link>
+        )}
+        <button
+          className="pchat-logout"
+          onClick={() => { clearClientSession(); window.location.reload(); }}
+          title="Sair da conta"
+        >
+          <FiLogOut size={13} /> Sair
+        </button>
       </header>
 
       <div className="pchat-messages">
         {messages.length === 0 && (
           <div className="pchat-empty">
-            <p>Diga olá para começar a conversar com o assistente de {profile?.name ?? "este profissional"}.</p>
+            <p>
+              {client ? `Olá, ${client.name.split(" ")[0]}! ` : ""}
+              Diga olá para começar a conversar com o assistente de {profile?.name ?? "este profissional"}.
+            </p>
           </div>
         )}
         {messages.map((m, i) => (
@@ -121,6 +120,33 @@ const PublicChat = () => {
         </button>
       </div>
     </div>
+  );
+};
+
+const PublicChat = () => {
+  const { slug } = useParams<{ slug: string }>();
+  const [profile, setProfile] = useState<PublicProfile | null>(null);
+  const [notFound, setNotFound] = useState(false);
+
+  useEffect(() => {
+    if (!slug) return;
+    apiFetch(`/public/${slug}`)
+      .then((data) => setProfile(data))
+      .catch(() => setNotFound(true));
+  }, [slug]);
+
+  if (notFound) {
+    return (
+      <div className="pchat-page pchat-center">
+        <p>Página não encontrada.</p>
+      </div>
+    );
+  }
+
+  return (
+    <ClientAuthGate businessName={profile?.name}>
+      <PublicChatInner profile={profile} slug={slug ?? ""} />
+    </ClientAuthGate>
   );
 };
 

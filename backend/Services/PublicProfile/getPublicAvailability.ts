@@ -1,22 +1,32 @@
 /**
- * Service: GetAvailability
+ * Service: GetPublicAvailability
  *
- * GET /availability?date=YYYY-MM-DD&serviceId=1
- * Retorna a grade de horários do dia com o status de cada slot
- * (available, occupied, blocked, past, unavailable).
+ * GET /public/:slug/availability — SEM autenticação.
+ * Mesma grade de horários do painel interno, mas resolvendo o profissional
+ * pelo slug público em vez de pelo token.
  */
-
 import type { Request, Response } from "express";
 import { eq, and } from "drizzle-orm";
 import { db } from "../../db/index.js";
+import { usersTable } from "../../db/schema/users.js";
 import { servicesTable } from "../../db/schema/services.js";
-import { computeDaySlots } from "./computeDaySlots.js";
+import { computeDaySlots } from "../Availability/computeDaySlots.js";
 import { resolveHomeServiceTravel } from "../Travel/estimateTravel.js";
 
-const GetAvailability = async (req: Request, res: Response) => {
+const GetPublicAvailability = async (req: Request, res: Response) => {
   try {
-    const userId = (req as any).userId;
+    const { slug } = req.params;
     const { date, serviceId, tz, homeService, customerId, addressId } = req.query;
+
+    const [user] = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.publicSlug, String(slug)))
+      .limit(1);
+
+    if (!user) {
+      return res.status(404).json({ error: "Página não encontrada" });
+    }
 
     if (!date) {
       return res.status(400).json({ error: "Parâmetro 'date' é obrigatório (YYYY-MM-DD)" });
@@ -34,7 +44,7 @@ const GetAvailability = async (req: Request, res: Response) => {
       const [service] = await db
         .select({ duration: servicesTable.duration })
         .from(servicesTable)
-        .where(and(eq(servicesTable.id, Number(serviceId)), eq(servicesTable.userId, userId)))
+        .where(and(eq(servicesTable.id, Number(serviceId)), eq(servicesTable.userId, user.id)))
         .limit(1);
       if (!service) {
         return res.status(404).json({ error: "Serviço não encontrado" });
@@ -42,16 +52,11 @@ const GetAvailability = async (req: Request, res: Response) => {
       serviceDuration = service.duration;
     }
 
-    // Atendimento a domicílio: soma o deslocamento no tempo ocupado
     let travelMinutes = 0;
     let travelUnavailable = false;
-    let travelKm: number | null = null;
-    let travelCost = 0;
-    let exceedsMaxDistance = false;
-    let maxDistanceKm: number | null = null;
     if (homeService === "1" && customerId) {
       const travel = await resolveHomeServiceTravel(
-        userId,
+        user.id,
         Number(customerId),
         addressId ? Number(addressId) : undefined
       );
@@ -60,33 +65,15 @@ const GetAvailability = async (req: Request, res: Response) => {
       } else {
         travelMinutes = travel.minutes;
       }
-      travelKm = travel.km;
-      travelCost = travel.travelCost;
-      exceedsMaxDistance = travel.exceedsMaxDistance;
-      maxDistanceKm = travel.maxDistanceKm;
     }
 
-    const availability = await computeDaySlots(
-      userId,
-      parsed,
-      serviceDuration,
-      tzOffsetMin,
-      // ida e volta: reserva tempo pro profissional voltar antes do próximo horário
-      travelMinutes * 2
-    );
-    return res.status(200).json({
-      ...availability,
-      travelMinutes,
-      travelUnavailable,
-      travelKm,
-      travelCost,
-      exceedsMaxDistance,
-      maxDistanceKm,
-    });
+    // ida e volta: reserva tempo pro profissional voltar antes do próximo horário
+    const availability = await computeDaySlots(user.id, parsed, serviceDuration, tzOffsetMin, travelMinutes * 2);
+    return res.status(200).json({ ...availability, travelMinutes, travelUnavailable });
   } catch (error) {
-    console.error("ERRO AVAILABILITY:", error);
+    console.error("ERRO PUBLIC AVAILABILITY:", error);
     return res.status(500).json({ error: "Erro ao calcular disponibilidade" });
   }
 };
 
-export default GetAvailability;
+export default GetPublicAvailability;

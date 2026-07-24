@@ -26,6 +26,10 @@ const GetProfile = async (req: Request, res: Response) => {
     scheduleInterval: usersTable.scheduleInterval,
     appointmentBuffer: usersTable.appointmentBuffer,
     publicSlug: usersTable.publicSlug,
+    homeServiceTransport: usersTable.homeServiceTransport,
+    homeServiceFuelConsumption: usersTable.homeServiceFuelConsumption,
+    homeServiceFuelPrice: usersTable.homeServiceFuelPrice,
+    homeServiceMaxDistanceKm: usersTable.homeServiceMaxDistanceKm,
    })
    .from(usersTable)
    .where(eq(usersTable.id, userId))

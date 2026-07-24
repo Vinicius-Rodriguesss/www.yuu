@@ -77,3 +77,65 @@ export const passwordChangeCodeEmailTemplate = (name: string, code: string) => (
      ${codeBlock(code)}`
   ),
 });
+
+// ===================== Agendamentos =====================
+
+export interface AppointmentEmailInfo {
+  clientName: string;
+  professionalName: string;
+  serviceTitle: string;
+  /** ex: "sexta-feira, 24 de julho" */
+  dateLabel: string;
+  /** ex: "14:30" */
+  timeLabel: string;
+  isHomeService?: boolean;
+}
+
+const appointmentDetails = (info: AppointmentEmailInfo) => `
+  <table cellpadding="0" cellspacing="0" style="margin:16px 0;background:#fafafa;border-radius:8px;width:100%;">
+    <tr><td style="padding:14px 18px;">
+      <p style="margin:0 0 6px;font-size:13px;color:#6b6b6b;">Serviço</p>
+      <p style="margin:0 0 12px;font-size:15px;color:#1a1a1a;font-weight:700;">${info.serviceTitle}</p>
+      <p style="margin:0 0 6px;font-size:13px;color:#6b6b6b;">Quando</p>
+      <p style="margin:0;font-size:15px;color:#1a1a1a;font-weight:700;text-transform:capitalize;">${info.dateLabel} às ${info.timeLabel}</p>
+      ${info.isHomeService ? `<p style="margin:12px 0 0;font-size:13px;color:#6b6b6b;">🏠 Atendimento a domicílio</p>` : ""}
+    </td></tr>
+  </table>
+`;
+
+export const appointmentConfirmedClientTemplate = (info: AppointmentEmailInfo) => ({
+  subject: `Agendamento confirmado com ${info.professionalName} — ai.yuu`,
+  html: layout(
+    "Agendamento confirmado ✅",
+    `<p style="margin:0 0 8px;font-size:14px;color:#37352f;">Olá, <strong>${info.clientName}</strong>! Seu horário com <strong>${info.professionalName}</strong> está confirmado:</p>
+     ${appointmentDetails(info)}
+     <p style="margin:0;font-size:13px;color:#6b6b6b;">Se precisar remarcar ou cancelar, entre em contato com o profissional.</p>`
+  ),
+});
+
+export const appointmentConfirmedProfessionalTemplate = (info: AppointmentEmailInfo) => ({
+  subject: `Novo agendamento: ${info.clientName} — ai.yuu`,
+  html: layout(
+    "Você tem um novo agendamento",
+    `<p style="margin:0 0 8px;font-size:14px;color:#37352f;"><strong>${info.clientName}</strong> agendou um horário com você:</p>
+     ${appointmentDetails(info)}`
+  ),
+});
+
+export const appointmentReminderClientTemplate = (info: AppointmentEmailInfo) => ({
+  subject: `Lembrete: seu horário com ${info.professionalName} é daqui a pouco — ai.yuu`,
+  html: layout(
+    "Seu atendimento está chegando ⏰",
+    `<p style="margin:0 0 8px;font-size:14px;color:#37352f;">Olá, <strong>${info.clientName}</strong>! Passando pra lembrar do seu horário daqui a ~20 minutos:</p>
+     ${appointmentDetails(info)}`
+  ),
+});
+
+export const appointmentReminderProfessionalTemplate = (info: AppointmentEmailInfo) => ({
+  subject: `Lembrete: ${info.clientName} daqui a ~20 min — ai.yuu`,
+  html: layout(
+    "Próximo atendimento chegando ⏰",
+    `<p style="margin:0 0 8px;font-size:14px;color:#37352f;">Seu atendimento com <strong>${info.clientName}</strong> começa daqui a ~20 minutos:</p>
+     ${appointmentDetails(info)}`
+  ),
+});

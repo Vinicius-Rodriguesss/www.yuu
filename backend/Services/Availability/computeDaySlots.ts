@@ -91,7 +91,8 @@ export const wallNow = (tzOffsetMin: number) =>
  * quando omitido, considera 1 slot.
  * `tzOffsetMin`: fuso do cliente em minutos a leste de UTC (para "passado").
  * `extraMinutes`: minutos extras que o novo atendimento vai ocupar além do
- * serviço (ex: deslocamento de atendimento a domicílio).
+ * serviço (ex: deslocamento de atendimento a domicílio — já deve vir como
+ * ida E volta; quem chama passa o dobro do tempo de deslocamento).
  */
 export const computeDaySlots = async (
   userId: number,
@@ -174,10 +175,13 @@ export const computeDaySlots = async (
 
   const occupied: Occupied[] = dayAppointments.map((a) => {
     const start = new Date(a.scheduledAt);
-    // ocupa: serviço + deslocamento (domicílio) + delay de descanso
+    // ocupa: serviço + deslocamento (ida E volta até o cliente) + delay de descanso.
+    // travelMinutes salvo no agendamento é só a ida (usado pra exibir "chegada em
+    // X min"), mas o profissional também precisa de tempo pra voltar antes do
+    // próximo horário — por isso dobra aqui pro bloqueio de agenda.
     return {
       start,
-      end: new Date(start.getTime() + (a.duration + (a.travelMinutes ?? 0) + buffer) * 60000),
+      end: new Date(start.getTime() + (a.duration + (a.travelMinutes ?? 0) * 2 + buffer) * 60000),
       appointmentId: a.id,
     };
   });

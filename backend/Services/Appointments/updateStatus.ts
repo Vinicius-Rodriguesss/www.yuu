@@ -23,7 +23,8 @@ const UpdateAppointmentStatus = async (req: Request, res: Response) => {
     const { id } = req.params;
     const { status, cancellationReason } = req.body;
 
-    const validStatuses = ["confirmed", "in_progress", "completed", "cancelled", "no_show"];
+    // "scheduled" incluído para permitir desfazer um "Serviço feito" clicado sem querer
+    const validStatuses = ["scheduled", "confirmed", "in_progress", "completed", "cancelled", "no_show"];
     if (!status || !validStatuses.includes(status)) {
       return res.status(400).json({ error: "Status inválido" });
     }

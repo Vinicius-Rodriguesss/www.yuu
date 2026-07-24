@@ -25,7 +25,37 @@ const UpdateSettings = async (req: Request, res: Response) => {
    privacyAccepted,
    scheduleInterval,
    appointmentBuffer,
+   homeServiceTransport,
+   homeServiceFuelConsumption,
+   homeServiceFuelPrice,
+   homeServiceMaxDistanceKm,
   } = req.body;
+
+  const validTransports = ["car", "motorcycle", "none"];
+  if (homeServiceTransport !== undefined && !validTransports.includes(homeServiceTransport)) {
+   return res.status(400).json({ error: "Tipo de transporte inválido" });
+  }
+  if (
+   homeServiceFuelConsumption !== undefined &&
+   homeServiceFuelConsumption !== null &&
+   (isNaN(Number(homeServiceFuelConsumption)) || Number(homeServiceFuelConsumption) <= 0)
+  ) {
+   return res.status(400).json({ error: "Consumo do veículo inválido" });
+  }
+  if (
+   homeServiceFuelPrice !== undefined &&
+   homeServiceFuelPrice !== null &&
+   (isNaN(Number(homeServiceFuelPrice)) || Number(homeServiceFuelPrice) <= 0)
+  ) {
+   return res.status(400).json({ error: "Preço do combustível inválido" });
+  }
+  if (
+   homeServiceMaxDistanceKm !== undefined &&
+   homeServiceMaxDistanceKm !== null &&
+   (isNaN(Number(homeServiceMaxDistanceKm)) || Number(homeServiceMaxDistanceKm) <= 0)
+  ) {
+   return res.status(400).json({ error: "Distância máxima inválida" });
+  }
 
   const validIntervals = [5, 10, 15, 20, 30, 40, 60];
   if (scheduleInterval !== undefined && !validIntervals.includes(Number(scheduleInterval))) {
@@ -99,6 +129,10 @@ const UpdateSettings = async (req: Request, res: Response) => {
     customAiStyle: customAiStyle || null,
     privacyAccepted: privacyAccepted ?? false,
     phone: phone || null,
+    homeServiceTransport: homeServiceTransport || "car",
+    homeServiceFuelConsumption: homeServiceFuelConsumption ? String(homeServiceFuelConsumption) : null,
+    homeServiceFuelPrice: homeServiceFuelPrice ? String(homeServiceFuelPrice) : null,
+    homeServiceMaxDistanceKm: homeServiceMaxDistanceKm ? Number(homeServiceMaxDistanceKm) : null,
    };
 
    if (scheduleInterval !== undefined) {

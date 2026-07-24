@@ -1,0 +1,587 @@
+.pbook-page {
+  min-height: 100dvh;
+  background: #fafafa;
+  color: #1a1a1a;
+  display: flex;
+  flex-direction: column;
+}
+
+.pbook-center {
+  align-items: center;
+  justify-content: center;
+}
+
+.pbook-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: #ffffff;
+  border-bottom: 1px solid #ececec;
+  flex-shrink: 0;
+}
+
+.pbook-header strong {
+  display: block;
+  font-size: 0.9375rem;
+  font-weight: 600;
+}
+
+.pbook-header small {
+  font-size: 0.75rem;
+  color: #6b6b6b;
+}
+
+.pbook-header-info {
+  min-width: 0;
+}
+
+.pbook-header-link {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.375rem;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: #1a1a1a;
+  text-decoration: none;
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #ececec;
+  border-radius: 999px;
+  white-space: nowrap;
+  transition: background-color 0.15s ease;
+}
+
+.pbook-header-link:hover {
+  background: #f5f5f5;
+}
+
+.pbook-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: #1a1a1a;
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+/* Barra do cliente logado: saudação + sair */
+.pbook-clientbar {
+  display: flex;
+  align-items: center;
+  gap: 0.375rem;
+  max-width: 480px;
+  width: 100%;
+  margin: 0.75rem auto -0.75rem;
+  padding: 0 0.25rem;
+  box-sizing: border-box;
+  font-size: 0.75rem;
+  color: #6b6b6b;
+}
+
+.pbook-clientbar button {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-family: inherit;
+  font-size: 0.6875rem;
+  color: #9b9b9b;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 0.25rem 0.375rem;
+  border-radius: 0.375rem;
+}
+
+.pbook-clientbar button:hover {
+  color: #d44c47;
+  background: #faf1f1;
+}
+
+@media screen and (max-width: 640px) {
+  .pbook-clientbar {
+    padding: 0 1.25rem;
+    margin-top: 0.625rem;
+  }
+}
+
+.pbook-card {
+  max-width: 480px;
+  width: 100%;
+  margin: 1.5rem auto;
+  background: #ffffff;
+  border: 1px solid #ececec;
+  border-radius: 0.875rem;
+  padding: 1.5rem;
+  box-sizing: border-box;
+}
+
+/* Alvo de toque mínimo confortável em qualquer tamanho de tela */
+.pbook-item,
+.pbook-slot,
+.pbook-btn-primary,
+.pbook-back,
+.pbook-check {
+  min-height: 44px;
+}
+
+.pbook-progress {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.pbook-progress-step {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.pbook-progress-dot {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: #f1f1ef;
+  color: #9b9b9b;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.6875rem;
+  font-weight: 600;
+}
+
+.pbook-progress-step.done .pbook-progress-dot {
+  background: #1a1a1a;
+  color: #ffffff;
+}
+
+.pbook-progress-step small {
+  font-size: 0.625rem;
+  color: #9b9b9b;
+  text-align: center;
+}
+
+.pbook-progress-step.current small {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+.pbook-body-head {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.pbook-body-head h2 {
+  margin: 0;
+  font-size: 1.0625rem;
+  font-weight: 600;
+}
+
+.pbook-back {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: #6b6b6b;
+  cursor: pointer;
+}
+
+.pbook-back:hover {
+  background: #f0f0f0;
+}
+
+.pbook-error {
+  font-size: 0.8125rem;
+  color: #d44c47;
+  background: #faf1f1;
+  border: 1px solid #f1c4c2;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.pbook-step {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.pbook-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.pbook-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.pbook-field label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b6b6b;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.pbook-field input,
+.pbook-field textarea {
+  font-family: inherit;
+  font-size: 0.875rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid #ececec;
+  border-radius: 0.5rem;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.pbook-field input:focus,
+.pbook-field textarea:focus {
+  border-color: #9b9b9b;
+}
+
+.pbook-field textarea {
+  resize: vertical;
+}
+
+.pbook-btn-primary {
+  padding: 0.75rem;
+  background: #1a1a1a;
+  color: #ffffff;
+  border: none;
+  border-radius: 0.5rem;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.pbook-btn-primary:hover:not(:disabled) {
+  background: #333333;
+}
+
+.pbook-btn-primary:disabled {
+  background: #d4d4d4;
+  cursor: not-allowed;
+}
+
+.pbook-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.pbook-item {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid #ececec;
+  border-radius: 0.625rem;
+  background: #ffffff;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.pbook-item:hover,
+.pbook-item.selected {
+  border-color: #1a1a1a;
+  background: #fafafa;
+}
+
+.pbook-item-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: #f1f1ef;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.pbook-item-info {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.125rem;
+  min-width: 0;
+}
+
+.pbook-item-info strong {
+  font-size: 0.875rem;
+}
+
+.pbook-item-info small {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: #6b6b6b;
+}
+
+.pbook-item-price {
+  font-size: 0.875rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.pbook-empty {
+  text-align: center;
+  color: #9b9b9b;
+  font-size: 0.8125rem;
+  padding: 1.5rem 0;
+}
+
+.pbook-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  padding: 0.75rem;
+  border: 1px solid #ececec;
+  border-radius: 0.625rem;
+  cursor: pointer;
+}
+
+.pbook-address {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 0.875rem;
+  background: #fafafa;
+  border-radius: 0.625rem;
+}
+
+.pbook-cep-status {
+  font-size: 0.6875rem;
+  margin-top: 0.125rem;
+}
+
+.pbook-cep-status-loading { color: #d97706; }
+.pbook-cep-status-success { color: #16a34a; }
+.pbook-cep-status-error { color: #dc2626; }
+
+.pbook-datebar {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid #ececec;
+  border-radius: 0.5rem;
+  font-size: 0.8125rem;
+}
+
+.pbook-datebar input {
+  border: none;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  outline: none;
+}
+
+.pbook-datebar span {
+  margin-left: auto;
+  color: #6b6b6b;
+  text-transform: capitalize;
+  font-size: 0.75rem;
+}
+
+.pbook-meta {
+  font-size: 0.75rem;
+  color: #6b6b6b;
+  margin: 0;
+}
+
+.pbook-slots {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+}
+
+.pbook-slot {
+  padding: 0.5rem;
+  border: 1px solid #ececec;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.pbook-slot:hover:not(:disabled) {
+  border-color: #1a1a1a;
+}
+
+.pbook-slot:disabled {
+  color: #d4d4d4;
+  background: #fafafa;
+  cursor: not-allowed;
+}
+
+.pbook-slot.selected {
+  background: #1a1a1a;
+  color: #ffffff;
+  border-color: #1a1a1a;
+}
+
+.pbook-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+  padding: 0.875rem;
+  background: #fafafa;
+  border-radius: 0.625rem;
+}
+
+.pbook-summary-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.625rem;
+  font-size: 0.8125rem;
+}
+
+.pbook-summary-row div {
+  display: flex;
+  flex-direction: column;
+}
+
+.pbook-summary-row small {
+  color: #9b9b9b;
+  font-size: 0.6875rem;
+}
+
+.pbook-summary-row strong {
+  font-size: 0.875rem;
+}
+
+.pbook-success {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 0.5rem;
+  padding: 1.5rem 0;
+  color: #1a1a1a;
+}
+
+.pbook-success svg {
+  color: #448361;
+}
+
+.pbook-success h3 {
+  margin: 0.25rem 0 0;
+  font-size: 1.125rem;
+}
+
+.pbook-success p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #37352f;
+}
+
+/* ══ Mobile ══ */
+@media screen and (max-width: 640px) {
+  .pbook-page {
+    background: #ffffff;
+  }
+
+  /* Cabeçalho: nome+negócio numa linha, link de ação embaixo, sem quebra estranha */
+  .pbook-header {
+    flex-wrap: wrap;
+    padding: 1rem 1.25rem;
+    row-gap: 0.625rem;
+  }
+
+  .pbook-header-info {
+    flex: 1;
+  }
+
+  .pbook-header-info strong {
+    font-size: 0.875rem;
+    line-height: 1.25;
+  }
+
+  .pbook-header-link {
+    margin-left: 0;
+    width: 100%;
+    justify-content: center;
+    order: 3;
+  }
+
+  /* Card vira tela cheia, sem "flutuar" com espaço vazio em volta */
+  .pbook-card {
+    flex: 1;
+    max-width: none;
+    margin: 0;
+    border: none;
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+    padding: 1.5rem 1.25rem 2.5rem;
+  }
+
+  .pbook-page {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .pbook-progress-step small {
+    font-size: 0.5625rem;
+  }
+
+  .pbook-field-row {
+    gap: 0.625rem;
+  }
+
+  /* Alvos de toque maiores e mais espaçados */
+  .pbook-slots {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.625rem;
+  }
+
+  .pbook-slot {
+    font-size: 0.875rem;
+    padding: 0.625rem;
+  }
+
+  .pbook-item {
+    padding: 0.875rem 0.75rem;
+  }
+
+  .pbook-datebar {
+    flex-wrap: wrap;
+    row-gap: 0.375rem;
+  }
+
+  .pbook-datebar span {
+    margin-left: 1.75rem;
+    flex-basis: 100%;
+  }
+
+  /* Botão principal fixo no rodapé — sempre alcançável com o polegar */
+  .pbook-step > .pbook-btn-primary:last-child {
+    position: sticky;
+    bottom: 0.75rem;
+  }
+}

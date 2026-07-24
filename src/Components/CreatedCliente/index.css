@@ -4,22 +4,28 @@
   right: 1.5rem;
   z-index: 1001;
   padding: 0.75rem 1.25rem;
-  background-color: #000000;
+  background: linear-gradient(180deg, #2a2a2a 0%, #0a0a0a 100%);
   color: #ffffff;
-  border: none;
+  border: 1px solid #0a0a0a;
   border-radius: 999px;
   font-size: 0.875rem;
   font-weight: 600;
   font-family: inherit;
   cursor: pointer;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.18);
-  transition: background-color 0.15s ease, transform 0.15s ease;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.1);
+  transition: all 0.18s cubic-bezier(0.2, 0, 0, 1);
   letter-spacing: 0.01em;
 }
 
 .btn-new-appointment:hover {
-  background-color: #1a1a1a;
-  transform: translateY(-1px);
+  background: linear-gradient(180deg, #3a3a3a 0%, #161616 100%);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+
+.btn-new-appointment:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.22);
 }
 
 .ClientSchedulingFormDesktopOn {

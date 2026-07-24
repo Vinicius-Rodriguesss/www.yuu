@@ -12,6 +12,9 @@ import BlockedSlotsController from "./Controllers/blockedSlots.js";
 import DashboardController from "./Controllers/dashboard.js";
 import AvailabilityController from "./Controllers/availability.js";
 import ChatController from "./Controllers/chat.js";
+import PublicBookingController from "./Controllers/publicBooking.js";
+import ClientAuthController from "./Controllers/clientAuth.js";
+import { startReminderJob } from "./Services/Appointments/reminderJob.js";
 
 const app = express();
 
@@ -40,9 +43,12 @@ app.use(BlockedSlotsController);
 app.use(DashboardController);
 app.use(AvailabilityController);
 app.use(ChatController);
+app.use(PublicBookingController);
+app.use(ClientAuthController);
 
 const port = Number(process.env.PORT) || 3000;
 
 app.listen(port, () => {
   console.log(`Servidor rodando na porta ${port}`);
+  startReminderJob();
 });

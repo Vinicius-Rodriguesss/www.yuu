@@ -8,9 +8,10 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   FiSearch, FiUser, FiPlus, FiChevronLeft, FiCheck, FiClock,
-  FiScissors, FiCalendar, FiPhone, FiCheckCircle, FiX, FiHome,
+  FiScissors, FiCalendar, FiPhone, FiCheckCircle, FiX, FiHome, FiDollarSign,
 } from 'react-icons/fi';
 import { apiFetch, tzOffsetMin } from '@/api/client';
+import { formatPhone, formatCEP, type ViaCEPResponse } from '../../SignUp/passwordValidation';
 import './index.css';
 import './stepper.css';
 
@@ -49,6 +50,10 @@ interface DayAvailability {
   slots: DaySlot[];
   travelMinutes?: number;
   travelUnavailable?: boolean;
+  travelKm?: number | null;
+  travelCost?: number;
+  exceedsMaxDistance?: boolean;
+  maxDistanceKm?: number | null;
 }
 
 interface CustomerAddress {
@@ -66,6 +71,11 @@ const emptyAddress = { cep: '', street: '', number: '', neighborhood: '', city: 
 
 interface ClientSchedulingFormProps {
   onAppointmentCreated?: () => void;
+  /**
+   * Abre o formulário de fora (ex: clique num dia do calendário) já com a
+   * data pré-selecionada. O nonce muda a cada pedido para forçar reabertura.
+   */
+  openRequest?: { date: string; nonce: number } | null;
 }
 
 type Step = 1 | 2 | 3 | 4;
@@ -87,7 +97,7 @@ const todayISO = () => {
 const formatMoney = (v: number) =>
   new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(v);
 
-const ClientSchedulingForm = ({ onAppointmentCreated }: ClientSchedulingFormProps) => {
+const ClientSchedulingForm = ({ onAppointmentCreated, openRequest }: ClientSchedulingFormProps) => {
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<Step>(1);
   const [error, setError] = useState('');
@@ -118,6 +128,7 @@ const ClientSchedulingForm = ({ onAppointmentCreated }: ClientSchedulingFormProp
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [addressForm, setAddressForm] = useState({ ...emptyAddress });
   const [savingAddress, setSavingAddress] = useState(false);
+  const [cepStatus, setCepStatus] = useState<{ type: 'success' | 'error' | 'loading'; message: string } | null>(null);
 
   // Etapa 4 — confirmação
   const [notes, setNotes] = useState('');
@@ -139,6 +150,7 @@ const ClientSchedulingForm = ({ onAppointmentCreated }: ClientSchedulingFormProp
     setSelectedAddressId(null);
     setShowAddressForm(false);
     setAddressForm({ ...emptyAddress });
+    setCepStatus(null);
   };
 
   const loadBase = useCallback(async () => {
@@ -157,6 +169,15 @@ const ClientSchedulingForm = ({ onAppointmentCreated }: ClientSchedulingFormProp
   useEffect(() => {
     if (isOpen) loadBase();
   }, [isOpen, loadBase]);
+
+  // Abertura externa (clique num dia do calendário): abre já naquela data
+  useEffect(() => {
+    if (!openRequest) return;
+    resetFlow();
+    setDate(openRequest.date);
+    setIsOpen(true);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [openRequest?.nonce]);
 
   // Endereços do cliente quando "domicílio" é ativado
   useEffect(() => {
@@ -198,6 +219,38 @@ const ClientSchedulingForm = ({ onAppointmentCreated }: ClientSchedulingFormProp
     return () => { cancelled = true; };
   }, [isOpen, step, date, selectedService, homeService, selectedAddressId, selectedCustomer]);
 
+  // Busca o endereço automaticamente quando o CEP tem 8 dígitos
+  useEffect(() => {
+    if (!showAddressForm) return;
+    const numbers = addressForm.cep.replace(/\D/g, '');
+    if (numbers.length !== 8) {
+      setCepStatus(numbers.length > 0 ? { type: 'error', message: 'CEP deve conter 8 dígitos.' } : null);
+      return;
+    }
+    setCepStatus({ type: 'loading', message: 'Buscando endereço...' });
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${numbers}/json/`);
+        const data: ViaCEPResponse & { erro?: boolean } = await response.json();
+        if (data.erro) {
+          setCepStatus({ type: 'error', message: 'CEP não encontrado.' });
+          return;
+        }
+        setAddressForm((p) => ({
+          ...p,
+          street: data.logradouro || '',
+          neighborhood: data.bairro || '',
+          city: data.localidade || '',
+          state: data.uf || '',
+        }));
+        setCepStatus({ type: 'success', message: 'Endereço encontrado!' });
+      } catch {
+        setCepStatus({ type: 'error', message: 'Erro ao buscar CEP.' });
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [addressForm.cep, showAddressForm]);
+
   const handleCreateAddress = async () => {
     if (!selectedCustomer) return;
     const a = addressForm;
@@ -220,6 +273,7 @@ const ClientSchedulingForm = ({ onAppointmentCreated }: ClientSchedulingFormProp
       setSelectedAddressId(created.id);
       setShowAddressForm(false);
       setAddressForm({ ...emptyAddress });
+      setCepStatus(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erro ao salvar endereço');
     } finally {
@@ -320,7 +374,6 @@ const ClientSchedulingForm = ({ onAppointmentCreated }: ClientSchedulingFormProp
               )}
               <h2>{success ? 'Agendamento criado' : stepTitles[step]}</h2>
             </div>
-            <button className="btn-close" onClick={close} aria-label="Fechar">×</button>
           </header>
 
           {/* Progresso */}
@@ -429,7 +482,7 @@ const ClientSchedulingForm = ({ onAppointmentCreated }: ClientSchedulingFormProp
                       <input
                         type="tel"
                         value={quickForm.phone}
-                        onChange={(e) => setQuickForm((p) => ({ ...p, phone: e.target.value }))}
+                        onChange={(e) => setQuickForm((p) => ({ ...p, phone: formatPhone(e.target.value) }))}
                         placeholder="(00) 00000-0000"
                       />
                     </div>
@@ -537,7 +590,14 @@ const ClientSchedulingForm = ({ onAppointmentCreated }: ClientSchedulingFormProp
                       <div className="form-row">
                         <div className="form-group">
                           <label>CEP *</label>
-                          <input value={addressForm.cep} onChange={(e) => setAddressForm((p) => ({ ...p, cep: e.target.value }))} placeholder="00000-000" />
+                          <input value={addressForm.cep} onChange={(e) => setAddressForm((p) => ({ ...p, cep: formatCEP(e.target.value) }))} placeholder="00000-000" />
+                          {cepStatus && (
+                            <small style={{
+                              color: cepStatus.type === 'success' ? '#16a34a' : cepStatus.type === 'loading' ? '#d97706' : '#dc2626',
+                            }}>
+                              {cepStatus.type === 'loading' ? 'Buscando...' : cepStatus.message}
+                            </small>
+                          )}
                         </div>
                         <div className="form-group">
                           <label>Número *</label>
@@ -611,6 +671,8 @@ const ClientSchedulingForm = ({ onAppointmentCreated }: ClientSchedulingFormProp
                   {homeService && (availability.travelMinutes ?? 0) > 0 && (
                     <div className="sched-travel-note">
                       <FiHome size={12} /> ≈ {availability.travelMinutes} min de deslocamento incluídos no tempo de cada horário
+                      {availability.travelKm != null && ` (${availability.travelKm.toFixed(1)} km)`}
+                      {(availability.travelCost ?? 0) > 0 && ` · custo de deslocamento (ida): ${formatMoney(availability.travelCost!)}`}
                     </div>
                   )}
                   {homeService && availability.travelUnavailable && (
@@ -618,9 +680,14 @@ const ClientSchedulingForm = ({ onAppointmentCreated }: ClientSchedulingFormProp
                       Não foi possível calcular o deslocamento agora — o horário será reservado sem esse acréscimo.
                     </div>
                   )}
+                  {homeService && availability.exceedsMaxDistance && (
+                    <div className="sched-travel-note sched-travel-warn">
+                      Endereço fora do raio de atendimento a domicílio (máximo {availability.maxDistanceKm} km).
+                    </div>
+                  )}
                   <div className="sched-slots">
                     {availability.slots.map((slot) => {
-                      const disabled = slot.status !== 'available';
+                      const disabled = slot.status !== 'available' || (homeService && availability.exceedsMaxDistance);
                       return (
                         <button
                           key={slot.time}
@@ -697,6 +764,18 @@ const ClientSchedulingForm = ({ onAppointmentCreated }: ClientSchedulingFormProp
                       {(availability?.travelMinutes ?? 0) > 0 && (
                         <span>≈ {availability?.travelMinutes} min de deslocamento incluídos</span>
                       )}
+                      {(availability?.travelCost ?? 0) > 0 && (
+                        <span>Custo de deslocamento (ida): {formatMoney(availability!.travelCost!)}</span>
+                      )}
+                    </div>
+                  </div>
+                )}
+                {(availability?.travelCost ?? 0) > 0 && selectedService && (
+                  <div className="sched-summary-row">
+                    <FiDollarSign size={14} />
+                    <div>
+                      <small>Total</small>
+                      <strong>{formatMoney(Number(selectedService.price) + availability!.travelCost!)}</strong>
                     </div>
                   </div>
                 )}

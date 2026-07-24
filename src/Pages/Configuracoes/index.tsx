@@ -57,6 +57,7 @@ interface FormState {
   scheduleInterval: number;
   appointmentBuffer: number;
   privacyAccepted: boolean;
+  homeServiceMaxDistanceKm: string;
 }
 
 interface ProfileResponse {
@@ -83,6 +84,7 @@ interface ProfileResponse {
   scheduleInterval?: number;
   appointmentBuffer?: number;
   publicSlug?: string | null;
+  homeServiceMaxDistanceKm?: number | null;
 }
 
 const emptyForm: FormState = {
@@ -102,6 +104,7 @@ const emptyForm: FormState = {
   scheduleInterval: 15,
   appointmentBuffer: 0,
   privacyAccepted: true,
+  homeServiceMaxDistanceKm: "",
 };
 
 const inputClass =
@@ -164,6 +167,7 @@ const Settings = () => {
   const [publicSlug, setPublicSlug] = useState<string | null>(null);
   const [generatingLink, setGeneratingLink] = useState(false);
   const [linkCopied, setLinkCopied] = useState(false);
+  const [bookingLinkCopied, setBookingLinkCopied] = useState(false);
 
   // Troca de senha (fluxo separado, com código enviado por email)
   const [passwordCodeSent, setPasswordCodeSent] = useState(false);
@@ -286,6 +290,7 @@ const Settings = () => {
         scheduleInterval: data.scheduleInterval ?? 15,
         appointmentBuffer: data.appointmentBuffer ?? 0,
         privacyAccepted: data.privacyAccepted ?? true,
+        homeServiceMaxDistanceKm: data.homeServiceMaxDistanceKm != null ? String(data.homeServiceMaxDistanceKm) : "",
       };
 
       setForm(next);
@@ -484,6 +489,7 @@ const Settings = () => {
       scheduleInterval: form.scheduleInterval,
       appointmentBuffer: form.appointmentBuffer,
       privacyAccepted: form.privacyAccepted,
+      homeServiceMaxDistanceKm: form.homeService && form.homeServiceMaxDistanceKm ? form.homeServiceMaxDistanceKm : undefined,
     };
 
     try {
@@ -528,6 +534,7 @@ const Settings = () => {
   };
 
   const publicUrl = publicSlug ? `${window.location.origin}/p/${publicSlug}` : null;
+  const bookingUrl = publicSlug ? `${window.location.origin}/p/${publicSlug}/agendar` : null;
 
   const handleCopyPublicLink = async () => {
     if (!publicUrl) return;
@@ -535,6 +542,17 @@ const Settings = () => {
       await navigator.clipboard.writeText(publicUrl);
       setLinkCopied(true);
       setTimeout(() => setLinkCopied(false), 2500);
+    } catch {
+      setToast({ show: true, type: "error", message: "Não foi possível copiar o link" });
+    }
+  };
+
+  const handleCopyBookingLink = async () => {
+    if (!bookingUrl) return;
+    try {
+      await navigator.clipboard.writeText(bookingUrl);
+      setBookingLinkCopied(true);
+      setTimeout(() => setBookingLinkCopied(false), 2500);
     } catch {
       setToast({ show: true, type: "error", message: "Não foi possível copiar o link" });
     }
@@ -986,6 +1004,39 @@ const Settings = () => {
                         </div>
                         Atende também a domicílio
                       </label>
+
+                      {form.homeService && (
+                        <div className="space-y-4 pt-2 pl-1 border-l-2 border-gray-100 ml-1">
+                          <p className="text-xs text-gray-400 pl-3">
+                            O custo de deslocamento (ida) é calculado automaticamente com a cotação
+                            atual da gasolina e o consumo médio de um carro popular — você só escolhe
+                            até onde atende.
+                          </p>
+
+                          <div className="pl-3">
+                            <label className={labelClass}>Zona de atendimento</label>
+                            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                              {[5, 10, 15, 20, 30, 50].map((km) => (
+                                <button
+                                  key={km}
+                                  type="button"
+                                  onClick={() => update("homeServiceMaxDistanceKm", String(km))}
+                                  className={`px-3 py-2.5 rounded-lg text-xs font-medium border transition-all duration-200 ${
+                                    form.homeServiceMaxDistanceKm === String(km)
+                                      ? "bg-gray-900 text-white border-gray-900"
+                                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                                  }`}
+                                >
+                                  {km} km
+                                </button>
+                              ))}
+                            </div>
+                            <p className="text-[11px] text-gray-300 mt-1.5 ml-0.5">
+                              Agendamentos a domicílio fora desse raio são recusados automaticamente.
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -1162,24 +1213,50 @@ const Settings = () => {
                   {id === "public" && (
                     <div className="space-y-4 pt-4">
                       <p className="text-xs text-gray-400">
-                        Sua página pública permite que clientes vejam seus serviços e façam
-                        agendamentos direto pelo link — ideal para colocar na bio do Instagram
-                        ou enviar no WhatsApp.
+                        Você tem dois links pra divulgar — ideal pra colocar na bio do Instagram
+                        ou enviar no WhatsApp. Escolha o que fizer mais sentido pro seu público,
+                        ou use os dois.
                       </p>
 
-                      {publicUrl ? (
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <code className="flex-1 min-w-0 truncate text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-gray-700">
-                            {publicUrl}
-                          </code>
-                          <button
-                            type="button"
-                            onClick={handleCopyPublicLink}
-                            className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-all duration-200"
-                          >
-                            {linkCopied ? <FiCheck size={13} className="text-green-600" /> : <FiCopy size={13} />}
-                            {linkCopied ? "Copiado!" : "Copiar"}
-                          </button>
+                      {publicUrl && bookingUrl ? (
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-[11px] font-semibold text-gray-500 mb-1.5">
+                              Chat com a IA — o cliente conversa e é atendido pela assistente
+                            </p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <code className="flex-1 min-w-0 truncate text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-gray-700">
+                                {publicUrl}
+                              </code>
+                              <button
+                                type="button"
+                                onClick={handleCopyPublicLink}
+                                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-all duration-200"
+                              >
+                                {linkCopied ? <FiCheck size={13} className="text-green-600" /> : <FiCopy size={13} />}
+                                {linkCopied ? "Copiado!" : "Copiar"}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <p className="text-[11px] font-semibold text-gray-500 mb-1.5">
+                              Agendamento direto — o cliente escolhe serviço e horário pelos botões
+                            </p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <code className="flex-1 min-w-0 truncate text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-gray-700">
+                                {bookingUrl}
+                              </code>
+                              <button
+                                type="button"
+                                onClick={handleCopyBookingLink}
+                                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-all duration-200"
+                              >
+                                {bookingLinkCopied ? <FiCheck size={13} className="text-green-600" /> : <FiCopy size={13} />}
+                                {bookingLinkCopied ? "Copiado!" : "Copiar"}
+                              </button>
+                            </div>
+                          </div>
                         </div>
                       ) : (
                         <button
@@ -1193,12 +1270,12 @@ const Settings = () => {
                           ) : (
                             <FiLink size={13} />
                           )}
-                          Gerar Link de Divulgação
+                          Gerar Links de Divulgação
                         </button>
                       )}
 
                       <p className="text-[11px] text-gray-300">
-                        O link é único e não muda depois de gerado.
+                        O link é único (mesmo identificador pros dois) e não muda depois de gerado.
                       </p>
                     </div>
                   )}

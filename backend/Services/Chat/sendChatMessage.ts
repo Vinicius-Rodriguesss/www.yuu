@@ -12,6 +12,7 @@ import { eq, and } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { usersTable } from "../../db/schema/users.js";
 import { servicesTable } from "../../db/schema/services.js";
+import { clientAccountsTable } from "../../db/schema/clientAccounts.js";
 import {
   AiNotConfiguredError,
   callAiProvider,
@@ -33,7 +34,7 @@ const buildSystemPrompt = (user: {
   homeService: boolean;
   aiStyle: string;
   customAiStyle: string | null;
-}, services: { title: string; description: string | null; duration: number; price: string }[]) => {
+}, services: { title: string; description: string | null; duration: number; price: string }[], clientName?: string | null) => {
   const styleInstruction = AI_STYLE_INSTRUCTIONS[user.aiStyle] ?? AI_STYLE_INSTRUCTIONS.profissional;
 
   const servicesList = services.length
@@ -48,6 +49,7 @@ const buildSystemPrompt = (user: {
     styleInstruction,
     user.customAiStyle ? `Instruções adicionais definidas pelo profissional: ${user.customAiStyle}` : "",
     `Serviços disponíveis:\n${servicesList}`,
+    clientName ? `Você está falando com o(a) cliente "${clientName}" (já logado e identificado).` : "",
     "Ajude o cliente a entender os serviços e tirar dúvidas. Não invente informações que você não tem.",
   ]
     .filter(Boolean)
@@ -106,7 +108,19 @@ const SendChatMessage = async (req: Request, res: Response) => {
       .from(servicesTable)
       .where(and(eq(servicesTable.userId, user.id), eq(servicesTable.active, true)));
 
-    const systemPrompt = buildSystemPrompt(user, services);
+    // Cliente final logado (clientAuthMiddleware): personaliza o atendimento
+    const clientAccountId = (req as any).clientAccountId as number | undefined;
+    let clientName: string | null = null;
+    if (clientAccountId) {
+      const [client] = await db
+        .select({ name: clientAccountsTable.name })
+        .from(clientAccountsTable)
+        .where(eq(clientAccountsTable.id, clientAccountId))
+        .limit(1);
+      clientName = client?.name ?? null;
+    }
+
+    const systemPrompt = buildSystemPrompt(user, services, clientName);
 
     const reply = await callAiProvider(systemPrompt, [
       ...safeHistory,

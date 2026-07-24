@@ -12,6 +12,7 @@ import {
 } from "react-icons/fi";
 import Toast from "../../Components/Toast/index";
 import { apiFetch } from "@/api/client";
+import { formatPhone } from "../../SignUp/passwordValidation";
 
 interface Customer {
   id: number;
@@ -320,7 +321,7 @@ const Customers = () => {
                     type="tel"
                     placeholder="(00) 00000-0000"
                     value={phone}
-                    onChange={(e) => setPhone(e.target.value)}
+                    onChange={(e) => setPhone(formatPhone(e.target.value))}
                     className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg outline-none transition-all duration-200 hover:border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900/10 placeholder:text-gray-300"
                   />
                 </div>
