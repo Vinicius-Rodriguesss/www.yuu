@@ -31,13 +31,16 @@ export const apiFetch = async (path: string, options: RequestInit = {}) => {
 // ===================== Sessão do CLIENTE FINAL (páginas públicas /p/:slug) =====================
 
 export interface ClientAddress {
+  id: number;
+  label: string | null;
   cep: string;
   street: string;
   number: string;
-  complement: string;
+  complement: string | null;
   neighborhood: string;
   city: string;
   state: string;
+  isPrimary: boolean;
 }
 
 export interface ClientSession {
@@ -45,7 +48,6 @@ export interface ClientSession {
   name: string;
   cpf: string;
   phone: string;
-  address: ClientAddress | null;
 }
 
 export const getClientToken = () => localStorage.getItem("clientToken");

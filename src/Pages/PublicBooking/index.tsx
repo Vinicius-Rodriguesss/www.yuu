@@ -3,14 +3,16 @@ import { useParams, Link } from "react-router-dom";
 import {
   FiUser, FiScissors, FiClock, FiCalendar,
   FiCheck, FiCheckCircle, FiHome, FiChevronLeft, FiDollarSign, FiMessageSquare, FiLogOut,
+  FiStar, FiList,
 } from "react-icons/fi";
 import {
   apiFetch, clientApiFetch, tzOffsetMin,
-  getClientSession, saveClientSession, getClientToken, clearClientSession,
+  getClientSession, clearClientSession,
   type ClientSession,
 } from "@/api/client";
-import { formatCEP, type ViaCEPResponse } from "../../SignUp/passwordValidation";
 import ClientAuthGate from "@/Components/ClientAuthGate";
+import ClientAddressBook from "@/Components/ClientAddressBook";
+import ClientHistoryModal from "@/Components/ClientHistoryModal";
 import "./index.css";
 
 interface PublicProfile {
@@ -18,6 +20,16 @@ interface PublicProfile {
   businessType: string;
   homeService: boolean;
   services: { id: number; title: string; description: string | null; duration: number; price: string; category: string | null }[];
+}
+
+interface RecommendedService {
+  id: number;
+  title: string;
+  description: string | null;
+  duration: number;
+  price: string;
+  category: string | null;
+  timesBooked: number;
 }
 
 interface DaySlot {
@@ -36,9 +48,11 @@ interface DayAvailability {
   slots: DaySlot[];
   travelMinutes?: number;
   travelUnavailable?: boolean;
+  travelKm?: number | null;
+  travelCost?: number;
+  exceedsMaxDistance?: boolean;
+  maxDistanceKm?: number | null;
 }
-
-const emptyAddress = { cep: "", street: "", number: "", complement: "", neighborhood: "", city: "", state: "" };
 
 type Step = 1 | 2 | 3;
 
@@ -57,7 +71,7 @@ const formatMoney = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
 const PublicBookingInner = ({ profile, slug }: { profile: PublicProfile | null; slug: string }) => {
-  const [client, setClient] = useState<ClientSession | null>(() => getClientSession());
+  const [client] = useState<ClientSession | null>(() => getClientSession());
   const [step, setStep] = useState<Step>(1);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
@@ -65,6 +79,15 @@ const PublicBookingInner = ({ profile, slug }: { profile: PublicProfile | null; 
 
   // Etapa 1 — serviço
   const [selectedServiceId, setSelectedServiceId] = useState<number | null>(null);
+  const [recommendedServices, setRecommendedServices] = useState<RecommendedService[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
+
+  useEffect(() => {
+    if (!slug) return;
+    clientApiFetch(`/public/${slug}/history`)
+      .then((data) => setRecommendedServices(data.recommendedServices ?? []))
+      .catch(() => setRecommendedServices([]));
+  }, [slug]);
 
   // Etapa 2 — data/horário
   const [date, setDate] = useState(todayISO());
@@ -72,27 +95,11 @@ const PublicBookingInner = ({ profile, slug }: { profile: PublicProfile | null; 
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [selectedSlot, setSelectedSlot] = useState<DaySlot | null>(null);
   const [homeService, setHomeService] = useState(false);
-  const [address, setAddress] = useState({ ...emptyAddress });
-  const [cepStatus, setCepStatus] = useState<{ type: "success" | "error" | "loading"; message: string } | null>(null);
+  const [selectedAddressId, setSelectedAddressId] = useState<number | null>(null);
 
   // Etapa 3
   const [notes, setNotes] = useState("");
   const [createdAppointment, setCreatedAppointment] = useState<{ price: string; travelCost?: string; travelDistanceKm?: string } | null>(null);
-
-  // Atualiza os dados da conta (inclui endereço salvo) e pré-preenche o endereço
-  useEffect(() => {
-    if (!getClientToken()) return;
-    clientApiFetch("/client/me")
-      .then((data) => {
-        const token = getClientToken();
-        if (token && data?.client) {
-          saveClientSession(token, data.client);
-          setClient(data.client);
-          if (data.client.address) setAddress({ ...data.client.address });
-        }
-      })
-      .catch(() => {});
-  }, []);
 
   const selectedService = profile?.services.find((s) => s.id === selectedServiceId) ?? null;
 
@@ -100,54 +107,24 @@ const PublicBookingInner = ({ profile, slug }: { profile: PublicProfile | null; 
     if (!slug || !selectedServiceId) return;
     setLoadingSlots(true);
     setSelectedSlot(null);
-    clientApiFetch(`/public/${slug}/availability?date=${date}&serviceId=${selectedServiceId}&tz=${tzOffsetMin}`)
+    const homeParams =
+      homeService && selectedAddressId ? `&homeService=1&addressId=${selectedAddressId}` : "";
+    clientApiFetch(`/public/${slug}/availability?date=${date}&serviceId=${selectedServiceId}&tz=${tzOffsetMin}${homeParams}`)
       .then((data) => setAvailability(data))
       .catch(() => setAvailability(null))
       .finally(() => setLoadingSlots(false));
-  }, [slug, date, selectedServiceId]);
+  }, [slug, date, selectedServiceId, homeService, selectedAddressId]);
 
   useEffect(() => {
     if (step === 2) loadAvailability();
   }, [step, loadAvailability]);
 
-  // Busca o endereço automaticamente quando o CEP tem 8 dígitos
-  useEffect(() => {
-    const numbers = address.cep.replace(/\D/g, "");
-    if (numbers.length !== 8) {
-      setCepStatus(numbers.length > 0 ? { type: "error", message: "CEP deve conter 8 dígitos." } : null);
-      return;
-    }
-    // Endereço já completo (veio salvo da conta): não sobrescreve
-    if (address.street && address.city) {
-      setCepStatus(null);
-      return;
-    }
-    setCepStatus({ type: "loading", message: "Buscando endereço..." });
-    const timer = setTimeout(async () => {
-      try {
-        const response = await fetch(`https://viacep.com.br/ws/${numbers}/json/`);
-        const data: ViaCEPResponse & { erro?: boolean } = await response.json();
-        if (data.erro) {
-          setCepStatus({ type: "error", message: "CEP não encontrado." });
-          return;
-        }
-        setAddress((p) => ({
-          ...p,
-          street: data.logradouro || "",
-          neighborhood: data.bairro || "",
-          city: data.localidade || "",
-          state: data.uf || "",
-        }));
-        setCepStatus({ type: "success", message: "Endereço encontrado!" });
-      } catch {
-        setCepStatus({ type: "error", message: "Erro ao buscar CEP." });
-      }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [address.cep, address.street, address.city]);
-
   const handleConfirm = async () => {
     if (!slug || !selectedServiceId || !selectedSlot) return;
+    if (homeService && !selectedAddressId) {
+      setError("Selecione um endereço para o atendimento a domicílio");
+      return;
+    }
     setSubmitting(true);
     setError("");
     try {
@@ -158,7 +135,7 @@ const PublicBookingInner = ({ profile, slug }: { profile: PublicProfile | null; 
           scheduledAt: selectedSlot.startAt,
           tzOffsetMin,
           isHomeService: homeService,
-          address: homeService ? address : undefined,
+          addressId: homeService ? selectedAddressId : undefined,
           notes: notes.trim() || undefined,
         }),
       });
@@ -174,6 +151,20 @@ const PublicBookingInner = ({ profile, slug }: { profile: PublicProfile | null; 
   const handleLogout = () => {
     clearClientSession();
     window.location.reload();
+  };
+
+  const startNewBooking = () => {
+    setStep(1);
+    setError("");
+    setSuccess(false);
+    setSelectedServiceId(null);
+    setDate(todayISO());
+    setAvailability(null);
+    setSelectedSlot(null);
+    setHomeService(false);
+    setSelectedAddressId(null);
+    setNotes("");
+    setCreatedAppointment(null);
   };
 
   const dateLabel = (() => {
@@ -202,10 +193,19 @@ const PublicBookingInner = ({ profile, slug }: { profile: PublicProfile | null; 
         <div className="pbook-clientbar">
           <FiUser size={13} />
           <span>Olá, <strong>{client.name.split(" ")[0]}</strong></span>
-          <button onClick={handleLogout} title="Sair da conta">
-            <FiLogOut size={13} /> Sair
-          </button>
+          <div className="pbook-clientbar-actions">
+            <button onClick={() => setShowHistory(true)} title="Ver meus agendamentos">
+              <FiList size={13} /> Meus agendamentos
+            </button>
+            <button onClick={handleLogout} title="Sair da conta">
+              <FiLogOut size={13} /> Sair
+            </button>
+          </div>
         </div>
+      )}
+
+      {showHistory && slug && (
+        <ClientHistoryModal slug={slug} onClose={() => setShowHistory(false)} />
       )}
 
       <div className="pbook-card">
@@ -243,17 +243,48 @@ const PublicBookingInner = ({ profile, slug }: { profile: PublicProfile | null; 
             </p>
             {createdAppointment && Number(createdAppointment.travelCost) > 0 && (
               <p>
-                Inclui custo de deslocamento (ida) de <strong>{formatMoney(Number(createdAppointment.travelCost))}</strong>
+                Inclui custo de deslocamento (ida e volta) de <strong>{formatMoney(Number(createdAppointment.travelCost))}</strong>
                 {createdAppointment.travelDistanceKm && ` (${Number(createdAppointment.travelDistanceKm).toFixed(1)} km)`}.
                 {" "}Total: <strong>{formatMoney(Number(createdAppointment.price) + Number(createdAppointment.travelCost))}</strong>
               </p>
             )}
+            <button className="pbook-btn-primary pbook-btn-new" onClick={startNewBooking}>
+              Fazer novo agendamento
+            </button>
           </div>
         ) : (
           <>
             {step === 1 && (
               <div className="pbook-step">
                 {profile?.services.length === 0 && <p className="pbook-empty">Nenhum serviço disponível no momento.</p>}
+
+                {recommendedServices.length > 0 && (
+                  <div className="pbook-recommended">
+                    <p className="pbook-recommended-title">
+                      <FiStar size={12} /> Recomendados pra você
+                    </p>
+                    <div className="pbook-list">
+                      {recommendedServices.map((s) => (
+                        <button
+                          key={s.id}
+                          className={`pbook-item pbook-item-recommended ${selectedServiceId === s.id ? "selected" : ""}`}
+                          onClick={() => { setSelectedServiceId(s.id); setStep(2); }}
+                        >
+                          <span className="pbook-item-icon"><FiScissors size={14} /></span>
+                          <span className="pbook-item-info">
+                            <strong>{s.title}</strong>
+                            <small>
+                              <FiClock size={10} /> {s.duration} min{s.category ? ` · ${s.category}` : ""}
+                              {" · "}pedido {s.timesBooked}x
+                            </small>
+                          </span>
+                          <span className="pbook-item-price">{formatMoney(Number(s.price))}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
                 <div className="pbook-list">
                   {profile?.services.map((s) => (
                     <button
@@ -287,48 +318,22 @@ const PublicBookingInner = ({ profile, slug }: { profile: PublicProfile | null; 
                 )}
 
                 {homeService && (
-                  <p className="pbook-meta">
-                    Pode incluir um custo adicional de deslocamento, calculado automaticamente pela distância até o seu endereço. O valor final aparece na confirmação.
-                    {client?.address && " Seu endereço salvo já foi preenchido — é só conferir."}
-                  </p>
+                  <ClientAddressBook selectedId={selectedAddressId} onSelect={setSelectedAddressId} />
                 )}
 
-                {homeService && (
-                  <div className="pbook-address">
-                    <div className="pbook-field-row">
-                      <div className="pbook-field">
-                        <label>CEP</label>
-                        <input value={address.cep} onChange={(e) => setAddress((p) => ({ ...p, cep: formatCEP(e.target.value) }))} placeholder="00000-000" />
-                        {cepStatus && (
-                          <small className={`pbook-cep-status pbook-cep-status-${cepStatus.type}`}>
-                            {cepStatus.type === "loading" ? "Buscando..." : cepStatus.message}
-                          </small>
-                        )}
-                      </div>
-                      <div className="pbook-field">
-                        <label>Número</label>
-                        <input value={address.number} onChange={(e) => setAddress((p) => ({ ...p, number: e.target.value }))} />
-                      </div>
-                    </div>
-                    <div className="pbook-field">
-                      <label>Rua</label>
-                      <input value={address.street} onChange={(e) => setAddress((p) => ({ ...p, street: e.target.value }))} />
-                    </div>
-                    <div className="pbook-field-row">
-                      <div className="pbook-field">
-                        <label>Bairro</label>
-                        <input value={address.neighborhood} onChange={(e) => setAddress((p) => ({ ...p, neighborhood: e.target.value }))} />
-                      </div>
-                      <div className="pbook-field">
-                        <label>Cidade</label>
-                        <input value={address.city} onChange={(e) => setAddress((p) => ({ ...p, city: e.target.value }))} />
-                      </div>
-                    </div>
-                    <div className="pbook-field">
-                      <label>UF</label>
-                      <input maxLength={2} value={address.state} onChange={(e) => setAddress((p) => ({ ...p, state: e.target.value.toUpperCase() }))} />
-                    </div>
+                {homeService && selectedAddressId && availability?.exceedsMaxDistance && (
+                  <div className="pbook-error">
+                    Esse endereço fica fora do raio de atendimento a domicílio
+                    {availability.maxDistanceKm ? ` (máximo ${availability.maxDistanceKm} km)` : ""}. Escolha outro endereço.
                   </div>
+                )}
+
+                {homeService && selectedAddressId && !availability?.exceedsMaxDistance && (availability?.travelCost ?? 0) > 0 && (
+                  <p className="pbook-meta">
+                    Custo de deslocamento (ida e volta) para este endereço:{" "}
+                    <strong>{formatMoney(availability!.travelCost!)}</strong>
+                    {availability?.travelKm != null && ` (${availability.travelKm.toFixed(1)} km)`}
+                  </p>
                 )}
 
                 <div className="pbook-datebar">
@@ -378,7 +383,16 @@ const PublicBookingInner = ({ profile, slug }: { profile: PublicProfile | null; 
                   </div>
                   <div className="pbook-summary-row">
                     <FiDollarSign size={14} />
-                    <div><small>Valor</small><strong>{formatMoney(Number(selectedService.price))}</strong></div>
+                    <div>
+                      <small>Valor</small>
+                      <strong>{formatMoney(Number(selectedService.price))}</strong>
+                      {homeService && (availability?.travelCost ?? 0) > 0 && (
+                        <span>
+                          + {formatMoney(availability!.travelCost!)} de deslocamento (ida e volta) ={" "}
+                          {formatMoney(Number(selectedService.price) + availability!.travelCost!)}
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="pbook-summary-row">
                     <FiCalendar size={14} />
@@ -395,7 +409,11 @@ const PublicBookingInner = ({ profile, slug }: { profile: PublicProfile | null; 
                   <textarea rows={3} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Alguma informação adicional?" />
                 </div>
 
-                <button className="pbook-btn-primary" disabled={submitting} onClick={handleConfirm}>
+                <button
+                  className="pbook-btn-primary"
+                  disabled={submitting || Boolean(homeService && availability?.exceedsMaxDistance)}
+                  onClick={handleConfirm}
+                >
                   {submitting ? "Agendando..." : "Confirmar agendamento"}
                 </button>
               </div>

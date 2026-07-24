@@ -672,7 +672,7 @@ const ClientSchedulingForm = ({ onAppointmentCreated, openRequest }: ClientSched
                     <div className="sched-travel-note">
                       <FiHome size={12} /> ≈ {availability.travelMinutes} min de deslocamento incluídos no tempo de cada horário
                       {availability.travelKm != null && ` (${availability.travelKm.toFixed(1)} km)`}
-                      {(availability.travelCost ?? 0) > 0 && ` · custo de deslocamento (ida): ${formatMoney(availability.travelCost!)}`}
+                      {(availability.travelCost ?? 0) > 0 && ` · custo de deslocamento (ida e volta): ${formatMoney(availability.travelCost!)}`}
                     </div>
                   )}
                   {homeService && availability.travelUnavailable && (
@@ -765,7 +765,7 @@ const ClientSchedulingForm = ({ onAppointmentCreated, openRequest }: ClientSched
                         <span>≈ {availability?.travelMinutes} min de deslocamento incluídos</span>
                       )}
                       {(availability?.travelCost ?? 0) > 0 && (
-                        <span>Custo de deslocamento (ida): {formatMoney(availability!.travelCost!)}</span>
+                        <span>Custo de deslocamento (ida e volta): {formatMoney(availability!.travelCost!)}</span>
                       )}
                     </div>
                   </div>

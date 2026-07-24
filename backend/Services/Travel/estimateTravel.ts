@@ -20,14 +20,29 @@ import { db } from "../../db/index.js";
 import { addressesTable } from "../../db/schema/addresses.js";
 import { customerAddressesTable } from "../../db/schema/customerAddresses.js";
 import { usersTable } from "../../db/schema/users.js";
-import { getGasolinePrice } from "./fuelPrice.js";
 
 /**
- * Consumo médio de um carro popular no Brasil (km/l, gasolina).
- * O custo de deslocamento usa essa média — o profissional não configura
- * consumo nem preço: só a zona (raio máximo) em que atende.
+ * Custo de deslocamento = distância real da rota × 2 (ida e volta) × taxa
+ * fixa por km. A taxa é uma configuração do sistema (.env), não depende do
+ * veículo ou consumo de cada profissional — que só escolhe a zona (raio) de
+ * atendimento.
+ *
+ * Calibração: trajeto real Jundiapeba → Poá (~8,5 km), onde R$30 é o valor
+ * de ida → taxa = 30 / 8,5 ≈ R$3,53/km, arredondada para R$3,50/km.
+ *
+ *   TRAVEL_RATE_PER_KM — R$ por km rodado (padrão 3.50)
+ *   TRAVEL_MIN_COST    — valor mínimo de cobrança, evita valores irrisórios
+ *                        em distâncias muito curtas (padrão 0 = sem mínimo)
  */
-const AVG_CAR_KM_PER_LITER = 12;
+const travelRatePerKm = () => {
+  const v = Number(process.env.TRAVEL_RATE_PER_KM);
+  return isFinite(v) && v > 0 ? v : 3.5;
+};
+
+const travelMinCost = () => {
+  const v = Number(process.env.TRAVEL_MIN_COST);
+  return isFinite(v) && v > 0 ? v : 0;
+};
 
 interface AddressLike {
   street: string;
@@ -56,7 +71,39 @@ export interface TravelEstimate {
   km: number;
 }
 
+/**
+ * Cache de rotas por par origem→destino (2h): endereços repetidos — cliente
+ * fiel agendando de novo, revalidação na confirmação — não gastam chamadas
+ * do Google. TTL curto porque o tempo com trânsito muda ao longo do dia;
+ * a distância em si praticamente não varia.
+ */
+const routeCache = new Map<string, { fetchedAt: number; result: TravelEstimate }>();
+const ROUTE_CACHE_TTL_MS = 2 * 60 * 60 * 1000;
+const ROUTE_CACHE_MAX = 500;
+
 export const estimateTravel = async (
+  origin: string,
+  destination: string
+): Promise<TravelEstimate | null> => {
+  const cacheKey = `${origin}|${destination}`.toLowerCase();
+  const cached = routeCache.get(cacheKey);
+  if (cached && Date.now() - cached.fetchedAt < ROUTE_CACHE_TTL_MS) {
+    return cached.result;
+  }
+
+  const result = await fetchTravelEstimate(origin, destination);
+  if (result) {
+    if (routeCache.size >= ROUTE_CACHE_MAX) {
+      // Descarta a entrada mais antiga (Map preserva ordem de inserção)
+      const oldest = routeCache.keys().next().value;
+      if (oldest !== undefined) routeCache.delete(oldest);
+    }
+    routeCache.set(cacheKey, { fetchedAt: Date.now(), result });
+  }
+  return result;
+};
+
+const fetchTravelEstimate = async (
   origin: string,
   destination: string
 ): Promise<TravelEstimate | null> => {
@@ -131,7 +178,7 @@ export interface HomeServiceTravelResult {
   minutes: number | null;
   km: number | null;
   addressId: number | null;
-  /** custo de combustível da IDA, calculado com consumo médio e cotação em tempo real */
+  /** custo de deslocamento ida e volta: distância real × 2 × taxa fixa por km (TRAVEL_RATE_PER_KM) */
   travelCost: number;
   /** true quando a distância excede o limite configurado pelo profissional */
   exceedsMaxDistance: boolean;
@@ -139,26 +186,27 @@ export interface HomeServiceTravelResult {
 }
 
 /**
- * Resolve o deslocamento de um atendimento a domicílio:
- * endereço do profissional → endereço do cliente (o informado, o principal, ou o mais recente).
- *
- * Custo repassado ao cliente = combustível da IDA, usando o consumo médio de
- * um carro popular (AVG_CAR_KM_PER_LITER) e a cotação da gasolina em tempo
- * real (fuelPrice.ts) na UF do profissional. Também verifica se a distância
- * excede a zona de atendimento configurada.
+ * Núcleo do cálculo de deslocamento: endereço do profissional → endereço de
+ * destino (já resolvido pelo chamador). Custo repassado ao cliente =
+ * distância real da rota × 2 (ida e volta) × taxa fixa por km
+ * (TRAVEL_RATE_PER_KM), com valor mínimo opcional (TRAVEL_MIN_COST).
  */
-export const resolveHomeServiceTravel = async (
+const computeTravelResult = async (
   userId: number,
-  customerId: number,
-  customerAddressId?: number
+  destination: AddressLike | null,
+  addressId: number | null
 ): Promise<HomeServiceTravelResult> => {
   const [professional] = await db
-    .select({
-      maxDistanceKm: usersTable.homeServiceMaxDistanceKm,
-    })
+    .select({ maxDistanceKm: usersTable.homeServiceMaxDistanceKm })
     .from(usersTable)
     .where(eq(usersTable.id, userId))
     .limit(1);
+
+  const maxDistanceKm = professional?.maxDistanceKm ?? null;
+
+  if (!destination) {
+    return { minutes: null, km: null, addressId: null, travelCost: 0, exceedsMaxDistance: false, maxDistanceKm };
+  }
 
   const [professionalAddress] = await db
     .select()
@@ -166,6 +214,42 @@ export const resolveHomeServiceTravel = async (
     .where(eq(addressesTable.userId, userId))
     .limit(1);
 
+  if (!professionalAddress) {
+    return { minutes: null, km: null, addressId, travelCost: 0, exceedsMaxDistance: false, maxDistanceKm };
+  }
+
+  const travel = await estimateTravel(addressToString(professionalAddress), addressToString(destination));
+
+  if (!travel) {
+    return { minutes: null, km: null, addressId, travelCost: 0, exceedsMaxDistance: false, maxDistanceKm };
+  }
+
+  const exceedsMaxDistance = maxDistanceKm !== null && travel.km > maxDistanceKm;
+
+  // Distância × 2 (ida e volta) × taxa fixa por km, respeitando o valor mínimo
+  const rawCost = travel.km * 2 * travelRatePerKm();
+  const travelCost = Math.round(Math.max(rawCost, travelMinCost()) * 100) / 100;
+
+  return {
+    minutes: travel.minutes,
+    km: Math.round(travel.km * 100) / 100,
+    addressId,
+    travelCost,
+    exceedsMaxDistance,
+    maxDistanceKm,
+  };
+};
+
+/**
+ * Resolve o deslocamento de um atendimento a domicílio a partir de um
+ * endereço JÁ VINCULADO a um cliente do profissional (customer_addresses):
+ * o informado, o principal, ou o mais recente.
+ */
+export const resolveHomeServiceTravel = async (
+  userId: number,
+  customerId: number,
+  customerAddressId?: number
+): Promise<HomeServiceTravelResult> => {
   let customerAddress = null;
 
   if (customerAddressId) {
@@ -191,37 +275,18 @@ export const resolveHomeServiceTravel = async (
       .limit(1);
   }
 
-  const maxDistanceKm = professional?.maxDistanceKm ?? null;
+  return computeTravelResult(userId, customerAddress ?? null, customerAddress?.id ?? null);
+};
 
-  if (!customerAddress) {
-    return { minutes: null, km: null, addressId: null, travelCost: 0, exceedsMaxDistance: false, maxDistanceKm };
-  }
-
-  if (!professionalAddress) {
-    return { minutes: null, km: null, addressId: customerAddress.id, travelCost: 0, exceedsMaxDistance: false, maxDistanceKm };
-  }
-
-  const travel = await estimateTravel(
-    addressToString(professionalAddress),
-    addressToString(customerAddress)
-  );
-
-  if (!travel) {
-    return { minutes: null, km: null, addressId: customerAddress.id, travelCost: 0, exceedsMaxDistance: false, maxDistanceKm };
-  }
-
-  const exceedsMaxDistance = maxDistanceKm !== null && travel.km > maxDistanceKm;
-
-  // Só a IDA por enquanto: km / consumo médio × preço atual da gasolina na UF
-  const gasolinePrice = await getGasolinePrice(professionalAddress.state);
-  const travelCost = Math.round((travel.km / AVG_CAR_KM_PER_LITER) * gasolinePrice * 100) / 100;
-
-  return {
-    minutes: travel.minutes,
-    km: Math.round(travel.km * 100) / 100,
-    addressId: customerAddress.id,
-    travelCost,
-    exceedsMaxDistance,
-    maxDistanceKm,
-  };
+/**
+ * Resolve o deslocamento a partir de um endereço da conta GLOBAL do cliente
+ * (client_addresses) — usado na PRÉ-VISUALIZAÇÃO de disponibilidade da
+ * página pública de agendamento, ANTES de o agendamento existir (por isso
+ * não depende de customer_addresses, que só é criado ao confirmar).
+ */
+export const resolveHomeServiceTravelFromClientAddress = async (
+  userId: number,
+  clientAddress: AddressLike & { id: number }
+): Promise<HomeServiceTravelResult> => {
+  return computeTravelResult(userId, clientAddress, clientAddress.id);
 };

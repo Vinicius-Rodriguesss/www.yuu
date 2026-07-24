@@ -49,29 +49,11 @@ export const clientPublicData = (client: {
   name: string;
   cpf: string;
   phone: string;
-  cep: string | null;
-  street: string | null;
-  number: string | null;
-  complement: string | null;
-  neighborhood: string | null;
-  city: string | null;
-  state: string | null;
 }) => ({
   id: client.id,
   name: client.name,
   cpf: client.cpf,
   phone: client.phone,
-  address: client.cep
-    ? {
-        cep: client.cep,
-        street: client.street ?? "",
-        number: client.number ?? "",
-        complement: client.complement ?? "",
-        neighborhood: client.neighborhood ?? "",
-        city: client.city ?? "",
-        state: client.state ?? "",
-      }
-    : null,
 });
 
 const RegisterClient = async (req: Request<{}, {}, RegisterClientBody>, res: Response) => {

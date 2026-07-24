@@ -8,13 +8,14 @@
  * para ser reaproveitado nos próximos agendamentos.
  */
 import type { Request, Response } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, desc } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { usersTable } from "../../db/schema/users.js";
 import { servicesTable } from "../../db/schema/services.js";
 import { customersTable } from "../../db/schema/customers.js";
 import { customerAddressesTable } from "../../db/schema/customerAddresses.js";
 import { clientAccountsTable } from "../../db/schema/clientAccounts.js";
+import { clientAddressesTable } from "../../db/schema/clientAddresses.js";
 import { resolveHomeServiceTravel } from "../Travel/estimateTravel.js";
 import { createAppointmentCore } from "../Appointments/createAppointmentCore.js";
 
@@ -24,22 +25,15 @@ interface PublicBookingBody {
   tzOffsetMin?: number | string;
   notes?: string;
   isHomeService?: boolean;
-  address?: {
-    cep?: string;
-    street?: string;
-    number?: string;
-    complement?: string;
-    neighborhood?: string;
-    city?: string;
-    state?: string;
-  };
+  /** id de um endereço salvo na conta do cliente (GET /client/addresses) */
+  addressId?: number | string;
 }
 
 const PublicBookAppointment = async (req: Request<{ slug: string }, {}, PublicBookingBody>, res: Response) => {
   try {
     const { slug } = req.params;
     const clientAccountId = (req as any).clientAccountId as number;
-    const { serviceId, scheduledAt, tzOffsetMin, notes, isHomeService, address } = req.body;
+    const { serviceId, scheduledAt, tzOffsetMin, notes, isHomeService, addressId } = req.body;
 
     const [user] = await db
       .select({ id: usersTable.id })
@@ -128,47 +122,31 @@ const PublicBookAppointment = async (req: Request<{ slug: string }, {}, PublicBo
       }
     }
 
-    // Domicílio: usa o endereço enviado ou o já salvo na conta do cliente
+    // Domicílio: usa o endereço salvo indicado (addressId) ou o principal da conta
     let travelMinutes = 0;
     let travelDistanceKm = 0;
     let travelCost = 0;
     let resolvedAddressId: number | null = null;
     if (homeService) {
-      const savedAddress = clientAccount.cep
-        ? {
-            cep: clientAccount.cep,
-            street: clientAccount.street ?? "",
-            number: clientAccount.number ?? "",
-            complement: clientAccount.complement ?? "",
-            neighborhood: clientAccount.neighborhood ?? "",
-            city: clientAccount.city ?? "",
-            state: clientAccount.state ?? "",
-          }
-        : null;
-
-      const effectiveAddress =
-        address?.cep && address?.street && address?.number && address?.neighborhood && address?.city && address?.state
-          ? address
-          : savedAddress;
-
-      if (!effectiveAddress) {
-        return res.status(400).json({ error: "Endereço completo é obrigatório para atendimento a domicílio" });
+      let clientAddress;
+      if (addressId) {
+        [clientAddress] = await db
+          .select()
+          .from(clientAddressesTable)
+          .where(and(eq(clientAddressesTable.id, Number(addressId)), eq(clientAddressesTable.clientAccountId, clientAccountId)))
+          .limit(1);
+      } else {
+        [clientAddress] = await db
+          .select()
+          .from(clientAddressesTable)
+          .where(eq(clientAddressesTable.clientAccountId, clientAccountId))
+          .orderBy(desc(clientAddressesTable.isPrimary), desc(clientAddressesTable.id))
+          .limit(1);
       }
 
-      // Salva/atualiza o endereço na conta global do cliente (reuso futuro)
-      await db
-        .update(clientAccountsTable)
-        .set({
-          cep: effectiveAddress.cep,
-          street: effectiveAddress.street,
-          number: effectiveAddress.number,
-          complement: effectiveAddress.complement || null,
-          neighborhood: effectiveAddress.neighborhood,
-          city: effectiveAddress.city,
-          state: effectiveAddress.state,
-          updatedAt: new Date(),
-        })
-        .where(eq(clientAccountsTable.id, clientAccountId));
+      if (!clientAddress) {
+        return res.status(400).json({ error: "Selecione um endereço para o atendimento a domicílio" });
+      }
 
       const [existingAddresses] = await db
         .select({ id: customerAddressesTable.id })
@@ -180,13 +158,13 @@ const PublicBookAppointment = async (req: Request<{ slug: string }, {}, PublicBo
         .insert(customerAddressesTable)
         .values({
           customerId,
-          cep: effectiveAddress.cep!,
-          street: effectiveAddress.street!,
-          number: effectiveAddress.number!,
-          complement: effectiveAddress.complement || null,
-          neighborhood: effectiveAddress.neighborhood!,
-          city: effectiveAddress.city!,
-          state: effectiveAddress.state!,
+          cep: clientAddress.cep,
+          street: clientAddress.street,
+          number: clientAddress.number,
+          complement: clientAddress.complement || null,
+          neighborhood: clientAddress.neighborhood,
+          city: clientAddress.city,
+          state: clientAddress.state,
           isPrimary: !existingAddresses,
         })
         .returning();

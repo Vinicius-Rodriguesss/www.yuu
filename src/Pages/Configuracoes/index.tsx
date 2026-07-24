@@ -1008,9 +1008,9 @@ const Settings = () => {
                       {form.homeService && (
                         <div className="space-y-4 pt-2 pl-1 border-l-2 border-gray-100 ml-1">
                           <p className="text-xs text-gray-400 pl-3">
-                            O custo de deslocamento (ida) é calculado automaticamente com a cotação
-                            atual da gasolina e o consumo médio de um carro popular — você só escolhe
-                            até onde atende.
+                            O custo de deslocamento (ida e volta) é calculado automaticamente pela
+                            distância real da rota até o cliente, com uma taxa fixa por km — você só
+                            escolhe até onde atende.
                           </p>
 
                           <div className="pl-3">
