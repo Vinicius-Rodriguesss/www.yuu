@@ -22,7 +22,8 @@ services:
       - CHOKIDAR_INTERVAL=300
 
     depends_on:
-      - postgres
+      postgres:
+        condition: service_healthy
 
 
   frontend:
@@ -58,6 +59,12 @@ services:
 
     volumes:
       - postgres_data:/var/lib/postgresql/data
+
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+      interval: 2s
+      timeout: 5s
+      retries: 20
 
 
 volumes:
