@@ -19,8 +19,12 @@ const Calendar = () => {
       </div>
       <div className="main-calendar">
         {/* Main do calendar */}
-        <div className="nav-calendar"></div>
-        <div className="calendar"></div>
+        <div className="nav-calendar">
+
+        </div>
+        <div className="calendar">
+          
+        </div>
         {/* Main do calendar */}
       </div>
     </div>

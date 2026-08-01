@@ -4,14 +4,22 @@
   font-family: "Inter", sans-serif;
 }
 
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
 .DashboardLayout {
   display: flex;
+  height: 100vh;
 }
 
 .mainDashboardLayout {
   padding: 1.3rem 2rem;
   width: 100%;
   height: 100%;
+  box-sizing: border-box;
+  overflow: hidden;
 }
 
 @media screen and (max-width: 991px) {
