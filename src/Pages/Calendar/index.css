@@ -92,11 +92,18 @@
   .nav-calendar, .calendar {
     height: 100%;
   }
+
+  .nav-calendar {
+    width: 15%;
+  }
+  .calendar {
+    width: 85%;
+  }
 }
 .main-calendar {
   flex: 1;
   min-height: 0;
-  gap: .5rem;
+  gap: 1rem;
   margin-top: 1rem;
 }
 
@@ -105,7 +112,6 @@
   border: 1px solid #ececec;
   border-radius: .75rem;
   padding: .75rem 1rem;
-  width: 20%;
   overflow-y: auto;
 }
 
@@ -113,6 +119,17 @@
   border: 1px solid #ececec;
   border-radius: .75rem;
   padding: .75rem 1rem;
-  width: 80%;
   overflow-y: auto;
+}
+
+@media (max-width: 991px) {
+  .main-calendar {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
+  .nav-calendar, .calendar {
+    height: 500px;
+  }
 }
