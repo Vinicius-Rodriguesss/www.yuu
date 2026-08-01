@@ -22,7 +22,7 @@
 .textureMenuOff {
   width: 6rem;
   transition: all .2s;
-  margin-right: 4rem;
+  margin-right: .2rem;
 }
 
 .center {
@@ -60,40 +60,46 @@
 
 .navDesktop {
   width: 18rem;
-  height: 100%;
   background-color: #ffffff;
   color: #1a1a1a;
   display: flex;
   flex-direction: column;
   padding: 2rem 1.5rem;
-  border-right: 1px solid #ececec;
+  border: 1px solid #ececec;
   overflow: hidden;
   position: fixed;
   left: 0px;
-   transition: all .2s;
+  transition: all .2s;
+  margin: 10px;
+  bottom: 5px;
+  top: 5px;
+  border-radius: 1rem ;
 }
 
 .navDesktopOff {
   width: 6rem;
-  height: 100%;
   background-color: #ffffff;
   color: #1a1a1a;
   display: flex;
   flex-direction: column;
   padding: 2rem 1.5rem;
-  border-right: 1px solid #ececec;
+  border: 1px solid #ececec;
   overflow: hidden;
   position: fixed;
   left: 0px;
-   transition: all .2s;
+  transition: all .2s;
+  margin: 10px;
+  top: 5px;
+  bottom: 5px;
+  border-radius: 1rem;
 }
 
 .navDesktop img {
   width: 20px;
 }
 
-.navDesktopOff img{
-    width: 20px;
+.navDesktopOff img {
+  width: 20px;
 }
 
 .nav-container {
