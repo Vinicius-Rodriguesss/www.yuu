@@ -32,6 +32,38 @@ interface CustomerAddress {
 
 const emptyAddress = { cep: "", street: "", number: "", neighborhood: "", city: "", state: "" };
 
+// Agendamento real, vindo do backend (GET /appointments) — já existe e funciona, só faltava desenhar isso na grade
+interface Appointment {
+  id: number;
+  customerId: number;
+  serviceId: number;
+  scheduledAt: string;
+  duration: number;
+  price: string;
+  status: string;
+  notes: string | null;
+  isHomeService?: boolean;
+}
+
+// Cor de fundo de cada bloco na grade, por status do agendamento
+const statusColors: Record<string, string> = {
+  scheduled: "#f0803c",
+  confirmed: "#2fb350",
+  in_progress: "#d97706",
+  completed: "#767676",
+  cancelled: "#e0263f",
+  no_show: "#e0263f",
+};
+
+const statusLabels: Record<string, string> = {
+  scheduled: "Agendado",
+  confirmed: "Confirmado",
+  in_progress: "Em atendimento",
+  completed: "Finalizado",
+  cancelled: "Cancelado",
+  no_show: "Não compareceu",
+};
+
 // Dias da semana exibidos no cabeçalho do mini-calendário (semana começando na segunda)
 const weekDays = ["Seg", "Ter", "Qua", "Qui", "Sex", "Sáb", "Dom"];
 
@@ -194,17 +226,99 @@ const Calendar = () => {
   const [savingAddress, setSavingAddress] = useState(false);
   const [cepStatus, setCepStatus] = useState<{ type: "success" | "error" | "loading"; message: string } | null>(null);
 
-  // Busca clientes e serviços já cadastrados assim que o modal é aberto
+  // Busca clientes e serviços já cadastrados uma vez (usados no formulário e para mostrar nome/serviço nos blocos da grade)
   useEffect(() => {
-    if (!isNewAppointmentOpen) return;
-
     Promise.all([apiFetch("/customers"), apiFetch("/services")])
       .then(([custs, servs]) => {
         setCustomers(custs);
         setServices(servs.filter((s: Service & { active?: boolean }) => s.active !== false));
       })
       .catch(() => setAppointmentError("Erro ao carregar clientes e serviços"));
-  }, [isNewAppointmentOpen]);
+  }, []);
+
+  // Agendamentos reais do dia selecionado, vindos do backend (o mesmo endpoint que o calendário antigo usava)
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
+
+  // Modal de detalhes: abre ao clicar num agendamento já existente na grade
+  const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+
+  const loadAppointments = () => {
+    apiFetch(`/appointments?date=${dayKey(selectedDay)}`)
+      .then(setAppointments)
+      .catch(() => setAppointments([]));
+  };
+
+  useEffect(() => {
+    loadAppointments();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDay]);
+
+  // Jornada de trabalho real do dia selecionado (definida pelo usuário no cadastro), não mais fixa
+  const [workHours, setWorkHours] = useState<{ isWorkDay: boolean; workStart: string | null; workEnd: string | null } | null>(null);
+
+  useEffect(() => {
+    apiFetch(`/availability?date=${dayKey(selectedDay)}&tz=${tzOffsetMin}`)
+      .then((data) => setWorkHours({ isWorkDay: data.isWorkDay, workStart: data.workStart, workEnd: data.workEnd }))
+      .catch(() => setWorkHours(null));
+  }, [selectedDay]);
+
+  const workHoursLabel = !workHours
+    ? ""
+    : !workHours.isWorkDay
+      ? "Sem expediente"
+      : `${workHours.workStart} - ${workHours.workEnd}`;
+
+  // Converte "HH:mm" em minutos desde 00:00, pra comparar horários com a jornada de trabalho
+  const parseTimeToMinutes = (time: string) => {
+    const [h, m] = time.split(":").map(Number);
+    return h * 60 + m;
+  };
+
+  const workStartMinutes = workHours?.workStart ? parseTimeToMinutes(workHours.workStart) : null;
+  const workEndMinutes = workHours?.workEnd ? parseTimeToMinutes(workHours.workEnd) : null;
+
+  // Só permite abrir "Novo Agendamento" numa hora se o dia tiver expediente e a hora estiver dentro da jornada
+  const isHourWithinWorkHours = (hour: number) => {
+    if (!workHours?.isWorkDay || workStartMinutes === null || workEndMinutes === null) return false;
+    return hour * 60 >= workStartMinutes && hour * 60 < workEndMinutes;
+  };
+
+  // Posição vertical (em px) do início de cada hora, medida a partir das linhas já renderizadas.
+  // offsets[24] é o fim da última linha — permite calcular a altura de qualquer agendamento por interpolação.
+  const [hourOffsets, setHourOffsets] = useState<number[]>([]);
+
+  useEffect(() => {
+    const offsets: number[] = [];
+    for (let h = 0; h < 24; h++) {
+      const row = hourRowRefs.current[h];
+      offsets.push(row ? row.offsetTop : 0);
+    }
+    const lastRow = hourRowRefs.current[23];
+    offsets.push(lastRow ? lastRow.offsetTop + lastRow.offsetHeight : 0);
+    setHourOffsets(offsets);
+  }, [appointments]);
+
+  // Converte "minutos desde 00:00" em posição vertical (px), interpolando dentro da hora correspondente
+  const minutesToOffsetPx = (totalMinutes: number) => {
+    const clamped = Math.max(0, Math.min(totalMinutes, 24 * 60));
+    const hour = Math.min(Math.floor(clamped / 60), 23);
+    const fraction = (clamped - hour * 60) / 60;
+    const start = hourOffsets[hour] ?? 0;
+    const end = hourOffsets[hour + 1] ?? start;
+    return start + fraction * (end - start);
+  };
+
+  // Horas cobertas por algum agendamento — nelas o placeholder "Novo Agendamento" não pode aparecer,
+  // senão ele fica visível por baixo/atrás do bloco do agendamento real
+  const occupiedHours = new Set<number>();
+  appointments.forEach((appt) => {
+    const scheduled = new Date(appt.scheduledAt);
+    const startMinutes = scheduled.getUTCHours() * 60 + scheduled.getUTCMinutes();
+    const endMinutes = startMinutes + appt.duration;
+    const startHour = Math.floor(startMinutes / 60);
+    const endHour = Math.ceil(endMinutes / 60);
+    for (let h = startHour; h < endHour && h < 24; h++) occupiedHours.add(h);
+  });
 
   // Busca os endereços já cadastrados do cliente quando "domicílio" é marcado
   useEffect(() => {
@@ -322,6 +436,12 @@ const Calendar = () => {
     if (appointmentStep === 3) {
       if (!appointmentDate || !appointmentTime) return false;
       if (isHomeService && !selectedAddressId) return false;
+      if (appointmentDate === dayKey(selectedDay) && workHours) {
+        if (!workHours.isWorkDay) return false;
+        const chosenMinutes = parseTimeToMinutes(appointmentTime);
+        if (workStartMinutes !== null && workEndMinutes !== null &&
+          (chosenMinutes < workStartMinutes || chosenMinutes >= workEndMinutes)) return false;
+      }
       return true;
     }
     return true;
@@ -350,6 +470,19 @@ const Calendar = () => {
       setAppointmentError("Selecione ou cadastre o endereço para o atendimento a domicílio");
       return;
     }
+    // Só valida a jornada quando a data escolhida no formulário é a mesma que já temos carregada (selectedDay)
+    if (appointmentDate === dayKey(selectedDay) && workHours) {
+      if (!workHours.isWorkDay) {
+        setAppointmentError("Não há expediente neste dia — escolha outra data");
+        return;
+      }
+      const chosenMinutes = parseTimeToMinutes(appointmentTime);
+      if (workStartMinutes !== null && workEndMinutes !== null &&
+        (chosenMinutes < workStartMinutes || chosenMinutes >= workEndMinutes)) {
+        setAppointmentError(`Horário fora da jornada de trabalho (${workHours.workStart} - ${workHours.workEnd})`);
+        return;
+      }
+    }
 
     setSavingAppointment(true);
     setAppointmentError("");
@@ -371,6 +504,7 @@ const Calendar = () => {
         }),
       });
       closeNewAppointment();
+      loadAppointments();
     } catch (error) {
       setAppointmentError(error instanceof Error ? error.message : "Erro ao criar agendamento");
     } finally {
@@ -387,7 +521,7 @@ const Calendar = () => {
           <div className="header-content-text-container" onClick={() => selectDay(new Date())}>
             <div className="header-content-text">
               <span>{headerDayLabel}</span>
-              <span>14h - 20h</span>
+              <span>{workHoursLabel}</span>
             </div>
             <FiChevronDown />
           </div>
@@ -504,6 +638,11 @@ const Calendar = () => {
           </div>
         </div>
         <div className="calendar" ref={calendarRef}>
+          {/* Aviso quando o dia selecionado não tem expediente cadastrado */}
+          {workHours && !workHours.isWorkDay && (
+            <div className="calendar-no-workday">Sem expediente neste dia — não é possível criar agendamentos</div>
+          )}
+
           {/* Linha indicando o horário atual, com o horário exibido acima dela */}
           {nowTop !== null && (
             <div className="current-time-indicator" style={{ top: nowTop }}>
@@ -523,22 +662,51 @@ const Calendar = () => {
               {/* Line  */}
               <div className="container-tasks">
                 <div className="calendar-hour-line"></div>
-                <button
-                  className="task-default"
-                  onClick={() => {
-                    setAppointmentDate(dayKey(selectedDay));
-                    setAppointmentTime(`${String(hour).padStart(2, "0")}:00`);
-                    setIsNewAppointmentOpen(true);
-                  }}
-                >
-                  Novo Agendamento
-                  <FiPlus />
-                </button>
-                
-
+                {!occupiedHours.has(hour) && isHourWithinWorkHours(hour) && (
+                  <button
+                    className="task-default"
+                    onClick={() => {
+                      setAppointmentDate(dayKey(selectedDay));
+                      setAppointmentTime(`${String(hour).padStart(2, "0")}:00`);
+                      setIsNewAppointmentOpen(true);
+                    }}
+                  >
+                    Novo Agendamento
+                    <FiPlus />
+                  </button>
+                )}
               </div>
             </div>
           ))}
+
+          {/* Agendamentos reais do dia, desenhados por cima da grade — posição/altura calculadas a partir de scheduledAt + duration */}
+          {appointments.map((appt) => {
+            // Hora de parede: os campos UTC guardam exatamente o horário agendado, sem conversão de fuso
+            const scheduled = new Date(appt.scheduledAt);
+            const startMinutes = scheduled.getUTCHours() * 60 + scheduled.getUTCMinutes();
+            const endDate = new Date(scheduled.getTime() + appt.duration * 60000);
+            const top = minutesToOffsetPx(startMinutes);
+            const height = Math.max(minutesToOffsetPx(startMinutes + appt.duration) - top, 42);
+            const customer = customers.find((c) => c.id === appt.customerId);
+            const service = services.find((s) => s.id === appt.serviceId);
+            const formatUTC = (d: Date) =>
+              d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+
+            return (
+              <div
+                key={appt.id}
+                className="appointment-block"
+                style={{ top, height, backgroundColor: statusColors[appt.status] ?? "#767676" }}
+                onClick={() => setSelectedAppointment(appt)}
+              >
+                <div className="appointment-block-info">
+                  <strong>{formatUTC(scheduled)} - {formatUTC(endDate)}</strong>
+                  <span>{customer?.name ?? `Cliente #${appt.customerId}`} · {service?.title ?? `Serviço #${appt.serviceId}`}</span>
+                </div>
+                {appt.isHomeService && <span className="appointment-block-badge">🏠</span>}
+              </div>
+            );
+          })}
 
 
           {/* Novo agendamento: overlay escurece o fundo e o painel desliza a partir da direita */}
@@ -638,25 +806,10 @@ const Calendar = () => {
                     </div>
                   </div>
 
-                  <div className="new-appointment-row">
-                    <div className="new-appointment-field">
-                      <label>Duração</label>
-                      <select value={duration} onChange={(e) => setDuration(e.target.value)}>
-                        <option value="15">15 min</option>
-                        <option value="30">30 min</option>
-                        <option value="45">45 min</option>
-                        <option value="60">1 hora</option>
-                      </select>
-                    </div>
-                    <div className="new-appointment-field">
-                      <label>Valor</label>
-                      <input
-                        type="text"
-                        placeholder="R$ 0,00"
-                        value={price}
-                        onChange={(e) => setPrice(e.target.value)}
-                      />
-                    </div>
+                  {/* Duração e valor já vêm do cadastro do serviço — só exibidos aqui como referência, sem edição */}
+                  <div className="new-appointment-service-info">
+                    <span><strong>{duration} min</strong> de duração</span>
+                    <span><strong>R$ {price || "0,00"}</strong></span>
                   </div>
 
                   {/* Atendimento a domicílio: define se o profissional vai até o cliente ou o atendimento é no local de sempre */}
@@ -861,6 +1014,85 @@ const Calendar = () => {
               )}
             </div>
           </div>
+
+          {/* Detalhes do agendamento: abre ao clicar num bloco já existente na grade */}
+          <div
+            className={`texture-appointment${selectedAppointment ? " open" : ""}`}
+            onClick={() => setSelectedAppointment(null)}
+          />
+          {selectedAppointment && (() => {
+            const appt = selectedAppointment;
+            const customer = customers.find((c) => c.id === appt.customerId);
+            const service = services.find((s) => s.id === appt.serviceId);
+            const scheduled = new Date(appt.scheduledAt);
+            const endDate = new Date(scheduled.getTime() + appt.duration * 60000);
+            const formatUTC = (d: Date) =>
+              d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+            const dateLabel = scheduled.toLocaleDateString("pt-BR", {
+              weekday: "long", day: "numeric", month: "long", timeZone: "UTC",
+            });
+            const priceLabel = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
+              .format(Number(appt.price));
+
+            return (
+              <div className="new-appointment open appointment-details-modal">
+                <div className="new-appointment-header">
+                  <span>Detalhes do agendamento</span>
+                  <button className="new-appointment-close" onClick={() => setSelectedAppointment(null)}>
+                    <FiX />
+                  </button>
+                </div>
+
+                <div className="new-appointment-body">
+                  <div
+                    className="appointment-details-status"
+                    style={{ backgroundColor: statusColors[appt.status] ?? "#767676" }}
+                  >
+                    {statusLabels[appt.status] ?? appt.status}
+                  </div>
+
+                  <div className="new-appointment-summary">
+                    <div className="new-appointment-summary-row">
+                      <small>Cliente</small>
+                      <strong>{customer?.name ?? `Cliente #${appt.customerId}`}</strong>
+                      {customer?.phone && <span>{customer.phone}</span>}
+                    </div>
+                    <div className="new-appointment-summary-row">
+                      <small>Serviço</small>
+                      <strong>{service?.title ?? `Serviço #${appt.serviceId}`}</strong>
+                    </div>
+                    <div className="new-appointment-summary-row">
+                      <small>Quando</small>
+                      <strong style={{ textTransform: "capitalize" }}>{dateLabel}</strong>
+                      <span>{formatUTC(scheduled)} – {formatUTC(endDate)} ({appt.duration} min)</span>
+                    </div>
+                    <div className="new-appointment-summary-row">
+                      <small>Valor</small>
+                      <strong>{priceLabel}</strong>
+                    </div>
+                    {appt.isHomeService && (
+                      <div className="new-appointment-summary-row">
+                        <small>Domicílio</small>
+                        <strong>🏠 Atendimento no endereço do cliente</strong>
+                      </div>
+                    )}
+                    {appt.notes && (
+                      <div className="new-appointment-summary-row">
+                        <small>Observações</small>
+                        <strong>{appt.notes}</strong>
+                      </div>
+                    )}
+                  </div>
+                </div>
+
+                <div className="new-appointment-footer">
+                  <button className="btn-clear-filters" onClick={() => setSelectedAppointment(null)}>
+                    Fechar
+                  </button>
+                </div>
+              </div>
+            );
+          })()}
         </div>
         {/* Main do calendar */}
       </div>
