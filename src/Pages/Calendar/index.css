@@ -89,17 +89,20 @@
     gap: 1rem;
   }
 
-  .nav-calendar, .calendar {
+  .nav-calendar,
+  .calendar {
     height: 100%;
   }
 
   .nav-calendar {
-    width: 15%;
+    width: 20%;
   }
+
   .calendar {
-    width: 85%;
+    width: 80%;
   }
 }
+
 .main-calendar {
   flex: 1;
   min-height: 0;
@@ -113,6 +116,252 @@
   border-radius: .75rem;
   padding: .75rem 1rem;
   overflow-y: auto;
+}
+
+/* Cabeçalho do mini-calendário (mês + setas de navegação) */
+.mini-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: .9rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: .75rem;
+}
+
+.mini-calendar-header-actions {
+  display: flex;
+  gap: .35rem;
+}
+
+.mini-calendar-header-actions button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #767676;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Grade de dias do mini-calendário */
+.mini-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  row-gap: .5rem;
+  text-align: center;
+}
+
+.mini-calendar-weekday {
+  font-size: .7rem;
+  color: #a0a0a0;
+  font-weight: 600;
+}
+
+.mini-calendar-day {
+  font-size: .8rem;
+  color: #333;
+  border-radius: 50%;
+  cursor: pointer;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mini-calendar-day:hover {
+  background-color: #00000008;
+}
+
+.mini-calendar-day-today {
+  color: #e0263f;
+  font-weight: 700;
+  background-color: #fdecef;
+}
+
+.nav-calendar-label {
+  display: block;
+  font-size: .8rem;
+  color: #767676;
+  margin: 1rem 0 .5rem;
+}
+
+.nav-calendar-divider {
+  border-top: 1px solid #ececec;
+  margin: 1rem 0;
+}
+
+/* Painel colapsável "Destacar Agendamentos" */
+.highlight-appointments-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: .85rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  padding: 0;
+}
+
+.highlight-appointments-toggle svg {
+  color: #767676;
+}
+
+.highlight-appointments-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  margin-top: .9rem;
+}
+
+/* Cada bloco de filtro (Pagamentos, Status da Reserva) */
+.filter-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.filter-section-title {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #a0a0a0;
+  margin-bottom: .5rem;
+}
+
+/* Linha inteira clicável de cada opção de filtro */
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  cursor: pointer;
+  padding: .5rem .5rem;
+  border-radius: .5rem;
+  transition: background-color .15s;
+}
+
+.filter-row:hover {
+  background-color: #00000008;
+}
+
+.filter-row-active {
+  background-color: #f2f7f3;
+}
+
+.filter-row input {
+  /* Input nativo escondido: o visual fica por conta do .filter-checkbox-box */
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.filter-checkbox-box {
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 1.5px solid #d9d9d9;
+  border-radius: .3rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: .65rem;
+  transition: all .15s;
+}
+
+.filter-row input:checked+.filter-checkbox-box {
+  background-color: #1a1a1a;
+  border-color: #1a1a1a;
+}
+
+/* Ícone de check só aparece quando marcado */
+.filter-checkbox-box svg {
+  opacity: 0;
+  transform: scale(.6);
+  transition: all .15s;
+}
+
+.filter-row input:checked+.filter-checkbox-box svg {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Selo colorido (S / check) que identifica visualmente cada opção */
+.filter-tag {
+  width: 1.4rem;
+  height: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  font-size: .75rem;
+  flex-shrink: 0;
+}
+
+.filter-tag-paid {
+  background-color: #2fb350;
+}
+
+.filter-tag-unpaid {
+  background-color: #9a9a9a;
+}
+
+.filter-tag-confirmed {
+  background-color: #2fb350;
+}
+
+.filter-tag-unconfirmed {
+  background-color: #e0263f;
+}
+
+.filter-row-label {
+  font-size: .85rem;
+  color: #333;
+}
+
+/* Botões de ação do painel de filtros */
+.highlight-appointments-actions {
+  display: flex;
+  gap: .6rem;
+  margin-top: .3rem;
+}
+
+.btn-clear-filters,
+.btn-apply-filters {
+  flex: 1;
+  border-radius: .5rem;
+  padding: .65rem 0;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.btn-clear-filters {
+  border: 1px solid #ececec;
+  background-color: #fff;
+  color: #333;
+}
+
+.btn-clear-filters:hover {
+  background-color: #00000008;
+  border-color: #d9d9d9;
+}
+
+.btn-apply-filters {
+  border: none;
+  background-color: #1a1a1a;
+  color: #fff;
+}
+
+.btn-apply-filters:hover {
+  background-color: #000;
 }
 
 .calendar {
@@ -129,7 +378,27 @@
     gap: 1rem;
   }
 
-  .nav-calendar, .calendar {
+  .nav-calendar,
+  .calendar {
     height: 500px;
   }
+}
+
+/* Linha horizontal dentro de cada hora do calendário */
+.calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 8rem;
+  padding: 3rem 2rem;
+}
+.calendar-hour{
+  display: flex;
+}
+.calendar-hour-label{
+  padding: 0rem 2rem 1rem 0rem;
+}
+.calendar-hour-line{
+  width: 100%;
+  height: 1px;
+  background-color: #ececec;
 }
