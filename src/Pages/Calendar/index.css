@@ -394,6 +394,10 @@
 .calendar-hour{
   display: flex;
 }
+/* Garante que a última hora (24:00) tenha o mesmo espaço abaixo que as demais têm via gap */
+.calendar-hour:last-child {
+  margin-bottom: 8rem;
+}
 .calendar-hour-label{
   padding: 0rem 2rem 1rem 0rem;
 }
@@ -402,3 +406,4 @@
   height: 1px;
   background-color: #ececec;
 }
+

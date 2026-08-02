@@ -170,7 +170,7 @@ const Calendar = () => {
             {hours.map((hour) => (
               <div key={hour} className="calendar-hour">
                 <div className="calendar-hour-label">{hour}:00</div>
-                
+
                 {/* Line  */}
                 <div className="calendar-hour-line"></div>
               </div>
