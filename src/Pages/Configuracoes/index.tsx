@@ -570,7 +570,7 @@ const Settings = () => {
   }
 
   return (
-    <div className="font-sans pb-28">
+    <div className="font-sans pb-28 h-full overflow-y-auto scrollbar-hidden">
       <Toast
         show={toast.show}
         type={toast.type}

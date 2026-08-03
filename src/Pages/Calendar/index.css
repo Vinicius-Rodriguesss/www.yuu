@@ -576,6 +576,61 @@
   opacity: 100%;
 }
 
+.task-unavailable {
+  cursor: not-allowed;
+  justify-content: center;
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.task-default-actions {
+  display: flex;
+  align-items: stretch;
+  gap: .5rem;
+  width: 100%;
+}
+
+.task-default-actions .task-default {
+  flex: 1;
+}
+
+.task-block {
+  margin: 1rem 0rem;
+  background-color: rgba(0, 0, 0, 0);
+  border-radius: 0.2rem;
+  border: 3px dotted rgba(0, 0, 0, 0.083);
+  padding: 1.5rem 1rem;
+  opacity: 40%;
+  transition: opacity .2s, color .2s, border-color .2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.task-block:hover {
+  opacity: 100%;
+  color: #e0263f;
+  border-color: #f7c9d0;
+}
+
+/* Reaproveita a base visual do .appointment-block, só troca a cor de fundo pro tom escuro
+   já usado nos elementos "ativos" do sistema (botões, seleção), em vez do cinza genérico */
+.blocked-slot-block {
+  background-color: #1a1a1a;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.06),
+    rgba(255, 255, 255, 0.06) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+
+.task-unavailable:hover {
+  opacity: 40%;
+}
+
 /* Indicador do horário atual: linha vermelha + rótulo HH:mm posicionado acima dela */
 .current-time-indicator {
   position: absolute;

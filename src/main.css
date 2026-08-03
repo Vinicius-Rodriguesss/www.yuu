@@ -54,6 +54,16 @@ html, body, #root {
   /* Cor do puxador ao passar o mouse */
 }
 
+/* Scroll funcional, mas sem barra visível */
+.scrollbar-hidden {
+  scrollbar-width: none; /* Firefox */
+  -ms-overflow-style: none; /* IE/Edge legado */
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none; /* Chrome, Edge, Safari */
+}
+
 html {
   scroll-behavior: smooth;
 }

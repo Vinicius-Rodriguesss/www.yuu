@@ -4,6 +4,7 @@ import { authMiddleware } from "../Auth/Middleware/index.js";
 import CreateAppointment from "../Services/Appointments/createAppointment.js";
 import ListAppointments from "../Services/Appointments/listAppointments.js";
 import GetAppointment from "../Services/Appointments/getAppointment.js";
+import UpdateAppointment from "../Services/Appointments/updateAppointment.js";
 import UpdateAppointmentStatus from "../Services/Appointments/updateStatus.js";
 import GenerateMeetingLink from "../Services/Appointments/generateMeetingLink.js";
 
@@ -19,6 +20,10 @@ router.get("/appointments", authMiddleware, async (req, res) => {
 
 router.get("/appointments/:id", authMiddleware, async (req, res) => {
   GetAppointment(req, res);
+});
+
+router.patch("/appointments/:id", authMiddleware, async (req, res) => {
+  UpdateAppointment(req, res);
 });
 
 router.patch("/appointments/:id/status", authMiddleware, async (req, res) => {

@@ -99,7 +99,8 @@ export const computeDaySlots = async (
   date: Date,
   serviceDuration?: number,
   tzOffsetMin = 0,
-  extraMinutes = 0
+  extraMinutes = 0,
+  excludeAppointmentId?: number
 ): Promise<DayAvailability> => {
   const dayStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
   const dayEnd = new Date(dayStart);
@@ -155,6 +156,18 @@ export const computeDaySlots = async (
   const workEnd = timeOnDate(dayStart, day.endTime);
 
   // Agendamentos ativos do dia (ocupam duração + delay)
+  // excludeAppointmentId: usado ao editar um agendamento, pra ele não conflitar com o próprio horário
+  const appointmentConditions = [
+    eq(appointmentsTable.userId, userId),
+    gte(appointmentsTable.scheduledAt, dayStart),
+    lt(appointmentsTable.scheduledAt, dayEnd),
+    ne(appointmentsTable.status, "cancelled"),
+    ne(appointmentsTable.status, "no_show"),
+  ];
+  if (excludeAppointmentId) {
+    appointmentConditions.push(ne(appointmentsTable.id, excludeAppointmentId));
+  }
+
   const dayAppointments = await db
     .select({
       id: appointmentsTable.id,
@@ -163,15 +176,7 @@ export const computeDaySlots = async (
       travelMinutes: appointmentsTable.travelMinutes,
     })
     .from(appointmentsTable)
-    .where(
-      and(
-        eq(appointmentsTable.userId, userId),
-        gte(appointmentsTable.scheduledAt, dayStart),
-        lt(appointmentsTable.scheduledAt, dayEnd),
-        ne(appointmentsTable.status, "cancelled"),
-        ne(appointmentsTable.status, "no_show")
-      )
-    );
+    .where(and(...appointmentConditions));
 
   const occupied: Occupied[] = dayAppointments.map((a) => {
     const start = new Date(a.scheduledAt);
@@ -271,14 +276,16 @@ export const validateSlot = async (
   scheduledAt: Date,
   serviceDuration: number,
   tzOffsetMin = 0,
-  extraMinutes = 0
+  extraMinutes = 0,
+  excludeAppointmentId?: number
 ): Promise<string | null> => {
   const availability = await computeDaySlots(
     userId,
     scheduledAt,
     serviceDuration,
     tzOffsetMin,
-    extraMinutes
+    extraMinutes,
+    excludeAppointmentId
   );
 
   if (!availability.isWorkDay) {
