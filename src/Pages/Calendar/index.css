@@ -439,6 +439,14 @@
   display: flex;
 }
 
+/* Altura fixa só nas horas dentro do expediente (via style inline, ver Calendar/index.tsx) — sem isso,
+   uma hora "ocupada" (sem botão) fica muito mais baixa que uma hora livre dentro do mesmo expediente,
+   e a conversão pixel-arrastado ↔ horário real (posição dos blocos e arrastar-para-reagendar) fica
+   distorcida. Fora do expediente a hora continua compacta (só a linha), como sempre foi. */
+.calendar-hour-workday {
+  min-height: 7rem;
+}
+
 .calendar-hour-label {
   width: 3.5rem;
   flex-shrink: 0;
@@ -481,6 +489,40 @@
 
 .appointment-block:hover {
   filter: brightness(0.95);
+}
+
+.appointment-block-draggable {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.appointment-block-dragging {
+  cursor: grabbing;
+  z-index: 6;
+  opacity: .85;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .25);
+  transition: none;
+}
+
+/* Faixa de "descanso" (delay entre atendimentos) logo abaixo de um agendamento — não é um bloco
+   clicável, só um aviso visual de que esse trecho também está indisponível pra outro horário */
+.appointment-buffer-strip {
+  position: absolute;
+  left: 5.5rem;
+  right: 0;
+  min-height: 6px;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0.08),
+    rgba(0, 0, 0, 0.08) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+  background-color: rgba(0, 0, 0, 0.03);
+  border-radius: 0 0 .4rem .4rem;
+  pointer-events: none;
+  z-index: 3;
 }
 
 .appointment-block-info {

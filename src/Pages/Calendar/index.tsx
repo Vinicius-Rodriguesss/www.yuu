@@ -1,7 +1,8 @@
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useRef, useState } from "react";
 import { FiChevronDown, FiChevronLeft, FiChevronRight, FiChevronUp, FiCheck, FiDollarSign, FiX, FiPlus, FiSlash, FiLock } from "react-icons/fi";
 import { apiFetch, tzOffsetMin } from "@/api/client";
 import { formatCEP, type ViaCEPResponse } from "@/SignUp/passwordValidation";
+import Toast from "@/Components/Toast";
 import "./index.css";
 
 // Mesmo formato de cliente/serviço usado no calendário antigo (dados já cadastrados no backend)
@@ -95,6 +96,12 @@ for (let i = 0; i < 24; i++) {
 
 
 const Calendar = () => {
+  // Toast de erro/sucesso — usado no lugar de alert() pra feedback de ações (arrastar agendamento, excluir bloqueio, etc)
+  const [toast, setToast] = useState<{ show: boolean; type: "error" | "success" | "warning" | "info"; message: string }>(
+    { show: false, type: "error", message: "" }
+  );
+  const showError = (message: string) => setToast({ show: true, type: "error", message });
+
   // Controla se o painel "Destacar Agendamentos" está expandido ou recolhido
   const [highlightOpen, setHighlightOpen] = useState(true);
 
@@ -128,7 +135,7 @@ const Calendar = () => {
   // Jornada de trabalho real do dia selecionado (definida pelo usuário no cadastro), não mais fixa.
   // Declarado aqui (antes do efeito que recalcula a linha do "agora") porque ele muda a altura das
   // linhas de hora e precisa disparar um recálculo de posição.
-  const [workHours, setWorkHours] = useState<{ isWorkDay: boolean; workStart: string | null; workEnd: string | null } | null>(null);
+  const [workHours, setWorkHours] = useState<{ isWorkDay: boolean; workStart: string | null; workEnd: string | null; interval: number; buffer: number } | null>(null);
 
   useEffect(() => {
     // Calcula a posição da linha com base na altura real da linha da hora atual + fração dos minutos já passados.
@@ -290,7 +297,7 @@ const Calendar = () => {
       setSelectedAppointment(null);
       loadAppointments();
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Erro ao atualizar agendamento");
+      showError(error instanceof Error ? error.message : "Erro ao atualizar agendamento");
     } finally {
       setUpdatingAppointmentStatus(false);
     }
@@ -334,7 +341,7 @@ const Calendar = () => {
       setSelectedBlockedSlot(null);
       loadBlockedSlots();
     } catch (error) {
-      alert(error instanceof Error ? error.message : "Erro ao remover bloqueio");
+      showError(error instanceof Error ? error.message : "Erro ao remover bloqueio");
     } finally {
       setDeletingBlockedSlot(false);
     }
@@ -396,7 +403,13 @@ const Calendar = () => {
 
   useEffect(() => {
     apiFetch(`/availability?date=${dayKey(selectedDay)}&tz=${tzOffsetMin}`)
-      .then((data) => setWorkHours({ isWorkDay: data.isWorkDay, workStart: data.workStart, workEnd: data.workEnd }))
+      .then((data) => setWorkHours({
+        isWorkDay: data.isWorkDay,
+        workStart: data.workStart,
+        workEnd: data.workEnd,
+        interval: data.interval ?? 15,
+        buffer: data.buffer ?? 0,
+      }))
       .catch(() => setWorkHours(null));
   }, [selectedDay]);
 
@@ -469,6 +482,99 @@ const Calendar = () => {
     const start = hourOffsets[hour] ?? 0;
     const end = hourOffsets[hour + 1] ?? start;
     return start + fraction * (end - start);
+  };
+
+  // Inverso de minutesToOffsetPx: converte uma posição vertical (px) de volta em "minutos desde 00:00",
+  // usado para descobrir o novo horário quando o profissional arrasta um agendamento na grade
+  const offsetPxToMinutes = (px: number) => {
+    if (hourOffsets.length < 25) return 0;
+    const total = hourOffsets[24] ?? 0;
+    const clamped = Math.max(hourOffsets[0] ?? 0, Math.min(px, total));
+    for (let h = 0; h < 24; h++) {
+      const start = hourOffsets[h] ?? 0;
+      const end = hourOffsets[h + 1] ?? start;
+      if (clamped <= end) {
+        const fraction = end > start ? (clamped - start) / (end - start) : 0;
+        return h * 60 + fraction * 60;
+      }
+    }
+    return 24 * 60;
+  };
+
+  // Arrastar um agendamento na grade pra mudar o horário: guarda o estado do drag num ref (não re-renderiza
+  // a cada pixel) e só usa state pra prévia visual (top) e pra saber qual bloco está sendo arrastado.
+  // Também cobre o clique simples (pointerdown sem mover vira "abrir detalhes"), então o bloco não usa onClick.
+  const appointmentDragRef = useRef<{ id: number; startClientY: number; startTop: number; height: number; draggable: boolean; moved: boolean } | null>(null);
+  const [draggingAppointmentId, setDraggingAppointmentId] = useState<number | null>(null);
+  const [dragPreviewTop, setDragPreviewTop] = useState<number | null>(null);
+
+  const handleAppointmentPointerDown = (e: React.PointerEvent<HTMLDivElement>, appt: Appointment, top: number, height: number) => {
+    if (e.button !== 0) return;
+    const draggable = !["completed", "cancelled", "no_show"].includes(appt.status);
+    e.currentTarget.setPointerCapture(e.pointerId);
+    appointmentDragRef.current = { id: appt.id, startClientY: e.clientY, startTop: top, height, draggable, moved: false };
+    if (draggable) {
+      setDraggingAppointmentId(appt.id);
+      setDragPreviewTop(top);
+    }
+  };
+
+  const handleAppointmentPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = appointmentDragRef.current;
+    if (!drag || !drag.draggable) return;
+    const deltaY = e.clientY - drag.startClientY;
+    if (Math.abs(deltaY) > 3) drag.moved = true;
+    const maxTop = Math.max((hourOffsets[24] ?? 0) - drag.height, 0);
+    const newTop = Math.max(0, Math.min(drag.startTop + deltaY, maxTop));
+    setDragPreviewTop(newTop);
+  };
+
+  const handleAppointmentPointerUp = async (e: React.PointerEvent<HTMLDivElement>, appt: Appointment) => {
+    const drag = appointmentDragRef.current;
+    appointmentDragRef.current = null;
+    setDraggingAppointmentId(null);
+    if (!drag) return;
+
+    if (!drag.draggable || !drag.moved) {
+      // Não arrastou de verdade (ou não é arrastável) — foi um clique, abre os detalhes normalmente
+      setDragPreviewTop(null);
+      setSelectedAppointment(appt);
+      return;
+    }
+
+    const finalTop = dragPreviewTop ?? drag.startTop;
+    setDragPreviewTop(null);
+
+    const interval = workHours?.interval ?? 15;
+    const rawMinutes = offsetPxToMinutes(finalTop);
+    const snapped = Math.round(rawMinutes / interval) * interval;
+    const clampedMinutes = Math.max(0, Math.min(snapped, 24 * 60 - appt.duration));
+    const newTime = `${String(Math.floor(clampedMinutes / 60)).padStart(2, "0")}:${String(clampedMinutes % 60).padStart(2, "0")}`;
+    const newScheduledAt = `${dayKey(selectedDay)}T${newTime}:00.000Z`;
+
+    if (newScheduledAt === appt.scheduledAt) return;
+
+    const previousAppointments = appointments;
+    setAppointments((prev) => prev.map((a) => (a.id === appt.id ? { ...a, scheduledAt: newScheduledAt } : a)));
+
+    try {
+      await apiFetch(`/appointments/${appt.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          customerId: appt.customerId,
+          serviceId: appt.serviceId,
+          scheduledAt: newScheduledAt,
+          tzOffsetMin,
+          isHomeService: appt.isHomeService ?? false,
+          customerAddressId: appt.customerAddressId ?? null,
+          notes: appt.notes,
+        }),
+      });
+      loadAppointments();
+    } catch (error) {
+      setAppointments(previousAppointments);
+      showError(error instanceof Error ? error.message : "Não foi possível mover o agendamento");
+    }
   };
 
   // Horas cobertas por algum agendamento ou bloqueio — nelas o placeholder "Novo Agendamento" não pode
@@ -720,6 +826,12 @@ const Calendar = () => {
 
   return (
     <div className="container-calendar">
+      <Toast
+        show={toast.show}
+        type={toast.type}
+        message={toast.message}
+        onClose={() => setToast((t) => ({ ...t, show: false }))}
+      />
       {/* Calendar header */}
       <div className="header-calendar">
         <div className="header-content">
@@ -860,7 +972,7 @@ const Calendar = () => {
           {hours.map((hour) => (
             <div
               key={hour}
-              className="calendar-hour"
+              className={`calendar-hour${isHourWithinWorkHours(hour) ? " calendar-hour-workday" : ""}`}
               ref={(el) => { hourRowRefs.current[hour] = el; }}
             >
               <div className="calendar-hour-label">{String(hour).padStart(2, "0")}:00</div>
@@ -901,7 +1013,8 @@ const Calendar = () => {
             </div>
           ))}
 
-          {/* Agendamentos reais do dia, desenhados por cima da grade — posição/altura calculadas a partir de scheduledAt + duration */}
+          {/* Agendamentos reais do dia, desenhados por cima da grade — posição/altura calculadas a partir de scheduledAt + duration.
+              Arrastáveis (exceto finalizados/cancelados): clique curto abre detalhes, arrastar reagenda o horário. */}
           {appointments.map((appt) => {
             // Hora de parede: os campos UTC guardam exatamente o horário agendado, sem conversão de fuso
             const scheduled = new Date(appt.scheduledAt);
@@ -914,19 +1027,53 @@ const Calendar = () => {
             const formatUTC = (d: Date) =>
               d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
 
+            const isDragging = draggingAppointmentId === appt.id;
+            const displayTop = isDragging && dragPreviewTop !== null ? dragPreviewTop : top;
+            const canDrag = !["completed", "cancelled", "no_show"].includes(appt.status);
+
+            // Enquanto arrasta, recalcula o horário exibido a partir da posição em tela (feedback em tempo real)
+            let previewLabel = `${formatUTC(scheduled)} - ${formatUTC(endDate)}`;
+            if (isDragging && dragPreviewTop !== null) {
+              const interval = workHours?.interval ?? 15;
+              const rawMinutes = offsetPxToMinutes(dragPreviewTop);
+              const snapped = Math.max(0, Math.min(Math.round(rawMinutes / interval) * interval, 24 * 60 - appt.duration));
+              const previewStart = `${String(Math.floor(snapped / 60)).padStart(2, "0")}:${String(snapped % 60).padStart(2, "0")}`;
+              const previewEndMinutes = snapped + appt.duration;
+              const previewEnd = `${String(Math.floor(previewEndMinutes / 60)).padStart(2, "0")}:${String(previewEndMinutes % 60).padStart(2, "0")}`;
+              previewLabel = `${previewStart} - ${previewEnd}`;
+            }
+
+            // Delay/descanso configurado pelo profissional depois desse atendimento — não aparece como um
+            // bloco separado na lista, mas também não pode receber outro agendamento. Desenha uma faixa
+            // listrada logo abaixo do bloco pra deixar isso visível (senão parece um horário livre normal).
+            const buffer = workHours?.buffer ?? 0;
+            const showBuffer = buffer > 0 && !["cancelled", "no_show"].includes(appt.status);
+            const bufferTop = top + height;
+            const bufferHeight = showBuffer ? minutesToOffsetPx(startMinutes + appt.duration + buffer) - bufferTop : 0;
+
             return (
-              <div
-                key={appt.id}
-                className="appointment-block"
-                style={{ top, height, backgroundColor: statusColors[appt.status] ?? "#767676" }}
-                onClick={() => setSelectedAppointment(appt)}
-              >
-                <div className="appointment-block-info">
-                  <strong>{formatUTC(scheduled)} - {formatUTC(endDate)}</strong>
-                  <span>{customer?.name ?? `Cliente #${appt.customerId}`} · {service?.title ?? `Serviço #${appt.serviceId}`}</span>
+              <Fragment key={appt.id}>
+                <div
+                  className={`appointment-block${isDragging ? " appointment-block-dragging" : ""}${canDrag ? " appointment-block-draggable" : ""}`}
+                  style={{ top: displayTop, height, backgroundColor: statusColors[appt.status] ?? "#767676" }}
+                  onPointerDown={(e) => handleAppointmentPointerDown(e, appt, top, height)}
+                  onPointerMove={handleAppointmentPointerMove}
+                  onPointerUp={(e) => handleAppointmentPointerUp(e, appt)}
+                >
+                  <div className="appointment-block-info">
+                    <strong>{previewLabel}</strong>
+                    <span>{customer?.name ?? `Cliente #${appt.customerId}`} · {service?.title ?? `Serviço #${appt.serviceId}`}</span>
+                  </div>
+                  {appt.isHomeService && <span className="appointment-block-badge">🏠</span>}
                 </div>
-                {appt.isHomeService && <span className="appointment-block-badge">🏠</span>}
-              </div>
+                {showBuffer && bufferHeight > 0 && !isDragging && (
+                  <div
+                    className="appointment-buffer-strip"
+                    style={{ top: bufferTop, height: bufferHeight }}
+                    title={`Descanso de ${buffer} min após o atendimento`}
+                  />
+                )}
+              </Fragment>
             );
           })}
 
