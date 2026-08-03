@@ -532,6 +532,19 @@
   color: #767676;
 }
 
+.appointment-details-actions {
+  flex-direction: column;
+}
+
+.appointment-details-cancel {
+  color: #e0263f;
+  border-color: #f7c9d0;
+}
+
+.appointment-details-cancel:hover {
+  background-color: #fdecef;
+}
+
 .calendar-hour-line {
   width: 100%;
   height: 1px;

@@ -115,12 +115,24 @@ const Calendar = () => {
   const [nowTop, setNowTop] = useState<number | null>(null);
   const [nowLabel, setNowLabel] = useState("");
 
+  // Jornada de trabalho real do dia selecionado (definida pelo usuário no cadastro), não mais fixa.
+  // Declarado aqui (antes do efeito que recalcula a linha do "agora") porque ele muda a altura das
+  // linhas de hora e precisa disparar um recálculo de posição.
+  const [workHours, setWorkHours] = useState<{ isWorkDay: boolean; workStart: string | null; workEnd: string | null } | null>(null);
+
   useEffect(() => {
-    // Calcula a posição da linha com base na altura real da linha da hora atual + fração dos minutos já passados
+    // Calcula a posição da linha com base na altura real da linha da hora atual + fração dos minutos já passados.
+    // Usa o fuso de Brasília explicitamente (em vez de now.getHours()/getMinutes(), que dependem do fuso do
+    // sistema/navegador) — numa máquina com relógio em UTC isso causava uma linha 3h adiantada/atrasada.
     const updateNowLine = () => {
-      const now = new Date();
-      const hour = now.getHours();
-      const minutes = now.getMinutes();
+      const parts = new Intl.DateTimeFormat("en-US", {
+        timeZone: "America/Sao_Paulo",
+        hourCycle: "h23",
+        hour: "numeric",
+        minute: "numeric",
+      }).formatToParts(new Date());
+      const hour = Number(parts.find((p) => p.type === "hour")?.value ?? 0);
+      const minutes = Number(parts.find((p) => p.type === "minute")?.value ?? 0);
       const row = hourRowRefs.current[hour];
 
       if (row) {
@@ -132,7 +144,10 @@ const Calendar = () => {
     updateNowLine();
     const interval = setInterval(updateNowLine, 60000);
     return () => clearInterval(interval);
-  }, []);
+    // Recalcula também quando a jornada de trabalho carrega: ela muda a altura das linhas de hora
+    // (o botão "Novo Agendamento" só aparece dentro do expediente), o que desalinha a posição já calculada.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [workHours]);
 
   useEffect(() => {
     // Só rola até o horário atual uma vez, ao carregar a página (não deve "puxar" o scroll depois que o usuário navegar)
@@ -241,6 +256,24 @@ const Calendar = () => {
 
   // Modal de detalhes: abre ao clicar num agendamento já existente na grade
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
+  const [updatingAppointmentStatus, setUpdatingAppointmentStatus] = useState(false);
+
+  // Atualiza o status do agendamento (cancelar / concluir agora) — mesmo endpoint que o calendário antigo usava
+  const updateAppointmentStatus = async (id: number, status: string) => {
+    setUpdatingAppointmentStatus(true);
+    try {
+      await apiFetch(`/appointments/${id}/status`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      setSelectedAppointment(null);
+      loadAppointments();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : "Erro ao atualizar agendamento");
+    } finally {
+      setUpdatingAppointmentStatus(false);
+    }
+  };
 
   const loadAppointments = () => {
     apiFetch(`/appointments?date=${dayKey(selectedDay)}`)
@@ -252,9 +285,6 @@ const Calendar = () => {
     loadAppointments();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [selectedDay]);
-
-  // Jornada de trabalho real do dia selecionado (definida pelo usuário no cadastro), não mais fixa
-  const [workHours, setWorkHours] = useState<{ isWorkDay: boolean; workStart: string | null; workEnd: string | null } | null>(null);
 
   useEffect(() => {
     apiFetch(`/availability?date=${dayKey(selectedDay)}&tz=${tzOffsetMin}`)
@@ -296,7 +326,9 @@ const Calendar = () => {
     const lastRow = hourRowRefs.current[23];
     offsets.push(lastRow ? lastRow.offsetTop + lastRow.offsetHeight : 0);
     setHourOffsets(offsets);
-  }, [appointments]);
+    // Recalcula também quando a jornada de trabalho carrega/muda: ela altera a altura das linhas
+    // (o botão "Novo Agendamento" só existe dentro do expediente), o que desalinha os offsets antigos.
+  }, [appointments, workHours]);
 
   // Converte "minutos desde 00:00" em posição vertical (px), interpolando dentro da hora correspondente
   const minutesToOffsetPx = (totalMinutes: number) => {
@@ -1085,11 +1117,34 @@ const Calendar = () => {
                   </div>
                 </div>
 
-                <div className="new-appointment-footer">
-                  <button className="btn-clear-filters" onClick={() => setSelectedAppointment(null)}>
-                    Fechar
-                  </button>
-                </div>
+                {!["completed", "cancelled", "no_show"].includes(appt.status) ? (
+                  <div className="new-appointment-footer appointment-details-actions">
+                    <button
+                      className="btn-clear-filters appointment-details-cancel"
+                      disabled={updatingAppointmentStatus}
+                      onClick={() => {
+                        if (window.confirm("Cancelar este agendamento?")) {
+                          updateAppointmentStatus(appt.id, "cancelled");
+                        }
+                      }}
+                    >
+                      Cancelar agendamento
+                    </button>
+                    <button
+                      className="btn-apply-filters"
+                      disabled={updatingAppointmentStatus}
+                      onClick={() => updateAppointmentStatus(appt.id, "completed")}
+                    >
+                      {updatingAppointmentStatus ? "Concluindo..." : "Concluir agora / Chamar próximo"}
+                    </button>
+                  </div>
+                ) : (
+                  <div className="new-appointment-footer">
+                    <button className="btn-clear-filters" onClick={() => setSelectedAppointment(null)}>
+                      Fechar
+                    </button>
+                  </div>
+                )}
               </div>
             );
           })()}
