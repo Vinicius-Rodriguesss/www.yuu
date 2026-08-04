@@ -53,7 +53,13 @@ const htmlToText = (html: string) =>
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 
-export const sendMail = async (to: string, subject: string, html: string, text?: string) => {
+export const sendMail = async (
+  to: string,
+  subject: string,
+  html: string,
+  text?: string,
+  replyTo?: string
+) => {
   if (!isSmtpConfigured()) {
     throw new SmtpNotConfiguredError();
   }
@@ -62,7 +68,7 @@ export const sendMail = async (to: string, subject: string, html: string, text?:
 
   await getTransporter().sendMail({
     from,
-    replyTo: from,
+    replyTo: replyTo || from,
     to,
     subject,
     html,

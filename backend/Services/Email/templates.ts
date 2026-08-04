@@ -131,6 +131,34 @@ export const appointmentReminderClientTemplate = (info: AppointmentEmailInfo) =>
   ),
 });
 
+// ===================== Contato (landing page) =====================
+
+export interface ContactMessageInfo {
+  name: string;
+  email: string;
+  phone?: string | null;
+  message: string;
+}
+
+export const contactMessageEmailTemplate = (info: ContactMessageInfo) => ({
+  subject: `Nova mensagem de contato — ${info.name}`,
+  html: layout(
+    "Nova mensagem pelo formulário de contato",
+    `<p style="margin:0 0 6px;font-size:13px;color:#6b6b6b;">Nome</p>
+     <p style="margin:0 0 12px;font-size:15px;color:#1a1a1a;font-weight:700;">${info.name}</p>
+     <p style="margin:0 0 6px;font-size:13px;color:#6b6b6b;">Email</p>
+     <p style="margin:0 0 12px;font-size:15px;color:#1a1a1a;font-weight:700;">${info.email}</p>
+     ${
+       info.phone
+         ? `<p style="margin:0 0 6px;font-size:13px;color:#6b6b6b;">Telefone</p>
+     <p style="margin:0 0 12px;font-size:15px;color:#1a1a1a;font-weight:700;">${info.phone}</p>`
+         : ""
+     }
+     <p style="margin:0 0 6px;font-size:13px;color:#6b6b6b;">Mensagem</p>
+     <p style="margin:0;font-size:14px;color:#37352f;white-space:pre-wrap;">${info.message}</p>`
+  ),
+});
+
 export const appointmentReminderProfessionalTemplate = (info: AppointmentEmailInfo) => ({
   subject: `Lembrete: ${info.clientName} daqui a ~20 min — ai.yuu`,
   html: layout(
