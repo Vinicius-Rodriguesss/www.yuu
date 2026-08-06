@@ -495,6 +495,17 @@
   padding: 0rem 2rem 1rem 0rem;
 }
 
+/* Marcação de minuto dentro da hora (ex.: :15, :30, :45) — linha bem discreta, sem invadir a coluna
+   da hora cheia, só pra dar uma referência visual de onde cada quarto de hora começa */
+.calendar-subhour-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: #f2f2f2;
+  pointer-events: none;
+}
+
 /* Bloco de agendamento real, posicionado por cima da grade (top/height calculados via JS) */
 .calendar-no-workday {
   position: sticky;
@@ -757,6 +768,7 @@
 
 .container-tasks {
   width: 100%;
+  position: relative;
 }
 
 .task-default {
@@ -1220,6 +1232,160 @@
 
 .new-appointment-link-btn:hover {
   text-decoration: underline;
+}
+
+/* Seletor visual de cliente (etapa 1 do Novo Agendamento) — substitui o <select> nativo por uma
+   lista com busca, avatar de iniciais e destaque de seleção */
+.customer-picker {
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+}
+
+.customer-picker-search {
+  border: 1px solid #ececec;
+  border-radius: .5rem;
+  padding: .6rem .75rem;
+  font-size: .85rem;
+  font-family: inherit;
+  color: #1a1a1a;
+  transition: border-color .15s;
+}
+
+.customer-picker-search:focus {
+  outline: none;
+  border-color: #1a1a1a;
+}
+
+.customer-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  max-height: 15rem;
+  overflow-y: auto;
+}
+
+.customer-picker-empty {
+  font-size: .8rem;
+  color: #a0a0a0;
+  text-align: center;
+  padding: 1.2rem 0;
+}
+
+.customer-picker-item {
+  display: flex;
+  align-items: center;
+  gap: .7rem;
+  width: 100%;
+  border: 1px solid #ececec;
+  border-radius: .6rem;
+  padding: .6rem .8rem;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s, background-color .15s;
+}
+
+.customer-picker-item:hover {
+  border-color: #d9d9d9;
+  background-color: #fafafa;
+}
+
+.customer-picker-item-active {
+  border-color: #1a1a1a;
+  background-color: #fafafa;
+}
+
+.customer-picker-avatar {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #1a1a1a;
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 700;
+}
+
+.customer-picker-info {
+  display: flex;
+  flex-direction: column;
+  gap: .1rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.customer-picker-info strong {
+  font-size: .85rem;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.customer-picker-info span {
+  font-size: .75rem;
+  color: #a0a0a0;
+}
+
+.customer-picker-check {
+  flex-shrink: 0;
+  color: #1a1a1a;
+}
+
+/* Seletor visual de serviço (etapa 2 do Novo Agendamento) — mesma linguagem do seletor de cliente,
+   sem avatar já que não faz sentido pra serviço */
+.service-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
+.service-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .7rem;
+  width: 100%;
+  border: 1px solid #ececec;
+  border-radius: .6rem;
+  padding: .75rem .9rem;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s, background-color .15s;
+}
+
+.service-picker-item:hover {
+  border-color: #d9d9d9;
+  background-color: #fafafa;
+}
+
+.service-picker-item-active {
+  border-color: #1a1a1a;
+  background-color: #fafafa;
+}
+
+.service-picker-info {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  min-width: 0;
+}
+
+.service-picker-info strong {
+  font-size: .85rem;
+  color: #1a1a1a;
+}
+
+.service-picker-info span {
+  font-size: .75rem;
+  color: #a0a0a0;
 }
 
 .new-appointment-inline-form {

@@ -444,13 +444,13 @@ const Settings = () => {
       errors.push({ section: "ai", message: "Descreva o tom desejado para a IA" });
 
     if (!form.workStart || !form.workEnd) errors.push({ section: "schedule", message: "Informe o horário de trabalho" });
+    if (form.workStart && form.workEnd && form.workStart >= form.workEnd)
+      errors.push({ section: "schedule", message: "O horário de início deve ser antes do fim" });
     if (form.workDays.length === 0) errors.push({ section: "schedule", message: "Selecione ao menos um dia" });
     if (!form.scheduleInterval || form.scheduleInterval <= 0) errors.push({ section: "schedule", message: "Informe o intervalo da agenda" });
     if (!!form.breakStart !== !!form.breakEnd) errors.push({ section: "schedule", message: "Informe o início e o fim da pausa" });
     if (form.breakStart && form.breakEnd && form.breakStart >= form.breakEnd)
       errors.push({ section: "schedule", message: "O início da pausa deve ser antes do fim" });
-
-    if (!form.privacyAccepted) errors.push({ section: "schedule", message: "Confirme a política de privacidade" });
 
     return errors;
   };
@@ -465,6 +465,13 @@ const Settings = () => {
       return;
     }
     setSectionErrors(new Set());
+
+    // Aceite de termos/privacidade: é geral do formulário, não pertence a nenhuma seção específica —
+    // por isso não entra em validate() nem acende erro em nenhum card
+    if (!form.privacyAccepted) {
+      setToast({ show: true, type: "error", message: "Confirme que aceita os Termos de Uso e a Política de Privacidade" });
+      return;
+    }
 
     setIsSaving(true);
     setToast({ show: false, type: "error", message: "" });
@@ -1099,165 +1106,132 @@ const Settings = () => {
                   )}
 
                   {id === "schedule" && (
-                    <div className="space-y-5 pt-4">
-                      {/* Intervalo da Agenda */}
-                      <div>
-                        <label className={labelClass}>Intervalo da Agenda</label>
-                        <p className="text-xs text-gray-400 mb-2">
-                          Só define de quanto em quanto tempo os horários aparecem pra escolher (ex: 09:00, 09:10, 09:20...).
-                          Isso <strong>não</strong> é um tempo de descanso — pra isso, veja "Delay entre atendimentos" logo abaixo.
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {[5, 10, 15, 20, 30, 40, 60].map((min) => {
-                            const active = form.scheduleInterval === min;
-                            return (
-                              <button
-                                key={min}
-                                type="button"
-                                onClick={() => update("scheduleInterval", min)}
-                                className={`px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                                  active
-                                    ? "bg-gray-900 text-white shadow-sm"
-                                    : "border border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50"
-                                }`}
-                              >
-                                {min} min
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
+                    <div className="space-y-4 pt-4">
+                      {/* Grupo 1: jornada — quando o profissional trabalha */}
+                      <div className="bg-gray-50/70 rounded-xl p-4 space-y-4">
+                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Jornada</p>
 
-                      {/* Delay entre atendimentos */}
-                      <div>
-                        <label className={labelClass}>Delay entre atendimentos</label>
-                        <p className="text-xs text-gray-400 mb-2">
-                          Tempo de descanso após cada atendimento, além da duração do serviço. O próximo cliente só
-                          pode iniciar depois desse período. Em atendimentos a domicílio, o tempo de deslocamento
-                          (ida e volta) é reservado à parte, somado a esse delay.
-                        </p>
-                        <div className="flex flex-wrap gap-2">
-                          {[0, 5, 10, 15, 20, 30].map((min) => {
-                            const active = form.appointmentBuffer === min;
-                            return (
-                              <button
-                                key={min}
-                                type="button"
-                                onClick={() => update("appointmentBuffer", min)}
-                                className={`px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                                  active
-                                    ? "bg-gray-900 text-white shadow-sm"
-                                    : "border border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50"
-                                }`}
-                              >
-                                {min === 0 ? "Sem delay" : `${min} min`}
-                              </button>
-                            );
-                          })}
+                        <div>
+                          <label className={labelClass}>Horário de trabalho</label>
+                          <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
+                            <input
+                              type="time"
+                              value={form.workStart}
+                              onChange={(e) => update("workStart", e.target.value)}
+                              className={inputClass}
+                            />
+                            <span className="text-xs text-gray-300 font-medium">até</span>
+                            <input
+                              type="time"
+                              value={form.workEnd}
+                              onChange={(e) => update("workEnd", e.target.value)}
+                              className={inputClass}
+                            />
+                          </div>
+                          {form.workStart && form.workEnd && form.workStart >= form.workEnd && (
+                            <p className="text-xs text-red-500 mt-1.5 ml-0.5 flex items-center gap-1">
+                              <FiAlertCircle size={12} />
+                              O início deve ser antes do fim
+                            </p>
+                          )}
                         </div>
-                      </div>
 
-                      {/* Pausa fixa recorrente (ex: almoço) */}
-                      <div>
-                        <label className={labelClass}>Pausa fixa (opcional)</label>
-                        <p className="text-xs text-gray-400 mb-2">
-                          Um horário bloqueado automaticamente todo dia de trabalho, tipo o almoço. Deixe em branco se não usa.
-                        </p>
-                        <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
-                          <input
-                            type="time"
-                            value={form.breakStart}
-                            onChange={(e) => update("breakStart", e.target.value)}
-                            className={inputClass}
-                          />
-                          <span className="text-xs text-gray-300 font-medium">até</span>
-                          <input
-                            type="time"
-                            value={form.breakEnd}
-                            onChange={(e) => update("breakEnd", e.target.value)}
-                            className={inputClass}
-                          />
-                        </div>
-                        {(form.breakStart || form.breakEnd) && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              update("breakStart", "");
-                              update("breakEnd", "");
-                            }}
-                            className="mt-2 text-xs font-semibold text-gray-400 hover:text-gray-600"
-                          >
-                            Remover pausa
-                          </button>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className={labelClass}>Horário de trabalho</label>
-                        <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
-                          <input
-                            type="time"
-                            value={form.workStart}
-                            onChange={(e) => update("workStart", e.target.value)}
-                            className={inputClass}
-                          />
-                          <span className="text-xs text-gray-300 font-medium">até</span>
-                          <input
-                            type="time"
-                            value={form.workEnd}
-                            onChange={(e) => update("workEnd", e.target.value)}
-                            className={inputClass}
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className={labelClass}>Dias da semana</label>
-                        <div className="flex flex-wrap gap-2">
-                          {WEEKDAYS.map((d) => {
-                            const active = form.workDays.includes(d.v);
-                            return (
-                              <button
-                                type="button"
-                                key={d.v}
-                                onClick={() =>
-                                  update(
-                                    "workDays",
+                        <div>
+                          <label className={labelClass}>Dias da semana</label>
+                          <div className="flex flex-wrap gap-2">
+                            {WEEKDAYS.map((d) => {
+                              const active = form.workDays.includes(d.v);
+                              return (
+                                <button
+                                  type="button"
+                                  key={d.v}
+                                  onClick={() =>
+                                    update(
+                                      "workDays",
+                                      active
+                                        ? form.workDays.filter((x) => x !== d.v)
+                                        : [...form.workDays, d.v]
+                                    )
+                                  }
+                                  className={`flex-1 min-w-[46px] py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
                                     active
-                                      ? form.workDays.filter((x) => x !== d.v)
-                                      : [...form.workDays, d.v]
-                                  )
-                                }
-                                className={`flex-1 min-w-[46px] py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                                  active
-                                    ? "bg-gray-900 text-white shadow-sm"
-                                    : "border border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50"
-                                }`}
-                              >
-                                {d.l}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-
-                      <label className="flex items-start gap-3 text-xs text-gray-500 cursor-pointer pt-3 border-t border-gray-100">
-                        <div className="relative mt-0.5">
-                          <input
-                            type="checkbox"
-                            checked={form.privacyAccepted}
-                            onChange={(e) => update("privacyAccepted", e.target.checked)}
-                            className="sr-only peer"
-                          />
-                          <div className="w-4 h-4 rounded border border-gray-300 bg-white peer-checked:bg-gray-900 peer-checked:border-gray-900 transition-colors duration-200 flex items-center justify-center">
-                            {form.privacyAccepted && <FiCheck size={10} className="text-white" />}
+                                      ? "bg-gray-900 text-white shadow-sm"
+                                      : "bg-white border border-gray-200 text-gray-500 hover:border-gray-300"
+                                  }`}
+                                >
+                                  {d.l}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
-                        <span className="flex items-center gap-1.5 flex-wrap">
-                          <FiShield size={13} className="text-gray-400 flex-shrink-0" />
-                          Confirmo que meus dados estão corretos e aceito os Termos de Uso e a Política de Privacidade.
-                        </span>
-                      </label>
+
+                        <div>
+                          <label className={labelClass}>Pausa fixa (opcional)</label>
+                          <p className="text-xs text-gray-400 mb-2">
+                            Bloqueia esse horário todo dia de trabalho, tipo o almoço.
+                          </p>
+                          <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
+                            <input
+                              type="time"
+                              value={form.breakStart}
+                              onChange={(e) => update("breakStart", e.target.value)}
+                              className={inputClass}
+                            />
+                            <span className="text-xs text-gray-300 font-medium">até</span>
+                            <input
+                              type="time"
+                              value={form.breakEnd}
+                              onChange={(e) => update("breakEnd", e.target.value)}
+                              className={inputClass}
+                            />
+                          </div>
+                          {(form.breakStart || form.breakEnd) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                update("breakStart", "");
+                                update("breakEnd", "");
+                              }}
+                              className="mt-2 text-xs font-semibold text-gray-400 hover:text-gray-600"
+                            >
+                              Remover pausa
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Grupo 2: agenda — descanso entre atendimentos (o intervalo virou só a régua interna
+                          dos horários oferecidos, não é mais algo que o usuário precisa configurar) */}
+                      <div className="bg-gray-50/70 rounded-xl p-4 space-y-4">
+                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Agenda</p>
+
+                        <div>
+                          <label className={labelClass}>Delay entre atendimentos</label>
+                          <p className="text-xs text-gray-400 mb-2">
+                            Descanso após cada atendimento, antes do próximo poder começar.
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {[0, 5, 10, 15, 20, 30].map((min) => {
+                              const active = form.appointmentBuffer === min;
+                              return (
+                                <button
+                                  key={min}
+                                  type="button"
+                                  onClick={() => update("appointmentBuffer", min)}
+                                  className={`px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                                    active
+                                      ? "bg-gray-900 text-white shadow-sm"
+                                      : "bg-white border border-gray-200 text-gray-500 hover:border-gray-300"
+                                  }`}
+                                >
+                                  {min === 0 ? "Sem delay" : `${min} min`}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
 
@@ -1337,9 +1311,28 @@ const Settings = () => {
         })}
       </div>
 
+      {/* Aceite de termos/privacidade: geral do formulário inteiro, por isso fica fora das seções */}
+      <label className="mt-8 flex items-start gap-3 text-xs text-gray-500 cursor-pointer">
+        <div className="relative mt-0.5">
+          <input
+            type="checkbox"
+            checked={form.privacyAccepted}
+            onChange={(e) => update("privacyAccepted", e.target.checked)}
+            className="sr-only peer"
+          />
+          <div className="w-4 h-4 rounded border border-gray-300 bg-white peer-checked:bg-gray-900 peer-checked:border-gray-900 transition-colors duration-200 flex items-center justify-center">
+            {form.privacyAccepted && <FiCheck size={10} className="text-white" />}
+          </div>
+        </div>
+        <span className="flex items-center gap-1.5 flex-wrap">
+          <FiShield size={13} className="text-gray-400 flex-shrink-0" />
+          Confirmo que meus dados estão corretos e aceito os Termos de Uso e a Política de Privacidade.
+        </span>
+      </label>
+
       {/* Sticky save bar */}
       <div
-        className="mt-20 bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200 z-10"
+        className="mt-6 bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200 z-10"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="px-4 py-10 flex items-center justify-end gap-10">

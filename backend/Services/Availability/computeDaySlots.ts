@@ -235,8 +235,23 @@ export const computeDaySlots = async (
   const neededMinutes = (serviceDuration ?? interval) + extraMinutes + buffer;
   const slots: DaySlot[] = [];
 
-  for (let t = new Date(workStart); t < workEnd; t = new Date(t.getTime() + interval * 60000)) {
-    const slotStart = new Date(t);
+  // Horários candidatos: a grade fixa (a cada `interval`, só a "régua" de opções) + o instante exato
+  // em que cada atendimento/bloqueio termina. Sem isso, o intervalo da agenda também funcionaria como
+  // um atraso extra (ex.: intervalo de 30 min faria o próximo horário esperar até o próximo múltiplo de
+  // 30, mesmo que o atendimento anterior + delay já tivesse liberado a agenda antes). Só o Delay entre
+  // atendimentos deve reservar tempo real — o intervalo nunca deve represar disponibilidade sozinho.
+  const candidateTimes = new Set<number>();
+  for (let t = workStart.getTime(); t < workEnd.getTime(); t += interval * 60000) {
+    candidateTimes.add(t);
+  }
+  [...occupied.map((o) => o.end), ...blocked.map((b) => b.end)].forEach((end) => {
+    if (end.getTime() >= workStart.getTime() && end.getTime() < workEnd.getTime()) {
+      candidateTimes.add(end.getTime());
+    }
+  });
+
+  for (const time of Array.from(candidateTimes).sort((a, b) => a - b)) {
+    const slotStart = new Date(time);
     const serviceEnd = new Date(slotStart.getTime() + (serviceDuration ?? interval) * 60000);
     const occupiedEnd = new Date(slotStart.getTime() + neededMinutes * 60000);
 

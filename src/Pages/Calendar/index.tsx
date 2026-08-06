@@ -96,6 +96,15 @@ for (let i = 0; i < 24; i++) {
   hours.push(i);
 }
 
+// Iniciais do cliente pro avatar do seletor visual (ex: "Vinicius Rodrigues" → "VR")
+const getInitials = (name: string) =>
+  name
+    .trim()
+    .split(/\s+/)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("") || "?";
+
 
 
 const Calendar = () => {
@@ -147,6 +156,12 @@ const Calendar = () => {
   // Declarado aqui (antes do efeito que recalcula a linha do "agora") porque ele muda a altura das
   // linhas de hora e precisa disparar um recálculo de posição.
   const [workHours, setWorkHours] = useState<{ isWorkDay: boolean; workStart: string | null; workEnd: string | null; interval: number; buffer: number; breakStart: string | null; breakEnd: string | null } | null>(null);
+
+  // Passo (em minutos) usado pra linhas de minuto, encaixe do arrastar e step do campo de hora — o
+  // Delay entre atendimentos é o único que controla espaçamento na agenda (o Intervalo virou config
+  // interna, não editável mais pela tela de Configurações). Sem delay configurado, cai num padrão de
+  // 15 min só pra grade não ficar sem nenhum encaixe.
+  const stepMinutes = workHours?.buffer && workHours.buffer > 0 ? workHours.buffer : 15;
 
   useEffect(() => {
     // Calcula a posição da linha com base na altura real da linha da hora atual + fração dos minutos já passados.
@@ -271,6 +286,7 @@ const Calendar = () => {
 
   // Campos do formulário de novo agendamento
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
+  const [customerSearch, setCustomerSearch] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [appointmentDate, setAppointmentDate] = useState("");
   const [appointmentTime, setAppointmentTime] = useState("");
@@ -590,7 +606,7 @@ const Calendar = () => {
     const finalTop = dragPreviewTop ?? drag.startTop;
     setDragPreviewTop(null);
 
-    const interval = workHours?.interval ?? 15;
+    const interval = stepMinutes;
     const rawMinutes = offsetPxToMinutes(finalTop);
     const snapped = Math.round(rawMinutes / interval) * interval;
     const clampedMinutes = Math.max(0, Math.min(snapped, 24 * 60 - appt.duration));
@@ -665,7 +681,7 @@ const Calendar = () => {
     const finalTop = blockDragPreviewTop ?? drag.startTop;
     setBlockDragPreviewTop(null);
 
-    const interval = workHours?.interval ?? 15;
+    const interval = stepMinutes;
     const rawMinutes = offsetPxToMinutes(finalTop);
     const snapped = Math.round(rawMinutes / interval) * interval;
     const clampedStart = Math.max(0, Math.min(snapped, 24 * 60 - drag.durationMinutes));
@@ -731,7 +747,7 @@ const Calendar = () => {
     if (!drag) return;
 
     const px = getPxFromClientY(e.clientY);
-    const interval = workHours?.interval ?? 15;
+    const interval = stepMinutes;
     const snap = (m: number) => Math.round(m / interval) * interval;
 
     let startMinutes = snap(offsetPxToMinutes(Math.min(drag.startPx, px)));
@@ -933,7 +949,7 @@ const Calendar = () => {
       setAppointmentTime(value);
       return;
     }
-    const interval = workHours?.interval || 15;
+    const interval = stepMinutes;
     const totalMinutes = Math.min(Math.max(Math.round((h * 60 + m) / interval) * interval, 0), 23 * 60 + 59);
     const snappedH = Math.floor(totalMinutes / 60);
     const snappedM = totalMinutes % 60;
@@ -943,6 +959,7 @@ const Calendar = () => {
   const resetAppointmentForm = () => {
     resetNewCustomerForm();
     setSelectedCustomerId("");
+    setCustomerSearch("");
     setSelectedServiceId("");
     setAppointmentDate("");
     setAppointmentTime("");
@@ -1280,10 +1297,20 @@ const Calendar = () => {
             </div>
           )}
 
-          {hours.map((hour) => (
+          {hours.map((hour) => {
+            const isWorkdayHour = isHourWithinWorkHours(hour);
+            const interval = stepMinutes;
+            // Marcações de minuto dentro da hora (ex.: :15, :30, :45 pra intervalo de 15 min) — só faz
+            // sentido dentro do expediente, onde a hora tem altura suficiente pra mostrar as subdivisões
+            const subHourMinutes: number[] = [];
+            if (isWorkdayHour && interval > 0 && interval < 60) {
+              for (let m = interval; m < 60; m += interval) subHourMinutes.push(m);
+            }
+
+            return (
             <div
               key={hour}
-              className={`calendar-hour${isHourWithinWorkHours(hour) ? " calendar-hour-workday" : ""}`}
+              className={`calendar-hour${isWorkdayHour ? " calendar-hour-workday" : ""}`}
               ref={(el) => { hourRowRefs.current[hour] = el; }}
             >
               <div className="calendar-hour-label">{String(hour).padStart(2, "0")}:00</div>
@@ -1291,14 +1318,18 @@ const Calendar = () => {
               {/* Line  */}
               <div className="container-tasks">
                 <div className="calendar-hour-line"></div>
-                {!occupiedHours.has(hour) && isHourWithinWorkHours(hour) && isHourInPast(hour) && (
+                {subHourMinutes.map((minute) => (
+                  <div key={minute} className="calendar-subhour-line" style={{ top: `${(minute / 60) * 100}%` }} />
+                ))}
+                {!occupiedHours.has(hour) && isWorkdayHour && isHourInPast(hour) && (
                   <button className="task-default task-unavailable" disabled>
                     Horário indisponível
                   </button>
                 )}
               </div>
             </div>
-          ))}
+            );
+          })}
 
           {/* Área de arrastar-para-selecionar: clique e arraste num horário livre define um intervalo;
               ao soltar, abre um menu perguntando se é um Agendamento ou um Bloqueio, já com a hora preenchida.
@@ -1342,7 +1373,7 @@ const Calendar = () => {
             // Enquanto arrasta, recalcula o horário exibido a partir da posição em tela (feedback em tempo real)
             let previewLabel = `${formatUTC(scheduled)} - ${formatUTC(endDate)}`;
             if (isDragging && dragPreviewTop !== null) {
-              const interval = workHours?.interval ?? 15;
+              const interval = stepMinutes;
               const rawMinutes = offsetPxToMinutes(dragPreviewTop);
               const snapped = Math.max(0, Math.min(Math.round(rawMinutes / interval) * interval, 24 * 60 - appt.duration));
               const previewStart = `${String(Math.floor(snapped / 60)).padStart(2, "0")}:${String(snapped % 60).padStart(2, "0")}`;
@@ -1538,17 +1569,50 @@ const Calendar = () => {
                   </div>
 
                   {!showNewCustomerForm ? (
-                    <select
-                      value={selectedCustomerId}
-                      onChange={(e) => setSelectedCustomerId(e.target.value)}
-                    >
-                      <option value="">Selecione o cliente</option>
-                      {customers.map((customer) => (
-                        <option key={customer.id} value={customer.id}>
-                          {customer.name}{customer.phone ? ` — ${customer.phone}` : ""}
-                        </option>
-                      ))}
-                    </select>
+                    <div className="customer-picker">
+                      <input
+                        type="text"
+                        className="customer-picker-search"
+                        placeholder="Buscar por nome ou telefone..."
+                        value={customerSearch}
+                        onChange={(e) => setCustomerSearch(e.target.value)}
+                      />
+                      <div className="customer-picker-list">
+                        {(() => {
+                          const query = customerSearch.trim().toLowerCase();
+                          const filtered = query
+                            ? customers.filter(
+                                (c) =>
+                                  c.name.toLowerCase().includes(query) ||
+                                  c.phone?.toLowerCase().includes(query)
+                              )
+                            : customers;
+
+                          if (filtered.length === 0) {
+                            return <p className="customer-picker-empty">Nenhum cliente encontrado</p>;
+                          }
+
+                          return filtered.map((customer) => {
+                            const active = selectedCustomerId === String(customer.id);
+                            return (
+                              <button
+                                type="button"
+                                key={customer.id}
+                                className={`customer-picker-item${active ? " customer-picker-item-active" : ""}`}
+                                onClick={() => setSelectedCustomerId(String(customer.id))}
+                              >
+                                <span className="customer-picker-avatar">{getInitials(customer.name)}</span>
+                                <span className="customer-picker-info">
+                                  <strong>{customer.name}</strong>
+                                  {customer.phone && <span>{customer.phone}</span>}
+                                </span>
+                                {active && <FiCheck className="customer-picker-check" />}
+                              </button>
+                            );
+                          });
+                        })()}
+                      </div>
+                    </div>
                   ) : (
                     <div className="new-appointment-inline-form">
                       {newCustomerError && <div className="new-appointment-error">{newCustomerError}</div>}
@@ -1632,17 +1696,33 @@ const Calendar = () => {
               {appointmentStep === 2 && (
                 <div className="new-appointment-field">
                   <label>Serviço</label>
-                  <select
-                    value={selectedServiceId}
-                    onChange={(e) => handleServiceChange(e.target.value)}
-                  >
-                    <option value="">Selecione o serviço</option>
-                    {services.map((service) => (
-                      <option key={service.id} value={service.id}>
-                        {service.title}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="service-picker-list">
+                    {services.length === 0 ? (
+                      <p className="customer-picker-empty">Nenhum serviço cadastrado</p>
+                    ) : (
+                      services.map((service) => {
+                        const active = selectedServiceId === String(service.id);
+                        const priceLabel = new Intl.NumberFormat("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        }).format(Number(service.price));
+                        return (
+                          <button
+                            type="button"
+                            key={service.id}
+                            className={`service-picker-item${active ? " service-picker-item-active" : ""}`}
+                            onClick={() => handleServiceChange(String(service.id))}
+                          >
+                            <span className="service-picker-info">
+                              <strong>{service.title}</strong>
+                              <span>{service.duration} min · {priceLabel}</span>
+                            </span>
+                            {active && <FiCheck className="customer-picker-check" />}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               )}
 
@@ -1662,12 +1742,12 @@ const Calendar = () => {
                       <label>Horário</label>
                       <input
                         type="time"
-                        step={(workHours?.interval || 15) * 60}
+                        step={stepMinutes * 60}
                         value={appointmentTime}
                         onChange={(e) => handleAppointmentTimeChange(e.target.value)}
                       />
                       <small className="new-appointment-field-hint">
-                        Horários de {workHours?.interval || 15} em {workHours?.interval || 15} min
+                        Horários de {stepMinutes} em {stepMinutes} min
                       </small>
                     </div>
                   </div>
