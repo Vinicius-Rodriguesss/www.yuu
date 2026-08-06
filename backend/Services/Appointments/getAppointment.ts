@@ -9,6 +9,7 @@ import type { Request, Response } from "express";
 import { eq, and } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { appointmentsTable } from "../../db/schema/appointments.js";
+import { attachAppointmentProducts } from "./attachAppointmentProducts.js";
 
 const GetAppointment = async (req: Request, res: Response) => {
   try {
@@ -25,7 +26,9 @@ const GetAppointment = async (req: Request, res: Response) => {
       return res.status(404).json({ error: "Agendamento não encontrado" });
     }
 
-    return res.status(200).json(appointment);
+    const [withProducts] = await attachAppointmentProducts([appointment]);
+
+    return res.status(200).json(withProducts);
   } catch (error) {
     return res.status(500).json({ error: "Erro ao buscar agendamento" });
   }

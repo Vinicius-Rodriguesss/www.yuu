@@ -9,6 +9,8 @@ import Services from './Pages/Services'
 import Settings from './Pages/Configuracoes'
 import Calendar from './Pages/Calendar'
 import Customers from './Pages/Customers'
+import Products from './Pages/Products'
+import Caixa from './Pages/Caixa'
 import PublicChat from './Pages/PublicChat'
 import PublicBooking from './Pages/PublicBooking'
 
@@ -27,6 +29,8 @@ const AppRoutes = () => {
         <Route element={<DashboardLayout />}>
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/service" element={<Services />} />
+          <Route path="/products" element={<Products />} />
+          <Route path="/caixa" element={<Caixa />} />
           <Route path="/customers" element={<Customers />} />
           <Route path="/config" element={<Settings />} />
           <Route path="/calendar" element={<Calendar />} />

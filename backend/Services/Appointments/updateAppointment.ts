@@ -13,17 +13,19 @@ import type { Request, Response } from "express";
 import { sql, eq, and } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { appointmentsTable } from "../../db/schema/appointments.js";
+import { appointmentProductsTable } from "../../db/schema/appointmentProducts.js";
 import { servicesTable } from "../../db/schema/services.js";
 import { customersTable } from "../../db/schema/customers.js";
 import { resolveHomeServiceTravel } from "../Travel/estimateTravel.js";
 import { validateSlot } from "../Availability/computeDaySlots.js";
+import { resolveAppointmentProducts } from "./resolveAppointmentProducts.js";
 
 const UpdateAppointment = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     const { id } = req.params;
     const appointmentId = Number(id);
-    const { customerId, serviceId, scheduledAt, notes, tzOffsetMin, isHomeService, customerAddressId, paymentStatus } = req.body;
+    const { customerId, serviceId, scheduledAt, notes, tzOffsetMin, isHomeService, customerAddressId, paymentStatus, products } = req.body;
     const tzOffset = !isNaN(Number(tzOffsetMin)) ? Number(tzOffsetMin) : 0;
     const homeService = Boolean(isHomeService);
 
@@ -95,6 +97,13 @@ const UpdateAppointment = async (req: Request, res: Response) => {
       travelCost = travel.travelCost;
     }
 
+    // Produtos vendidos junto (ex: pomada, shampoo) — soma no preço total do agendamento
+    const productsResult = await resolveAppointmentProducts(userId, products);
+    if ("error" in productsResult) {
+      return res.status(400).json({ error: productsResult.error });
+    }
+    const totalPrice = (Number(service.price) + productsResult.total).toFixed(2);
+
     const result = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(${userId})`);
 
@@ -117,7 +126,7 @@ const UpdateAppointment = async (req: Request, res: Response) => {
           serviceId: Number(serviceId),
           scheduledAt: scheduledDate,
           duration: service.duration,
-          price: service.price,
+          price: totalPrice,
           notes: notes || null,
           paymentStatus: paymentStatus === "paid" ? "paid" : "unpaid",
           isHomeService: homeService,
@@ -129,6 +138,20 @@ const UpdateAppointment = async (req: Request, res: Response) => {
         })
         .where(and(eq(appointmentsTable.id, appointmentId), eq(appointmentsTable.userId, userId)))
         .returning();
+
+      // Produtos: apaga e reinsere (mesmo padrão de work_schedule_days), sem diff
+      await tx.delete(appointmentProductsTable).where(eq(appointmentProductsTable.appointmentId, appointmentId));
+      if (productsResult.resolved.length > 0) {
+        await tx.insert(appointmentProductsTable).values(
+          productsResult.resolved.map((p) => ({
+            appointmentId,
+            productId: p.productId,
+            name: p.name,
+            unitPrice: p.unitPrice,
+            quantity: p.quantity,
+          }))
+        );
+      }
 
       return { appointment: updated } as const;
     });

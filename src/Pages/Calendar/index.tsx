@@ -19,6 +19,21 @@ interface Service {
   price: string;
 }
 
+interface Product {
+  id: number;
+  name: string;
+  price: string;
+  active: boolean;
+}
+
+// Item de produto vendido junto de um agendamento (snapshot salvo no backend)
+interface AppointmentProduct {
+  productId: number | null;
+  name: string;
+  unitPrice: string;
+  quantity: number;
+}
+
 // Endereço do cliente, usado quando o atendimento é a domicílio
 interface CustomerAddress {
   id: number;
@@ -48,6 +63,7 @@ interface Appointment {
   travelMinutes?: number;
   travelDistanceKm?: string | number;
   travelCost?: string | number;
+  products?: AppointmentProduct[];
 }
 
 // Bloqueio manual de horário (folga, almoço, indisponibilidade), vindo do backend (GET /blocked-slots)
@@ -249,25 +265,30 @@ const Calendar = () => {
   // Controla a abertura do painel "Novo Agendamento" (e o overlay escurecido atrás dele)
   const [isNewAppointmentOpen, setIsNewAppointmentOpen] = useState(false);
 
-  // Etapas do formulário: 1 Cliente, 2 Serviço, 3 Data/Horário, 4 Confirmação
-  type AppointmentStep = 1 | 2 | 3 | 4;
+  // Etapas do formulário: 1 Cliente, 2 Serviço, 3 Produtos, 4 Data/Horário, 5 Confirmação
+  type AppointmentStep = 1 | 2 | 3 | 4 | 5;
   const [appointmentStep, setAppointmentStep] = useState<AppointmentStep>(1);
   const appointmentStepTitles: Record<AppointmentStep, string> = {
     1: "Escolha o cliente",
     2: "Escolha o serviço",
-    3: "Data e horário",
-    4: "Confirmar agendamento",
+    3: "Produtos",
+    4: "Data e horário",
+    5: "Confirmar agendamento",
   };
   const editAppointmentStepTitles: Record<AppointmentStep, string> = {
     1: "Escolha o cliente",
     2: "Escolha o serviço",
-    3: "Data e horário",
-    4: "Confirmar edição",
+    3: "Produtos",
+    4: "Data e horário",
+    5: "Confirmar edição",
   };
 
   // Clientes e serviços já cadastrados no backend, usados para preencher os selects do formulário
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  // Produtos escolhidos na etapa "Produtos" do formulário de agendamento (ex: pomada, shampoo)
+  const [selectedProducts, setSelectedProducts] = useState<{ productId: number; quantity: number }[]>([]);
 
   // Quando preenchido, o painel "Novo Agendamento" vira "Editar agendamento" e salva com PATCH em vez de POST
   const [editingAppointmentId, setEditingAppointmentId] = useState<number | null>(null);
@@ -318,12 +339,13 @@ const Calendar = () => {
   } | null>(null);
   const [loadingTravelEstimate, setLoadingTravelEstimate] = useState(false);
 
-  // Busca clientes e serviços já cadastrados uma vez (usados no formulário e para mostrar nome/serviço nos blocos da grade)
+  // Busca clientes, serviços e produtos já cadastrados uma vez (usados no formulário e para mostrar nome/serviço nos blocos da grade)
   useEffect(() => {
-    Promise.all([apiFetch("/customers"), apiFetch("/services")])
-      .then(([custs, servs]) => {
+    Promise.all([apiFetch("/customers"), apiFetch("/services"), apiFetch("/products")])
+      .then(([custs, servs, prods]) => {
         setCustomers(custs);
         setServices(servs.filter((s: Service & { active?: boolean }) => s.active !== false));
+        setProducts(prods.filter((p: Product) => p.active));
       })
       .catch(() => setAppointmentError("Erro ao carregar clientes e serviços"));
   }, []);
@@ -961,6 +983,7 @@ const Calendar = () => {
     setSelectedCustomerId("");
     setCustomerSearch("");
     setSelectedServiceId("");
+    setSelectedProducts([]);
     setAppointmentDate("");
     setAppointmentTime("");
     setDuration("30");
@@ -1021,6 +1044,11 @@ const Calendar = () => {
     setPrice(appt.price);
     setNotes(appt.notes || "");
     setIsHomeService(!!appt.isHomeService);
+    setSelectedProducts(
+      (appt.products ?? [])
+        .filter((p) => p.productId !== null)
+        .map((p) => ({ productId: p.productId as number, quantity: p.quantity }))
+    );
     pendingEditAddressIdRef.current = appt.customerAddressId ?? null;
     setAppointmentStep(1);
     setIsNewAppointmentOpen(true);
@@ -1030,7 +1058,8 @@ const Calendar = () => {
   const canGoToNextStep = () => {
     if (appointmentStep === 1) return !!selectedCustomerId;
     if (appointmentStep === 2) return !!selectedServiceId;
-    if (appointmentStep === 3) {
+    // Etapa 3 (Produtos) é opcional — sempre pode avançar, com ou sem produto escolhido
+    if (appointmentStep === 4) {
       if (!appointmentDate || !appointmentTime) return false;
       if (isHomeService && !selectedAddressId) return false;
       if (appointmentDate === dayKey(selectedDay) && workHours) {
@@ -1050,7 +1079,7 @@ const Calendar = () => {
       setAppointmentError("Preencha os campos desta etapa para continuar");
       return;
     }
-    setAppointmentStep((s) => (Math.min(s + 1, 4) as AppointmentStep));
+    setAppointmentStep((s) => (Math.min(s + 1, 5) as AppointmentStep));
   };
 
   const goToPreviousStep = () => {
@@ -1092,6 +1121,7 @@ const Calendar = () => {
         tzOffsetMin,
         duration: Number(duration),
         price,
+        products: selectedProducts.filter((p) => p.quantity > 0),
         paymentStatus,
         isHomeService,
         customerAddressId: isHomeService ? selectedAddressId : null,
@@ -1115,6 +1145,21 @@ const Calendar = () => {
     } finally {
       setSavingAppointment(false);
     }
+  };
+
+  // Subtotal dos produtos escolhidos na etapa "Produtos" (soma preço × quantidade)
+  const productsSubtotal = selectedProducts.reduce((sum, sp) => {
+    const product = products.find((p) => p.id === sp.productId);
+    return sum + (product ? Number(product.price) * sp.quantity : 0);
+  }, 0);
+
+  const updateProductQuantity = (productId: number, quantity: number) => {
+    setSelectedProducts((prev) => {
+      if (quantity <= 0) return prev.filter((p) => p.productId !== productId);
+      const exists = prev.find((p) => p.productId === productId);
+      if (exists) return prev.map((p) => (p.productId === productId ? { ...p, quantity } : p));
+      return [...prev, { productId, quantity }];
+    });
   };
 
   return (
@@ -1533,9 +1578,9 @@ const Calendar = () => {
               </button>
             </div>
 
-            {/* Indicador de progresso das 4 etapas */}
+            {/* Indicador de progresso das 5 etapas */}
             <div className="new-appointment-progress">
-              {([1, 2, 3, 4] as AppointmentStep[]).map((s) => (
+              {([1, 2, 3, 4, 5] as AppointmentStep[]).map((s) => (
                 <div
                   key={s}
                   className={`new-appointment-progress-step${appointmentStep >= s ? " done" : ""}${appointmentStep === s ? " current" : ""}`}
@@ -1543,7 +1588,7 @@ const Calendar = () => {
                   <span className="new-appointment-progress-dot">
                     {appointmentStep > s ? <FiCheck /> : s}
                   </span>
-                  <small>{["Cliente", "Serviço", "Horário", "Confirmar"][s - 1]}</small>
+                  <small>{["Cliente", "Serviço", "Produtos", "Horário", "Confirmar"][s - 1]}</small>
                 </div>
               ))}
             </div>
@@ -1726,8 +1771,70 @@ const Calendar = () => {
                 </div>
               )}
 
-              {/* ── Etapa 3: Data, horário e domicílio ── */}
+              {/* ── Etapa 3: Produtos (opcional) ── */}
               {appointmentStep === 3 && (
+                <div className="new-appointment-field">
+                  <label>Produtos <span className="new-appointment-field-hint">(opcional)</span></label>
+                  <div className="service-picker-list">
+                    {products.length === 0 ? (
+                      <p className="customer-picker-empty">Nenhum produto cadastrado</p>
+                    ) : (
+                      products.map((product) => {
+                        const selected = selectedProducts.find((p) => p.productId === product.id);
+                        const quantity = selected?.quantity ?? 0;
+                        const priceLabel = new Intl.NumberFormat("pt-BR", {
+                          style: "currency",
+                          currency: "BRL",
+                        }).format(Number(product.price));
+                        return (
+                          <div
+                            key={product.id}
+                            className={`service-picker-item product-picker-item${quantity > 0 ? " service-picker-item-active" : ""}`}
+                          >
+                            <span className="service-picker-info">
+                              <strong>{product.name}</strong>
+                              <span>{priceLabel}</span>
+                            </span>
+                            <span className="product-qty-stepper">
+                              <button
+                                type="button"
+                                className="product-qty-btn"
+                                onClick={() => updateProductQuantity(product.id, quantity - 1)}
+                                disabled={quantity === 0}
+                                aria-label="Diminuir quantidade"
+                              >
+                                −
+                              </button>
+                              <span className="product-qty-value">{quantity}</span>
+                              <button
+                                type="button"
+                                className="product-qty-btn"
+                                onClick={() => updateProductQuantity(product.id, quantity + 1)}
+                                aria-label="Aumentar quantidade"
+                              >
+                                +
+                              </button>
+                            </span>
+                          </div>
+                        );
+                      })
+                    )}
+                  </div>
+                  {productsSubtotal > 0 && (
+                    <div className="new-appointment-service-info">
+                      <span>Subtotal de produtos</span>
+                      <span>
+                        <strong>
+                          {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(productsSubtotal)}
+                        </strong>
+                      </span>
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* ── Etapa 4: Data, horário e domicílio ── */}
+              {appointmentStep === 4 && (
                 <>
                   <div className="new-appointment-row">
                     <div className="new-appointment-field">
@@ -1752,10 +1859,14 @@ const Calendar = () => {
                     </div>
                   </div>
 
-                  {/* Duração e valor já vêm do cadastro do serviço — só exibidos aqui como referência, sem edição */}
+                  {/* Duração e valor já vêm do cadastro do serviço (+ produtos escolhidos) — só exibidos aqui como referência, sem edição */}
                   <div className="new-appointment-service-info">
                     <span><strong>{duration} min</strong> de duração</span>
-                    <span><strong>R$ {price || "0,00"}</strong></span>
+                    <span>
+                      <strong>
+                        R$ {(Number(price || 0) + productsSubtotal).toFixed(2).replace(".", ",")}
+                      </strong>
+                    </span>
                   </div>
 
                   {/* Atendimento a domicílio: define se o profissional vai até o cliente ou o atendimento é no local de sempre */}
@@ -1918,8 +2029,8 @@ const Calendar = () => {
                 </>
               )}
 
-              {/* ── Etapa 4: Pagamento, observações e resumo ── */}
-              {appointmentStep === 4 && (
+              {/* ── Etapa 5: Pagamento, observações e resumo ── */}
+              {appointmentStep === 5 && (
                 <>
                   <div className="new-appointment-summary">
                     <div className="new-appointment-summary-row">
@@ -1930,6 +2041,19 @@ const Calendar = () => {
                       <small>Serviço</small>
                       <strong>{services.find((s) => String(s.id) === selectedServiceId)?.title}</strong>
                     </div>
+                    {selectedProducts.filter((sp) => sp.quantity > 0).map((sp) => {
+                      const product = products.find((p) => p.id === sp.productId);
+                      if (!product) return null;
+                      const lineTotal = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
+                        .format(Number(product.price) * sp.quantity);
+                      return (
+                        <div className="new-appointment-summary-row" key={sp.productId}>
+                          <small>Produto</small>
+                          <strong>{product.name} × {sp.quantity}</strong>
+                          <span>{lineTotal}</span>
+                        </div>
+                      );
+                    })}
                     <div className="new-appointment-summary-row">
                       <small>Quando</small>
                       <strong>{appointmentDate} às {appointmentTime}</strong>
@@ -1960,11 +2084,17 @@ const Calendar = () => {
                         </strong>
                       </div>
                     )}
-                    {isHomeService && travelEstimate && !travelEstimate.unavailable && !travelEstimate.exceedsMaxDistance && (
+                    {(productsSubtotal > 0 || (isHomeService && travelEstimate && !travelEstimate.unavailable && !travelEstimate.exceedsMaxDistance)) && (
                       <div className="new-appointment-summary-row">
                         <small>Total</small>
                         <strong>
-                          R$ {(Number(price || 0) + travelEstimate.cost).toFixed(2).replace(".", ",")}
+                          R$ {(
+                            Number(price || 0) +
+                            productsSubtotal +
+                            (isHomeService && travelEstimate && !travelEstimate.unavailable && !travelEstimate.exceedsMaxDistance
+                              ? travelEstimate.cost
+                              : 0)
+                          ).toFixed(2).replace(".", ",")}
                         </strong>
                       </div>
                     )}
@@ -1996,7 +2126,7 @@ const Calendar = () => {
               <button className="btn-clear-filters" onClick={closeNewAppointment}>
                 Cancelar
               </button>
-              {appointmentStep < 4 ? (
+              {appointmentStep < 5 ? (
                 <button className="btn-apply-filters" onClick={goToNextStep}>
                   Continuar
                 </button>
@@ -2161,6 +2291,14 @@ const Calendar = () => {
                       <small>Serviço</small>
                       <strong>{service?.title ?? `Serviço #${appt.serviceId}`}</strong>
                     </div>
+                    {!!appt.products?.length && (
+                      <div className="new-appointment-summary-row">
+                        <small>Produtos</small>
+                        <strong>
+                          {appt.products.map((p) => `${p.name} ×${p.quantity}`).join(", ")}
+                        </strong>
+                      </div>
+                    )}
                     <div className="new-appointment-summary-row">
                       <small>Quando</small>
                       <strong style={{ textTransform: "capitalize" }}>{dateLabel}</strong>

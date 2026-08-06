@@ -1383,6 +1383,53 @@
   color: #1a1a1a;
 }
 
+/* Item de produto (etapa "Produtos" do Novo Agendamento) — mesma base visual do seletor de
+   serviço, mas com um contador de quantidade em vez de seleção única */
+.product-picker-item {
+  cursor: default;
+}
+
+.product-qty-stepper {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  flex-shrink: 0;
+}
+
+.product-qty-btn {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  border: 1px solid #ececec;
+  background: #fff;
+  color: #1a1a1a;
+  font-size: .9rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color .15s, background-color .15s;
+}
+
+.product-qty-btn:hover:not(:disabled) {
+  border-color: #d9d9d9;
+  background-color: #fafafa;
+}
+
+.product-qty-btn:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+
+.product-qty-value {
+  min-width: 1rem;
+  text-align: center;
+  font-size: .85rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
 .service-picker-info span {
   font-size: .75rem;
   color: #a0a0a0;

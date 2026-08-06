@@ -200,6 +200,7 @@ const PublicBookAppointment = async (req: Request<{ slug: string }, {}, PublicBo
       serviceId: Number(serviceId),
       duration: service.duration,
       price: service.price,
+      products: [],
       scheduledAt: scheduledDate,
       tzOffsetMin: tzOffset,
       notes: notes?.trim() || null,

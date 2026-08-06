@@ -20,11 +20,12 @@ import { servicesTable } from "../../db/schema/services.js";
 import { customersTable } from "../../db/schema/customers.js";
 import { resolveHomeServiceTravel } from "../Travel/estimateTravel.js";
 import { createAppointmentCore } from "./createAppointmentCore.js";
+import { resolveAppointmentProducts } from "./resolveAppointmentProducts.js";
 
 const CreateAppointment = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
-    const { customerId, serviceId, scheduledAt, notes, tzOffsetMin, isHomeService, customerAddressId, paymentStatus } = req.body;
+    const { customerId, serviceId, scheduledAt, notes, tzOffsetMin, isHomeService, customerAddressId, paymentStatus, products } = req.body;
     const tzOffset = !isNaN(Number(tzOffsetMin)) ? Number(tzOffsetMin) : 0;
     const homeService = Boolean(isHomeService);
 
@@ -90,12 +91,20 @@ const CreateAppointment = async (req: Request, res: Response) => {
       }
     }
 
+    // Produtos vendidos junto (ex: pomada, shampoo) — soma no preço total do agendamento
+    const productsResult = await resolveAppointmentProducts(userId, products);
+    if ("error" in productsResult) {
+      return res.status(400).json({ error: productsResult.error });
+    }
+    const totalPrice = (Number(service.price) + productsResult.total).toFixed(2);
+
     const result = await createAppointmentCore({
       userId,
       customerId: Number(customerId),
       serviceId: Number(serviceId),
       duration: service.duration,
-      price: service.price,
+      price: totalPrice,
+      products: productsResult.resolved,
       scheduledAt: scheduledDate,
       tzOffsetMin: tzOffset,
       notes: notes || null,

@@ -3,6 +3,8 @@ import cors from "cors";
 import Auth from "./Auth/Controller/index.js"
 import UserController from "./Controllers/user.js";
 import ServicesController from "./Controllers/services.js";
+import ProductsController from "./Controllers/products.js";
+import CaixaController from "./Controllers/caixa.js";
 import CustomersController from "./Controllers/customers.js";
 import CustomerAddressesController from "./Controllers/customerAddresses.js";
 import CustomerHistoriesController from "./Controllers/customerHistories.js";
@@ -35,6 +37,8 @@ app.use(Auth);
 
 app.use(UserController);
 app.use(ServicesController);
+app.use(ProductsController);
+app.use(CaixaController);
 app.use(CustomersController);
 app.use(CustomerAddressesController);
 app.use(CustomerHistoriesController);

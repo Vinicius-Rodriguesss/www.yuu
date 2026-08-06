@@ -3,11 +3,12 @@
  *
  * Única fonte de verdade para calcular os horários de um dia, usada por:
  * - GET /availability (grade de horários no frontend)
- * - CreateAppointment (validação anti-conflito no momento do agendamento)
+ * - CreateAppointment/UpdateAppointment (validação anti-conflito no momento do agendamento)
  *
  * Regras aplicadas:
  * - Jornada de trabalho do dia (início/fim, dia ativo)
- * - Intervalo da agenda configurado pelo profissional (users.schedule_interval)
+ * - Intervalo da agenda configurado pelo profissional (users.schedule_interval) — só afeta a
+ *   "régua" de horários oferecida na grade (GET /availability), nunca bloqueia um horário válido
  * - Delay/descanso entre atendimentos (users.appointment_buffer)
  * - Agendamentos existentes ocupam [início, início + duração + delay)
  * - Bloqueios manuais (blocked_slots), incluindo férias/almoço
@@ -87,28 +88,32 @@ const hhmm = (d: Date) =>
 export const wallNow = (tzOffsetMin: number) =>
   new Date(Date.now() + tzOffsetMin * 60000);
 
+interface DayContext {
+  isWorkDay: boolean;
+  workStart: Date | null;
+  workEnd: Date | null;
+  interval: number;
+  buffer: number;
+  breakStart: string | null;
+  breakEnd: string | null;
+  occupied: Occupied[];
+  blocked: Blocked[];
+}
+
 /**
- * Calcula a grade de horários de um dia para o profissional.
- * `serviceDuration` (min) define quanto tempo o novo atendimento precisa;
- * quando omitido, considera 1 slot.
- * `tzOffsetMin`: fuso do cliente em minutos a leste de UTC (para "passado").
- * `extraMinutes`: minutos extras que o novo atendimento vai ocupar além do
- * serviço (ex: deslocamento de atendimento a domicílio — já deve vir como
- * ida E volta; quem chama passa o dobro do tempo de deslocamento).
+ * Busca a jornada do dia + tudo que ocupa a agenda (agendamentos, bloqueios, pausa fixa) — usado
+ * tanto pra montar a grade de horários (computeDaySlots) quanto pra validar um horário específico
+ * (validateSlot) direto contra os conflitos reais, sem depender de nenhuma grade fixa.
  */
-export const computeDaySlots = async (
+const getDayContext = async (
   userId: number,
   date: Date,
-  serviceDuration?: number,
-  tzOffsetMin = 0,
-  extraMinutes = 0,
   excludeAppointmentId?: number
-): Promise<DayAvailability> => {
+): Promise<DayContext> => {
   const dayStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
   const dayEnd = new Date(dayStart);
   dayEnd.setUTCDate(dayEnd.getUTCDate() + 1);
 
-  // Configurações do profissional
   const [user] = await db
     .select({
       scheduleInterval: usersTable.scheduleInterval,
@@ -125,8 +130,7 @@ export const computeDaySlots = async (
   const breakStart = user?.breakStart ?? null;
   const breakEnd = user?.breakEnd ?? null;
 
-  const empty: DayAvailability = {
-    date: dayStart.toISOString().slice(0, 10),
+  const empty: DayContext = {
     isWorkDay: false,
     workStart: null,
     workEnd: null,
@@ -134,10 +138,10 @@ export const computeDaySlots = async (
     buffer,
     breakStart,
     breakEnd,
-    slots: [],
+    occupied: [],
+    blocked: [],
   };
 
-  // Jornada ativa + dia da semana
   const [schedule] = await db
     .select({ id: workSchedulesTable.id })
     .from(workSchedulesTable)
@@ -158,13 +162,12 @@ export const computeDaySlots = async (
     )
     .limit(1);
 
-  if (!day) return empty;
+  if (!day) return { ...empty, breakStart: null, breakEnd: null };
 
   const workStart = timeOnDate(dayStart, day.startTime);
   const workEnd = timeOnDate(dayStart, day.endTime);
 
-  // Agendamentos ativos do dia (ocupam duração + delay)
-  // excludeAppointmentId: usado ao editar um agendamento, pra ele não conflitar com o próprio horário
+  // excludeAppointmentId: usado ao editar/reagendar, pra ele não conflitar com o próprio horário
   const appointmentConditions = [
     eq(appointmentsTable.userId, userId),
     gte(appointmentsTable.scheduledAt, dayStart),
@@ -199,7 +202,6 @@ export const computeDaySlots = async (
     };
   });
 
-  // Bloqueios que tocam o dia
   const dayBlocks = await db
     .select({
       startAt: blockedSlotsTable.startAt,
@@ -231,15 +233,49 @@ export const computeDaySlots = async (
     });
   }
 
+  return { isWorkDay: true, workStart, workEnd, interval, buffer, breakStart, breakEnd, occupied, blocked };
+};
+
+/**
+ * Calcula a grade de horários de um dia para o profissional — usada pra EXIBIR opções (grade do
+ * calendário, botões da reserva pública). `serviceDuration` (min) define quanto tempo o novo
+ * atendimento precisa; quando omitido, considera 1 slot.
+ * `tzOffsetMin`: fuso do cliente em minutos a leste de UTC (para "passado").
+ * `extraMinutes`: minutos extras que o novo atendimento vai ocupar além do
+ * serviço (ex: deslocamento de atendimento a domicílio — já deve vir como
+ * ida E volta; quem chama passa o dobro do tempo de deslocamento).
+ */
+export const computeDaySlots = async (
+  userId: number,
+  date: Date,
+  serviceDuration?: number,
+  tzOffsetMin = 0,
+  extraMinutes = 0,
+  excludeAppointmentId?: number
+): Promise<DayAvailability> => {
+  const dayStart = new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate()));
+  const ctx = await getDayContext(userId, date, excludeAppointmentId);
+
+  const base: Omit<DayAvailability, "isWorkDay" | "workStart" | "workEnd" | "slots"> = {
+    date: dayStart.toISOString().slice(0, 10),
+    interval: ctx.interval,
+    buffer: ctx.buffer,
+    breakStart: ctx.breakStart,
+    breakEnd: ctx.breakEnd,
+  };
+
+  if (!ctx.isWorkDay || !ctx.workStart || !ctx.workEnd) {
+    return { ...base, isWorkDay: false, workStart: null, workEnd: null, slots: [] };
+  }
+
+  const { workStart, workEnd, occupied, blocked, interval, buffer } = ctx;
   const now = wallNow(tzOffsetMin);
   const neededMinutes = (serviceDuration ?? interval) + extraMinutes + buffer;
   const slots: DaySlot[] = [];
 
-  // Horários candidatos: a grade fixa (a cada `interval`, só a "régua" de opções) + o instante exato
-  // em que cada atendimento/bloqueio termina. Sem isso, o intervalo da agenda também funcionaria como
-  // um atraso extra (ex.: intervalo de 30 min faria o próximo horário esperar até o próximo múltiplo de
-  // 30, mesmo que o atendimento anterior + delay já tivesse liberado a agenda antes). Só o Delay entre
-  // atendimentos deve reservar tempo real — o intervalo nunca deve represar disponibilidade sozinho.
+  // Horários candidatos: a grade fixa (a cada `interval`, só a "régua" de opções pra EXIBIR) + o
+  // instante exato em que cada atendimento/bloqueio termina, pra sempre oferecer o horário livre
+  // mais cedo possível como opção — sem isso, o intervalo funcionaria como um atraso extra.
   const candidateTimes = new Set<number>();
   for (let t = workStart.getTime(); t < workEnd.getTime(); t += interval * 60000) {
     candidateTimes.add(t);
@@ -290,21 +326,20 @@ export const computeDaySlots = async (
   }
 
   return {
-    date: empty.date,
+    ...base,
     isWorkDay: true,
     workStart: hhmm(workStart),
     workEnd: hhmm(workEnd),
-    interval,
-    buffer,
-    breakStart,
-    breakEnd,
     slots,
   };
 };
 
 /**
- * Valida se um horário específico pode receber um agendamento.
- * Retorna null se ok, ou a mensagem de erro.
+ * Valida se um horário específico pode receber um agendamento — checa direto contra a jornada e
+ * os conflitos reais (agendamentos, bloqueios, passado), SEM exigir que o horário bata com nenhuma
+ * grade fixa. Isso é o que permite arrastar um agendamento pra qualquer minuto livre na agenda
+ * (reagendar arrastando no Calendário) em vez de só nos múltiplos do Intervalo da Agenda — só
+ * precisa caber dentro do expediente e não colidir com nada.
  */
 export const validateSlot = async (
   userId: number,
@@ -314,36 +349,34 @@ export const validateSlot = async (
   extraMinutes = 0,
   excludeAppointmentId?: number
 ): Promise<string | null> => {
-  const availability = await computeDaySlots(
-    userId,
-    scheduledAt,
-    serviceDuration,
-    tzOffsetMin,
-    extraMinutes,
-    excludeAppointmentId
-  );
+  const ctx = await getDayContext(userId, scheduledAt, excludeAppointmentId);
 
-  if (!availability.isWorkDay) {
+  if (!ctx.isWorkDay || !ctx.workStart || !ctx.workEnd) {
     return "O profissional não atende neste dia";
   }
 
-  if (scheduledAt < wallNow(tzOffsetMin)) {
+  const now = wallNow(tzOffsetMin);
+  if (scheduledAt < now) {
     return "Não é possível agendar em um horário passado";
   }
 
-  const wanted = availability.slots.find(
-    (s) => new Date(s.startAt).getTime() === scheduledAt.getTime()
-  );
-
-  if (!wanted) {
-    return "Horário fora do expediente ou fora da grade da agenda";
+  if (scheduledAt < ctx.workStart) {
+    return `Horário fora da jornada de trabalho (${hhmm(ctx.workStart)} - ${hhmm(ctx.workEnd)})`;
   }
 
-  if (wanted.status === "occupied") return "Este horário já está ocupado";
-  if (wanted.status === "blocked") return "Este horário está bloqueado";
-  if (wanted.status === "past") return "Não é possível agendar em um horário passado";
-  if (wanted.status === "unavailable")
-    return "O serviço não cabe neste horário (conflito com outro atendimento, bloqueio ou fim do expediente)";
+  const neededMinutes = serviceDuration + extraMinutes + ctx.buffer;
+  const scheduledEnd = new Date(scheduledAt.getTime() + neededMinutes * 60000);
+  const serviceEnd = new Date(scheduledAt.getTime() + serviceDuration * 60000);
+
+  if (serviceEnd > ctx.workEnd) {
+    return `Horário fora da jornada de trabalho (${hhmm(ctx.workStart)} - ${hhmm(ctx.workEnd)})`;
+  }
+
+  const hitAppt = ctx.occupied.find((o) => overlaps(scheduledAt, scheduledEnd, o.start, o.end));
+  if (hitAppt) return "Este horário já está ocupado";
+
+  const hitBlock = ctx.blocked.find((b) => overlaps(scheduledAt, scheduledEnd, b.start, b.end));
+  if (hitBlock) return "Este horário está bloqueado";
 
   return null;
 };

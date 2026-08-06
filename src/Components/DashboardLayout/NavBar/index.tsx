@@ -7,6 +7,8 @@ import {
  MdPeople,
  MdSettings,
  MdLogout,
+ MdPointOfSale,
+ MdInventory2,
 } from "react-icons/md";
 import { HiMenuAlt1 } from "react-icons/hi";
 import "./index.css";
@@ -39,7 +41,9 @@ const NavBar = () => {
  const links = [
   { to: "/calendar", label: "Agenda", icon: <MdEventNote size={20} /> },
   { to: "/dashboard", label: "Dashboard", icon: <MdSpaceDashboard size={20} /> },
+  { to: "/caixa", label: "Caixa", icon: <MdPointOfSale size={20} /> },
   { to: "/service", label: "Serviços", icon: <MdContentCut size={20} /> },
+  { to: "/products", label: "Produtos", icon: <MdInventory2 size={20} /> },
   { to: "/customers", label: "Clientes", icon: <MdPeople size={20} /> },
   { to: "/config", label: "Configurações", icon: <MdSettings size={20} /> },
   // {to: "/ai", label: "IA", icon: <FaRobot size={20} />,}

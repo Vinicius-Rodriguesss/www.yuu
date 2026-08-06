@@ -7,8 +7,10 @@
 import { sql } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { appointmentsTable } from "../../db/schema/appointments.js";
+import { appointmentProductsTable } from "../../db/schema/appointmentProducts.js";
 import { validateSlot } from "../Availability/computeDaySlots.js";
 import { sendAppointmentConfirmationEmails } from "../Email/appointmentEmails.js";
+import type { ResolvedAppointmentProduct } from "./resolveAppointmentProducts.js";
 
 interface CreateAppointmentParams {
   userId: number;
@@ -16,6 +18,7 @@ interface CreateAppointmentParams {
   serviceId: number;
   duration: number;
   price: string;
+  products: ResolvedAppointmentProduct[];
   scheduledAt: Date;
   tzOffsetMin: number;
   notes: string | null;
@@ -63,6 +66,18 @@ export const createAppointmentCore = async (params: CreateAppointmentParams) => 
         customerAddressId: params.customerAddressId,
       })
       .returning();
+
+    if (params.products.length > 0 && created) {
+      await tx.insert(appointmentProductsTable).values(
+        params.products.map((p) => ({
+          appointmentId: created.id,
+          productId: p.productId,
+          name: p.name,
+          unitPrice: p.unitPrice,
+          quantity: p.quantity,
+        }))
+      );
+    }
 
     return { appointment: created } as const;
   });
