@@ -17,6 +17,7 @@
 import type { Request, Response } from "express";
 import { db } from "../../db/index.js";
 import { customersTable } from "../../db/schema/customers.js";
+import { duplicateCustomerFieldError } from "./duplicateCustomerFieldError.js";
 
 const CreateCustomer = async (req: Request, res: Response) => {
   try {
@@ -29,11 +30,23 @@ const CreateCustomer = async (req: Request, res: Response) => {
 
     const [newCustomer] = await db
       .insert(customersTable)
-      .values({ userId, name, document, phone, email, birthDate, notes })
+      .values({
+        userId,
+        name,
+        document: document || null,
+        phone: phone || null,
+        email: email || null,
+        birthDate,
+        notes,
+      })
       .returning();
 
     return res.status(201).json(newCustomer);
-  } catch (error) {
+  } catch (error: any) {
+    const duplicateMessage = duplicateCustomerFieldError(error);
+    if (duplicateMessage) {
+      return res.status(409).json({ error: duplicateMessage });
+    }
     console.error("ERRO DETALHADO:", error);
     return res.status(500).json({ error: "Erro ao criar cliente" });
   }

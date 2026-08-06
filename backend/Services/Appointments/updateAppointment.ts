@@ -23,7 +23,7 @@ const UpdateAppointment = async (req: Request, res: Response) => {
     const userId = (req as any).userId;
     const { id } = req.params;
     const appointmentId = Number(id);
-    const { customerId, serviceId, scheduledAt, notes, tzOffsetMin, isHomeService, customerAddressId } = req.body;
+    const { customerId, serviceId, scheduledAt, notes, tzOffsetMin, isHomeService, customerAddressId, paymentStatus } = req.body;
     const tzOffset = !isNaN(Number(tzOffsetMin)) ? Number(tzOffsetMin) : 0;
     const homeService = Boolean(isHomeService);
 
@@ -119,6 +119,7 @@ const UpdateAppointment = async (req: Request, res: Response) => {
           duration: service.duration,
           price: service.price,
           notes: notes || null,
+          paymentStatus: paymentStatus === "paid" ? "paid" : "unpaid",
           isHomeService: homeService,
           travelMinutes,
           travelDistanceKm: String(travelDistanceKm),

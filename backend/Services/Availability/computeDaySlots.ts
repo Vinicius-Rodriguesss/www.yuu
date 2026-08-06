@@ -42,6 +42,8 @@ export interface DayAvailability {
   workEnd: string | null;
   interval: number;
   buffer: number;
+  breakStart: string | null;
+  breakEnd: string | null;
   slots: DaySlot[];
 }
 
@@ -111,6 +113,8 @@ export const computeDaySlots = async (
     .select({
       scheduleInterval: usersTable.scheduleInterval,
       appointmentBuffer: usersTable.appointmentBuffer,
+      breakStart: usersTable.breakStart,
+      breakEnd: usersTable.breakEnd,
     })
     .from(usersTable)
     .where(eq(usersTable.id, userId))
@@ -118,6 +122,8 @@ export const computeDaySlots = async (
 
   const interval = user?.scheduleInterval ?? 15;
   const buffer = user?.appointmentBuffer ?? 0;
+  const breakStart = user?.breakStart ?? null;
+  const breakEnd = user?.breakEnd ?? null;
 
   const empty: DayAvailability = {
     date: dayStart.toISOString().slice(0, 10),
@@ -126,6 +132,8 @@ export const computeDaySlots = async (
     workEnd: null,
     interval,
     buffer,
+    breakStart,
+    breakEnd,
     slots: [],
   };
 
@@ -213,6 +221,16 @@ export const computeDaySlots = async (
     title: b.title,
   }));
 
+  // Pausa fixa recorrente (ex: almoço) — tratada como um bloqueio automático
+  // todo dia de trabalho, sem precisar cadastrar em blocked_slots
+  if (breakStart && breakEnd) {
+    blocked.push({
+      start: timeOnDate(dayStart, breakStart),
+      end: timeOnDate(dayStart, breakEnd),
+      title: "Pausa",
+    });
+  }
+
   const now = wallNow(tzOffsetMin);
   const neededMinutes = (serviceDuration ?? interval) + extraMinutes + buffer;
   const slots: DaySlot[] = [];
@@ -263,6 +281,8 @@ export const computeDaySlots = async (
     workEnd: hhmm(workEnd),
     interval,
     buffer,
+    breakStart,
+    breakEnd,
     slots,
   };
 };

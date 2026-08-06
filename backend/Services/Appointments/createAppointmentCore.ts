@@ -19,6 +19,7 @@ interface CreateAppointmentParams {
   scheduledAt: Date;
   tzOffsetMin: number;
   notes: string | null;
+  paymentStatus: string;
   isHomeService: boolean;
   travelMinutes: number;
   travelDistanceKm: number;
@@ -53,6 +54,7 @@ export const createAppointmentCore = async (params: CreateAppointmentParams) => 
         duration: params.duration,
         price: params.price,
         status: "scheduled",
+        paymentStatus: params.paymentStatus === "paid" ? "paid" : "unpaid",
         notes: params.notes,
         isHomeService: params.isHomeService,
         travelMinutes: params.travelMinutes,

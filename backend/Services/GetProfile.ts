@@ -25,6 +25,8 @@ const GetProfile = async (req: Request, res: Response) => {
     phone: usersTable.phone,
     scheduleInterval: usersTable.scheduleInterval,
     appointmentBuffer: usersTable.appointmentBuffer,
+    breakStart: usersTable.breakStart,
+    breakEnd: usersTable.breakEnd,
     publicSlug: usersTable.publicSlug,
     homeServiceTransport: usersTable.homeServiceTransport,
     homeServiceFuelConsumption: usersTable.homeServiceFuelConsumption,

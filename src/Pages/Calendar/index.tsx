@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import { FiChevronDown, FiChevronLeft, FiChevronRight, FiChevronUp, FiCheck, FiDollarSign, FiX, FiPlus, FiSlash, FiLock } from "react-icons/fi";
+import { FiChevronDown, FiChevronLeft, FiChevronRight, FiChevronUp, FiCheck, FiDollarSign, FiX, FiPlus, FiSlash, FiLock, FiHome } from "react-icons/fi";
 import { apiFetch, tzOffsetMin } from "@/api/client";
-import { formatCEP, type ViaCEPResponse } from "@/SignUp/passwordValidation";
+import { formatCEP, formatPhone, type ViaCEPResponse } from "@/SignUp/passwordValidation";
 import Toast from "@/Components/Toast";
 import "./index.css";
 
@@ -45,6 +45,9 @@ interface Appointment {
   notes: string | null;
   isHomeService?: boolean;
   customerAddressId?: number | null;
+  travelMinutes?: number;
+  travelDistanceKm?: string | number;
+  travelCost?: string | number;
 }
 
 // Bloqueio manual de horário (folga, almoço, indisponibilidade), vindo do backend (GET /blocked-slots)
@@ -105,6 +108,10 @@ const Calendar = () => {
   // Controla se o painel "Destacar Agendamentos" está expandido ou recolhido
   const [highlightOpen, setHighlightOpen] = useState(true);
 
+  // Controla se o mini-calendário (nav-calendar) aparece como dropdown — escondido por padrão, abre
+  // ao clicar na data do cabeçalho
+  const [isNavCalendarOpen, setIsNavCalendarOpen] = useState(false);
+
   // Estado dos filtros de pagamento (Pago / Não pago)
   const [paidFilter, setPaidFilter] = useState(false);
   const [unpaidFilter, setUnpaidFilter] = useState(false);
@@ -113,12 +120,16 @@ const Calendar = () => {
   const [confirmedFilter, setConfirmedFilter] = useState(false);
   const [unconfirmedFilter, setUnconfirmedFilter] = useState(false);
 
+  // Estado do filtro de local do atendimento (a domicílio) — destaca na agenda e esmaece o restante
+  const [homeServiceFilter, setHomeServiceFilter] = useState(false);
+
   // Reseta todos os filtros do painel
   const handleClearFilters = () => {
     setPaidFilter(false);
     setUnpaidFilter(false);
     setConfirmedFilter(false);
     setUnconfirmedFilter(false);
+    setHomeServiceFilter(false);
   };
 
   // Referência de cada linha de hora, usada para calcular a posição real (em px) do horário atual
@@ -135,7 +146,7 @@ const Calendar = () => {
   // Jornada de trabalho real do dia selecionado (definida pelo usuário no cadastro), não mais fixa.
   // Declarado aqui (antes do efeito que recalcula a linha do "agora") porque ele muda a altura das
   // linhas de hora e precisa disparar um recálculo de posição.
-  const [workHours, setWorkHours] = useState<{ isWorkDay: boolean; workStart: string | null; workEnd: string | null; interval: number; buffer: number } | null>(null);
+  const [workHours, setWorkHours] = useState<{ isWorkDay: boolean; workStart: string | null; workEnd: string | null; interval: number; buffer: number; breakStart: string | null; breakEnd: string | null } | null>(null);
 
   useEffect(() => {
     // Calcula a posição da linha com base na altura real da linha da hora atual + fração dos minutos já passados.
@@ -248,6 +259,16 @@ const Calendar = () => {
   // Endereço do agendamento sendo editado — usado pra pré-selecionar assim que os endereços do cliente carregarem
   const pendingEditAddressIdRef = useRef<number | null>(null);
 
+  // Criar cliente novo direto na etapa 1, sem sair do fluxo de agendamento
+  const [showNewCustomerForm, setShowNewCustomerForm] = useState(false);
+  const [newCustomerName, setNewCustomerName] = useState("");
+  const [newCustomerDocument, setNewCustomerDocument] = useState("");
+  const [newCustomerPhone, setNewCustomerPhone] = useState("");
+  const [newCustomerEmail, setNewCustomerEmail] = useState("");
+  const [newCustomerNotes, setNewCustomerNotes] = useState("");
+  const [creatingCustomer, setCreatingCustomer] = useState(false);
+  const [newCustomerError, setNewCustomerError] = useState("");
+
   // Campos do formulário de novo agendamento
   const [selectedCustomerId, setSelectedCustomerId] = useState("");
   const [selectedServiceId, setSelectedServiceId] = useState("");
@@ -268,6 +289,18 @@ const Calendar = () => {
   const [addressForm, setAddressForm] = useState({ ...emptyAddress });
   const [savingAddress, setSavingAddress] = useState(false);
   const [cepStatus, setCepStatus] = useState<{ type: "success" | "error" | "loading"; message: string } | null>(null);
+
+  // Estimativa de deslocamento (Google Routes API, com fallback OSRM) pro endereço
+  // do cliente selecionado — mesmo cálculo usado no agendamento público
+  const [travelEstimate, setTravelEstimate] = useState<{
+    minutes: number;
+    km: number | null;
+    cost: number;
+    exceedsMaxDistance: boolean;
+    maxDistanceKm: number | null;
+    unavailable: boolean;
+  } | null>(null);
+  const [loadingTravelEstimate, setLoadingTravelEstimate] = useState(false);
 
   // Busca clientes e serviços já cadastrados uma vez (usados no formulário e para mostrar nome/serviço nos blocos da grade)
   useEffect(() => {
@@ -355,14 +388,6 @@ const Calendar = () => {
   const [savingBlock, setSavingBlock] = useState(false);
   const [blockError, setBlockError] = useState("");
 
-  const openBlockPanel = (hour: number) => {
-    setBlockStartTime(`${String(hour).padStart(2, "0")}:00`);
-    setBlockEndTime(`${String(hour + 1).padStart(2, "0")}:00`);
-    setBlockTitle("");
-    setBlockError("");
-    setIsBlockOpen(true);
-  };
-
   const closeBlockPanel = () => {
     setIsBlockOpen(false);
     setBlockStartTime("");
@@ -409,6 +434,8 @@ const Calendar = () => {
         workEnd: data.workEnd,
         interval: data.interval ?? 15,
         buffer: data.buffer ?? 0,
+        breakStart: data.breakStart ?? null,
+        breakEnd: data.breakEnd ?? null,
       }))
       .catch(() => setWorkHours(null));
   }, [selectedDay]);
@@ -455,6 +482,24 @@ const Calendar = () => {
     if (selectedKey > nowDayKey) return false;
     // Só fica indisponível quando a hora termina por completo (ex.: 9h só vira indisponível às 10h)
     return (hour + 1) * 60 <= nowMinutes;
+  };
+
+  // "Agora" no mesmo formato de hora de parede (Brasília) usado em appt.scheduledAt/blockedSlot — os
+  // campos vêm com "Z" mas guardam a hora local literal, sem conversão de fuso. Comparar contra
+  // Date.now() (UTC real) direto adianta o relógio em ~3h e marca agendamentos futuros como já passados.
+  const nowWallClockMs = () => {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/Sao_Paulo",
+      hourCycle: "h23",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "numeric",
+      minute: "numeric",
+      second: "numeric",
+    }).formatToParts(new Date());
+    const get = (type: string) => Number(parts.find((p) => p.type === type)?.value ?? 0);
+    return Date.UTC(get("year"), get("month") - 1, get("day"), get("hour"), get("minute"), get("second"));
   };
 
   // Posição vertical (em px) do início de cada hora, medida a partir das linhas já renderizadas.
@@ -577,6 +622,132 @@ const Calendar = () => {
     }
   };
 
+  // Arrastar um bloqueio de horário na grade pra mudar o horário — mesmo padrão do arrastar de
+  // agendamento acima (ref pro drag em si, state só pra prévia visual), preservando a duração do bloqueio.
+  const blockDragRef = useRef<{ id: number; startClientY: number; startTop: number; height: number; durationMinutes: number; moved: boolean } | null>(null);
+  const [draggingBlockId, setDraggingBlockId] = useState<number | null>(null);
+  const [blockDragPreviewTop, setBlockDragPreviewTop] = useState<number | null>(null);
+
+  const handleBlockPointerDown = (e: React.PointerEvent<HTMLDivElement>, block: BlockedSlot, top: number, height: number) => {
+    if (e.button !== 0) return;
+    const start = new Date(block.startAt);
+    const end = new Date(block.endAt);
+    const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60000);
+    e.currentTarget.setPointerCapture(e.pointerId);
+    blockDragRef.current = { id: block.id, startClientY: e.clientY, startTop: top, height, durationMinutes, moved: false };
+    setDraggingBlockId(block.id);
+    setBlockDragPreviewTop(top);
+  };
+
+  const handleBlockPointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = blockDragRef.current;
+    if (!drag) return;
+    const deltaY = e.clientY - drag.startClientY;
+    if (Math.abs(deltaY) > 3) drag.moved = true;
+    const maxTop = Math.max((hourOffsets[24] ?? 0) - drag.height, 0);
+    const newTop = Math.max(0, Math.min(drag.startTop + deltaY, maxTop));
+    setBlockDragPreviewTop(newTop);
+  };
+
+  const handleBlockPointerUp = async (e: React.PointerEvent<HTMLDivElement>, block: BlockedSlot) => {
+    const drag = blockDragRef.current;
+    blockDragRef.current = null;
+    setDraggingBlockId(null);
+    if (!drag) return;
+
+    if (!drag.moved) {
+      // Não arrastou de verdade — foi um clique, abre os detalhes normalmente
+      setBlockDragPreviewTop(null);
+      setSelectedBlockedSlot(block);
+      return;
+    }
+
+    const finalTop = blockDragPreviewTop ?? drag.startTop;
+    setBlockDragPreviewTop(null);
+
+    const interval = workHours?.interval ?? 15;
+    const rawMinutes = offsetPxToMinutes(finalTop);
+    const snapped = Math.round(rawMinutes / interval) * interval;
+    const clampedStart = Math.max(0, Math.min(snapped, 24 * 60 - drag.durationMinutes));
+    const clampedEnd = clampedStart + drag.durationMinutes;
+    const newStartAt = `${dayKey(selectedDay)}T${minutesToTimeLabel(clampedStart)}:00.000Z`;
+    const newEndAt = `${dayKey(selectedDay)}T${minutesToTimeLabel(clampedEnd)}:00.000Z`;
+
+    if (newStartAt === block.startAt) return;
+
+    const previousBlockedSlots = blockedSlots;
+    setBlockedSlots((prev) => prev.map((b) => (b.id === block.id ? { ...b, startAt: newStartAt, endAt: newEndAt } : b)));
+
+    try {
+      await apiFetch(`/blocked-slots/${block.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ startAt: newStartAt, endAt: newEndAt }),
+      });
+      loadBlockedSlots();
+    } catch (error) {
+      setBlockedSlots(previousBlockedSlots);
+      showError(error instanceof Error ? error.message : "Não foi possível mover o bloqueio");
+    }
+  };
+
+  // Selecionar um intervalo arrastando na grade (área vazia) — ao soltar, abre um menu perguntando se é
+  // um Agendamento ou um Bloqueio, já com o horário arrastado preenchido. Um clique simples (sem arrastar)
+  // usa 1h a partir do ponto clicado.
+  const rangeSelectRef = useRef<{ startPx: number; startClientY: number; moved: boolean } | null>(null);
+  const [rangeSelectPreview, setRangeSelectPreview] = useState<{ top: number; height: number } | null>(null);
+  const [rangeMenu, setRangeMenu] = useState<{ top: number; startMinutes: number; endMinutes: number } | null>(null);
+
+  const getPxFromClientY = (clientY: number) => {
+    if (!calendarRef.current) return 0;
+    const rect = calendarRef.current.getBoundingClientRect();
+    return clientY - rect.top + calendarRef.current.scrollTop;
+  };
+
+  const handleRangePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
+    if (e.button !== 0 || !workHours?.isWorkDay) return;
+    setRangeMenu(null);
+    const px = getPxFromClientY(e.clientY);
+    const hour = Math.floor(offsetPxToMinutes(px) / 60);
+    if (isHourInPast(hour) || !isHourWithinWorkHours(hour)) return;
+    e.currentTarget.setPointerCapture(e.pointerId);
+    rangeSelectRef.current = { startPx: px, startClientY: e.clientY, moved: false };
+    setRangeSelectPreview({ top: px, height: 4 });
+  };
+
+  const handleRangePointerMove = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = rangeSelectRef.current;
+    if (!drag) return;
+    if (Math.abs(e.clientY - drag.startClientY) > 3) drag.moved = true;
+    const px = getPxFromClientY(e.clientY);
+    const top = Math.min(drag.startPx, px);
+    const height = Math.max(Math.abs(px - drag.startPx), 4);
+    setRangeSelectPreview({ top, height });
+  };
+
+  const handleRangePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    const drag = rangeSelectRef.current;
+    rangeSelectRef.current = null;
+    setRangeSelectPreview(null);
+    if (!drag) return;
+
+    const px = getPxFromClientY(e.clientY);
+    const interval = workHours?.interval ?? 15;
+    const snap = (m: number) => Math.round(m / interval) * interval;
+
+    let startMinutes = snap(offsetPxToMinutes(Math.min(drag.startPx, px)));
+    let endMinutes = drag.moved
+      ? snap(offsetPxToMinutes(Math.max(drag.startPx, px)))
+      : startMinutes + Math.max(interval, 60);
+
+    startMinutes = Math.max(0, Math.min(startMinutes, 24 * 60 - interval));
+    endMinutes = Math.min(Math.max(endMinutes, startMinutes + interval), 24 * 60);
+
+    setRangeMenu({ top: minutesToOffsetPx(startMinutes), startMinutes, endMinutes });
+  };
+
+  const minutesToTimeLabel = (totalMinutes: number) =>
+    `${String(Math.floor(totalMinutes / 60)).padStart(2, "0")}:${String(totalMinutes % 60).padStart(2, "0")}`;
+
   // Horas cobertas por algum agendamento ou bloqueio — nelas o placeholder "Novo Agendamento" não pode
   // aparecer, senão ele fica visível por baixo/atrás do bloco real
   const occupiedHours = new Set<number>();
@@ -616,6 +787,34 @@ const Calendar = () => {
       })
       .catch(() => setAddresses([]));
   }, [isHomeService, selectedCustomerId]);
+
+  // Estimativa de custo de deslocamento (Google Routes API) assim que cliente
+  // e endereço de domicílio estão definidos — mesmo endpoint /availability
+  // usado na grade, que já calcula isso quando recebe homeService+addressId
+  useEffect(() => {
+    if (!isHomeService || !selectedCustomerId || !selectedAddressId) {
+      setTravelEstimate(null);
+      return;
+    }
+
+    setLoadingTravelEstimate(true);
+    const date = appointmentDate || dayKey(selectedDay);
+    apiFetch(
+      `/availability?date=${date}&tz=${tzOffsetMin}&homeService=1&customerId=${selectedCustomerId}&addressId=${selectedAddressId}`
+    )
+      .then((data) => {
+        setTravelEstimate({
+          minutes: data.travelMinutes ?? 0,
+          km: data.travelKm ?? null,
+          cost: data.travelCost ?? 0,
+          exceedsMaxDistance: !!data.exceedsMaxDistance,
+          maxDistanceKm: data.maxDistanceKm ?? null,
+          unavailable: !!data.travelUnavailable,
+        });
+      })
+      .catch(() => setTravelEstimate(null))
+      .finally(() => setLoadingTravelEstimate(false));
+  }, [isHomeService, selectedCustomerId, selectedAddressId, appointmentDate]);
 
   // Busca o endereço automaticamente quando o CEP tem 8 dígitos (mesma lógica do calendário antigo)
   useEffect(() => {
@@ -685,7 +884,64 @@ const Calendar = () => {
     }
   };
 
+  const resetNewCustomerForm = () => {
+    setShowNewCustomerForm(false);
+    setNewCustomerName("");
+    setNewCustomerDocument("");
+    setNewCustomerPhone("");
+    setNewCustomerEmail("");
+    setNewCustomerNotes("");
+    setNewCustomerError("");
+  };
+
+  // Cria um cliente sem sair do fluxo de agendamento — ao salvar, já entra
+  // selecionado na etapa 1 (mesmos campos da tela de Clientes)
+  const handleQuickCreateCustomer = async () => {
+    if (!newCustomerName.trim()) {
+      setNewCustomerError("O nome do cliente é obrigatório");
+      return;
+    }
+
+    setCreatingCustomer(true);
+    setNewCustomerError("");
+    try {
+      const created = await apiFetch("/customers", {
+        method: "POST",
+        body: JSON.stringify({
+          name: newCustomerName.trim(),
+          document: newCustomerDocument.trim() || null,
+          phone: newCustomerPhone.trim() || null,
+          email: newCustomerEmail.trim() || null,
+          notes: newCustomerNotes.trim() || null,
+        }),
+      });
+      setCustomers((prev) => [...prev, created]);
+      setSelectedCustomerId(String(created.id));
+      resetNewCustomerForm();
+    } catch (error) {
+      setNewCustomerError(error instanceof Error ? error.message : "Erro ao criar cliente");
+    } finally {
+      setCreatingCustomer(false);
+    }
+  };
+
+  // Trava o horário digitado no intervalo da agenda configurado (ex: de 10 em
+  // 10 min) — evita agendar num horário "torto" que não existiria na grade
+  const handleAppointmentTimeChange = (value: string) => {
+    const [h, m] = value.split(":").map(Number);
+    if (isNaN(h) || isNaN(m)) {
+      setAppointmentTime(value);
+      return;
+    }
+    const interval = workHours?.interval || 15;
+    const totalMinutes = Math.min(Math.max(Math.round((h * 60 + m) / interval) * interval, 0), 23 * 60 + 59);
+    const snappedH = Math.floor(totalMinutes / 60);
+    const snappedM = totalMinutes % 60;
+    setAppointmentTime(`${String(snappedH).padStart(2, "0")}:${String(snappedM).padStart(2, "0")}`);
+  };
+
   const resetAppointmentForm = () => {
+    resetNewCustomerForm();
     setSelectedCustomerId("");
     setSelectedServiceId("");
     setAppointmentDate("");
@@ -701,6 +957,7 @@ const Calendar = () => {
     setShowAddressForm(false);
     setAddressForm({ ...emptyAddress });
     setCepStatus(null);
+    setTravelEstimate(null);
     setAppointmentStep(1);
     setEditingAppointmentId(null);
     pendingEditAddressIdRef.current = null;
@@ -709,6 +966,25 @@ const Calendar = () => {
   const closeNewAppointment = () => {
     setIsNewAppointmentOpen(false);
     resetAppointmentForm();
+  };
+
+  // Botão único "Novo Agendamento": abre o painel já com o dia selecionado, sem hora pré-definida —
+  // o horário é escolhido dentro do próprio formulário (etapa 3) ou arrastando na grade.
+  const openNewAppointmentForDay = (startMinutes?: number) => {
+    resetAppointmentForm();
+    setAppointmentDate(dayKey(selectedDay));
+    if (startMinutes !== undefined) setAppointmentTime(minutesToTimeLabel(startMinutes));
+    setIsNewAppointmentOpen(true);
+  };
+
+  // Menu de seleção (aparece ao soltar o arraste na grade): "Bloqueio" abre o painel de bloqueio
+  // já preenchido com o intervalo arrastado.
+  const openBlockPanelFromRange = (startMinutes: number, endMinutes: number) => {
+    setBlockStartTime(minutesToTimeLabel(startMinutes));
+    setBlockEndTime(minutesToTimeLabel(endMinutes));
+    setBlockTitle("");
+    setBlockError("");
+    setIsBlockOpen(true);
   };
 
   // Abre o painel "Novo Agendamento" já preenchido com os dados de um agendamento existente, para edição
@@ -836,7 +1112,10 @@ const Calendar = () => {
       <div className="header-calendar">
         <div className="header-content">
           <button onClick={() => changeSelectedDay(-1)} aria-label="Dia anterior"><FiChevronLeft /></button>
-          <div className="header-content-text-container" onClick={() => selectDay(new Date())}>
+          <div
+            className={`header-content-text-container${isNavCalendarOpen ? " header-content-text-container-active" : ""}`}
+            onClick={() => setIsNavCalendarOpen((prev) => !prev)}
+          >
             <div className="header-content-text">
               <span>{headerDayLabel}</span>
               <span>{workHoursLabel}</span>
@@ -845,10 +1124,12 @@ const Calendar = () => {
           </div>
           <button onClick={() => changeSelectedDay(1)} aria-label="Próximo dia"><FiChevronRight /></button>
         </div>
-      </div>
-      <div className="main-calendar">
-        {/* Main do calendar */}
-        <div className="nav-calendar">
+
+        {/* Mini-calendário: escondido por padrão, aparece como dropdown ao clicar na data acima */}
+        {isNavCalendarOpen && (
+          <>
+            <div className="nav-calendar-backdrop" onClick={() => setIsNavCalendarOpen(false)} />
+            <div className="nav-calendar nav-calendar-dropdown">
           {/* Mini-calendário de navegação por mês */}
           <div className="mini-calendar-header">
             <span>{monthNamesFull[viewDate.getMonth()]} {viewDate.getFullYear()}</span>
@@ -871,7 +1152,14 @@ const Calendar = () => {
                 dayKey(day) === dayKey(selectedDay) ? "mini-calendar-day-selected" : "",
               ].join(" ").trim();
               return (
-                <span key={dayKey(day)} className={classes} onClick={() => selectDay(day)}>
+                <span
+                  key={dayKey(day)}
+                  className={classes}
+                  onClick={() => {
+                    selectDay(day);
+                    setIsNavCalendarOpen(false);
+                  }}
+                >
                   {day.getDate()}
                 </span>
               );
@@ -946,6 +1234,22 @@ const Calendar = () => {
                   </label>
                 </div>
 
+                {/* Filtro por local do atendimento */}
+                <div className="filter-section">
+                  <span className="filter-section-title">Local do Atendimento</span>
+
+                  <label className={`filter-row${homeServiceFilter ? " filter-row-active" : ""}`}>
+                    <input
+                      type="checkbox"
+                      checked={homeServiceFilter}
+                      onChange={() => setHomeServiceFilter((prev) => !prev)}
+                    />
+                    <span className="filter-checkbox-box"><FiCheck /></span>
+                    <span className="filter-tag filter-tag-home"><FiHome /></span>
+                    <span className="filter-row-label">A domicílio</span>
+                  </label>
+                </div>
+
                 {/* Ações do painel de filtros */}
                 <div className="highlight-appointments-actions">
                   <button className="btn-clear-filters" onClick={handleClearFilters}>Limpar</button>
@@ -954,7 +1258,14 @@ const Calendar = () => {
               </div>
             )}
           </div>
-        </div>
+            </div>
+          </>
+        )}
+      </div>
+      <button className="new-appointment-trigger" onClick={() => openNewAppointmentForDay()}>
+        <FiPlus /> Novo Agendamento
+      </button>
+      <div className="main-calendar">
         <div className="calendar" ref={calendarRef}>
           {/* Aviso quando o dia selecionado não tem expediente cadastrado */}
           {workHours && !workHours.isWorkDay && (
@@ -980,38 +1291,33 @@ const Calendar = () => {
               {/* Line  */}
               <div className="container-tasks">
                 <div className="calendar-hour-line"></div>
-                {!occupiedHours.has(hour) && isHourWithinWorkHours(hour) && (
-                  isHourInPast(hour) ? (
-                    <button className="task-default task-unavailable" disabled>
-                      Horário indisponível
-                    </button>
-                  ) : (
-                    <div className="task-default-actions">
-                      <button
-                        className="task-default"
-                        onClick={() => {
-                          setAppointmentDate(dayKey(selectedDay));
-                          setAppointmentTime(`${String(hour).padStart(2, "0")}:00`);
-                          setIsNewAppointmentOpen(true);
-                        }}
-                      >
-                        Novo Agendamento
-                        <FiPlus />
-                      </button>
-                      <button
-                        className="task-block"
-                        title="Bloquear horário"
-                        aria-label="Bloquear horário"
-                        onClick={() => openBlockPanel(hour)}
-                      >
-                        <FiSlash />
-                      </button>
-                    </div>
-                  )
+                {!occupiedHours.has(hour) && isHourWithinWorkHours(hour) && isHourInPast(hour) && (
+                  <button className="task-default task-unavailable" disabled>
+                    Horário indisponível
+                  </button>
                 )}
               </div>
             </div>
           ))}
+
+          {/* Área de arrastar-para-selecionar: clique e arraste num horário livre define um intervalo;
+              ao soltar, abre um menu perguntando se é um Agendamento ou um Bloqueio, já com a hora preenchida.
+              Fica atrás dos blocos de agendamento/bloqueio (renderizados depois), então não intercepta cliques neles. */}
+          {workHours?.isWorkDay && (
+            <div
+              className="calendar-range-select-layer"
+              onPointerDown={handleRangePointerDown}
+              onPointerMove={handleRangePointerMove}
+              onPointerUp={handleRangePointerUp}
+              style={{ height: hourOffsets[24] ?? 0 }}
+            />
+          )}
+          {rangeSelectPreview && (
+            <div
+              className="range-select-preview"
+              style={{ top: rangeSelectPreview.top, height: rangeSelectPreview.height }}
+            />
+          )}
 
           {/* Agendamentos reais do dia, desenhados por cima da grade — posição/altura calculadas a partir de scheduledAt + duration.
               Arrastáveis (exceto finalizados/cancelados): clique curto abre detalhes, arrastar reagenda o horário. */}
@@ -1030,6 +1336,8 @@ const Calendar = () => {
             const isDragging = draggingAppointmentId === appt.id;
             const displayTop = isDragging && dragPreviewTop !== null ? dragPreviewTop : top;
             const canDrag = !["completed", "cancelled", "no_show"].includes(appt.status);
+            // Com o filtro "A domicílio" ativo, esmaece os atendimentos que não são a domicílio
+            const isDimmedByFilter = homeServiceFilter && !appt.isHomeService;
 
             // Enquanto arrasta, recalcula o horário exibido a partir da posição em tela (feedback em tempo real)
             let previewLabel = `${formatUTC(scheduled)} - ${formatUTC(endDate)}`;
@@ -1043,18 +1351,26 @@ const Calendar = () => {
               previewLabel = `${previewStart} - ${previewEnd}`;
             }
 
-            // Delay/descanso configurado pelo profissional depois desse atendimento — não aparece como um
-            // bloco separado na lista, mas também não pode receber outro agendamento. Desenha uma faixa
-            // listrada logo abaixo do bloco pra deixar isso visível (senão parece um horário livre normal).
+            // Tempo reservado depois do atendimento que não aparece no bloco em si, mas também não pode
+            // receber outro agendamento: delay/descanso configurado pelo profissional + volta do deslocamento
+            // (ida e volta, quando é a domicílio — só a volta sobra depois do horário do atendimento).
+            // Desenha uma faixa listrada logo abaixo do bloco pra deixar isso visível, senão parece horário livre.
             const buffer = workHours?.buffer ?? 0;
-            const showBuffer = buffer > 0 && !["cancelled", "no_show"].includes(appt.status);
+            // Ida e volta: o mesmo dobro usado em computeDaySlots.ts pra reservar a agenda
+            const travelRoundTripMinutes = appt.isHomeService ? (appt.travelMinutes ?? 0) * 2 : 0;
+            const reservedAfterMinutes = buffer + travelRoundTripMinutes;
+            const showBuffer = reservedAfterMinutes > 0 && !["cancelled", "no_show"].includes(appt.status);
             const bufferTop = top + height;
-            const bufferHeight = showBuffer ? minutesToOffsetPx(startMinutes + appt.duration + buffer) - bufferTop : 0;
+            const bufferHeight = showBuffer ? minutesToOffsetPx(startMinutes + appt.duration + reservedAfterMinutes) - bufferTop : 0;
+            const bufferTitleParts = [
+              travelRoundTripMinutes > 0 ? `${travelRoundTripMinutes} min de deslocamento (ida e volta)` : null,
+              buffer > 0 ? `${buffer} min de descanso` : null,
+            ].filter(Boolean);
 
             return (
               <Fragment key={appt.id}>
                 <div
-                  className={`appointment-block${isDragging ? " appointment-block-dragging" : ""}${canDrag ? " appointment-block-draggable" : ""}`}
+                  className={`appointment-block${isDragging ? " appointment-block-dragging" : ""}${canDrag ? " appointment-block-draggable" : ""}${isDimmedByFilter ? " appointment-block-dimmed" : ""}`}
                   style={{ top: displayTop, height, backgroundColor: statusColors[appt.status] ?? "#767676" }}
                   onPointerDown={(e) => handleAppointmentPointerDown(e, appt, top, height)}
                   onPointerMove={handleAppointmentPointerMove}
@@ -1070,8 +1386,15 @@ const Calendar = () => {
                   <div
                     className="appointment-buffer-strip"
                     style={{ top: bufferTop, height: bufferHeight }}
-                    title={`Descanso de ${buffer} min após o atendimento`}
-                  />
+                    title={bufferTitleParts.join(" + ")}
+                  >
+                    <span>
+                      Ocupado até {(() => {
+                        const endMinutes = startMinutes + appt.duration + reservedAfterMinutes;
+                        return `${String(Math.floor(endMinutes / 60)).padStart(2, "0")}:${String(endMinutes % 60).padStart(2, "0")}`;
+                      })()} · {bufferTitleParts.join(" + ")}
+                    </span>
+                  </div>
                 )}
               </Fragment>
             );
@@ -1087,13 +1410,17 @@ const Calendar = () => {
             const height = Math.max(minutesToOffsetPx(endMinutes) - top, 42);
             const formatUTC = (d: Date) =>
               d.toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" });
+            const isDraggingBlock = draggingBlockId === block.id;
+            const displayTop = isDraggingBlock && blockDragPreviewTop !== null ? blockDragPreviewTop : top;
 
             return (
               <div
                 key={`block-${block.id}`}
-                className="appointment-block blocked-slot-block"
-                style={{ top, height }}
-                onClick={() => setSelectedBlockedSlot(block)}
+                className={`appointment-block blocked-slot-block appointment-block-draggable${isDraggingBlock ? " appointment-block-dragging" : ""}`}
+                style={{ top: displayTop, height }}
+                onPointerDown={(e) => handleBlockPointerDown(e, block, top, height)}
+                onPointerMove={handleBlockPointerMove}
+                onPointerUp={(e) => handleBlockPointerUp(e, block)}
               >
                 <div className="appointment-block-info">
                   <strong>{formatUTC(start)} - {formatUTC(end)}</strong>
@@ -1104,6 +1431,56 @@ const Calendar = () => {
             );
           })}
 
+          {/* Pausa fixa recorrente (ex: almoço), configurada em Configurações > Horários — bloqueia
+              automaticamente esse período todo dia de trabalho, sem precisar criar um bloqueio manual */}
+          {workHours?.isWorkDay && workHours.breakStart && workHours.breakEnd && (() => {
+            const [bsH = 0, bsM = 0] = workHours.breakStart.split(":").map(Number);
+            const [beH = 0, beM = 0] = workHours.breakEnd.split(":").map(Number);
+            const top = minutesToOffsetPx(bsH * 60 + bsM);
+            const height = Math.max(minutesToOffsetPx(beH * 60 + beM) - top, 42);
+            return (
+              <div className="appointment-block blocked-slot-block appointment-break-block" style={{ top, height }}>
+                <div className="appointment-block-info">
+                  <strong>{workHours.breakStart.slice(0, 5)} - {workHours.breakEnd.slice(0, 5)}</strong>
+                  <span>Pausa</span>
+                </div>
+                <FiLock className="appointment-block-badge" />
+              </div>
+            );
+          })()}
+
+          {/* Menu que aparece ao soltar o arraste na grade, perguntando o que criar naquele intervalo */}
+          {rangeMenu && (
+            <>
+              <div className="range-select-menu-backdrop" onClick={() => setRangeMenu(null)} />
+              <div className="range-select-menu" style={{ top: rangeMenu.top }}>
+                <span className="range-select-menu-time">
+                  {minutesToTimeLabel(rangeMenu.startMinutes)} – {minutesToTimeLabel(rangeMenu.endMinutes)}
+                </span>
+                <button
+                  className="range-select-menu-option"
+                  onClick={() => {
+                    openNewAppointmentForDay(rangeMenu.startMinutes);
+                    setRangeMenu(null);
+                  }}
+                >
+                  <FiPlus /> Agendamento
+                </button>
+                <button
+                  className="range-select-menu-option range-select-menu-option-block"
+                  onClick={() => {
+                    openBlockPanelFromRange(rangeMenu.startMinutes, rangeMenu.endMinutes);
+                    setRangeMenu(null);
+                  }}
+                >
+                  <FiSlash /> Bloqueio
+                </button>
+                <button className="range-select-menu-close" aria-label="Fechar" onClick={() => setRangeMenu(null)}>
+                  <FiX />
+                </button>
+              </div>
+            </>
+          )}
 
           {/* Novo agendamento: overlay escurece o fundo e o painel desliza a partir da direita */}
           <div
@@ -1147,18 +1524,107 @@ const Calendar = () => {
               {/* ── Etapa 1: Cliente ── */}
               {appointmentStep === 1 && (
                 <div className="new-appointment-field">
-                  <label>Cliente</label>
-                  <select
-                    value={selectedCustomerId}
-                    onChange={(e) => setSelectedCustomerId(e.target.value)}
-                  >
-                    <option value="">Selecione o cliente</option>
-                    {customers.map((customer) => (
-                      <option key={customer.id} value={customer.id}>
-                        {customer.name}{customer.phone ? ` — ${customer.phone}` : ""}
-                      </option>
-                    ))}
-                  </select>
+                  <div className="new-appointment-field-header">
+                    <label>Cliente</label>
+                    {!showNewCustomerForm && (
+                      <button
+                        type="button"
+                        className="new-appointment-link-btn"
+                        onClick={() => setShowNewCustomerForm(true)}
+                      >
+                        <FiPlus /> Novo cliente
+                      </button>
+                    )}
+                  </div>
+
+                  {!showNewCustomerForm ? (
+                    <select
+                      value={selectedCustomerId}
+                      onChange={(e) => setSelectedCustomerId(e.target.value)}
+                    >
+                      <option value="">Selecione o cliente</option>
+                      {customers.map((customer) => (
+                        <option key={customer.id} value={customer.id}>
+                          {customer.name}{customer.phone ? ` — ${customer.phone}` : ""}
+                        </option>
+                      ))}
+                    </select>
+                  ) : (
+                    <div className="new-appointment-inline-form">
+                      {newCustomerError && <div className="new-appointment-error">{newCustomerError}</div>}
+
+                      <div className="new-appointment-field">
+                        <label>Nome *</label>
+                        <input
+                          type="text"
+                          placeholder="Nome completo"
+                          value={newCustomerName}
+                          onChange={(e) => setNewCustomerName(e.target.value)}
+                          autoFocus
+                        />
+                      </div>
+
+                      <div className="new-appointment-row">
+                        <div className="new-appointment-field">
+                          <label>Telefone</label>
+                          <input
+                            type="tel"
+                            placeholder="(00) 00000-0000"
+                            value={newCustomerPhone}
+                            onChange={(e) => setNewCustomerPhone(formatPhone(e.target.value))}
+                          />
+                        </div>
+                        <div className="new-appointment-field">
+                          <label>Documento</label>
+                          <input
+                            type="text"
+                            placeholder="CPF/CNPJ"
+                            value={newCustomerDocument}
+                            onChange={(e) => setNewCustomerDocument(e.target.value)}
+                          />
+                        </div>
+                      </div>
+
+                      <div className="new-appointment-field">
+                        <label>Email</label>
+                        <input
+                          type="email"
+                          placeholder="email@exemplo.com"
+                          value={newCustomerEmail}
+                          onChange={(e) => setNewCustomerEmail(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="new-appointment-field">
+                        <label>Observações</label>
+                        <textarea
+                          placeholder="Preferências, alergias, etc..."
+                          rows={2}
+                          value={newCustomerNotes}
+                          onChange={(e) => setNewCustomerNotes(e.target.value)}
+                        />
+                      </div>
+
+                      <div className="new-appointment-inline-form-actions">
+                        <button
+                          type="button"
+                          className="btn-clear-filters"
+                          onClick={resetNewCustomerForm}
+                          disabled={creatingCustomer}
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-apply-filters"
+                          onClick={handleQuickCreateCustomer}
+                          disabled={creatingCustomer}
+                        >
+                          {creatingCustomer ? "Salvando..." : "Salvar cliente"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
 
@@ -1196,9 +1662,13 @@ const Calendar = () => {
                       <label>Horário</label>
                       <input
                         type="time"
+                        step={(workHours?.interval || 15) * 60}
                         value={appointmentTime}
-                        onChange={(e) => setAppointmentTime(e.target.value)}
+                        onChange={(e) => handleAppointmentTimeChange(e.target.value)}
                       />
+                      <small className="new-appointment-field-hint">
+                        Horários de {workHours?.interval || 15} em {workHours?.interval || 15} min
+                      </small>
                     </div>
                   </div>
 
@@ -1335,6 +1805,34 @@ const Calendar = () => {
                           )}
                         </>
                       )}
+
+                      {/* Estimativa de deslocamento (Google Routes API) pro endereço escolhido */}
+                      {!showAddressForm && selectedAddressId && (
+                        <div className="new-appointment-travel-estimate">
+                          {loadingTravelEstimate && <span>Calculando deslocamento...</span>}
+                          {!loadingTravelEstimate && travelEstimate?.unavailable && (
+                            <span>Não foi possível calcular o deslocamento pra esse endereço agora.</span>
+                          )}
+                          {!loadingTravelEstimate && travelEstimate && !travelEstimate.unavailable && travelEstimate.exceedsMaxDistance && (
+                            <span className="new-appointment-travel-warning">
+                              Endereço fora do raio de atendimento a domicílio (máximo {travelEstimate.maxDistanceKm} km).
+                            </span>
+                          )}
+                          {!loadingTravelEstimate && travelEstimate && !travelEstimate.unavailable && !travelEstimate.exceedsMaxDistance && (
+                            <>
+                              <span>
+                                Custo de deslocamento (ida e volta): <strong>R$ {travelEstimate.cost.toFixed(2).replace(".", ",")}</strong>
+                                {travelEstimate.km != null && ` · ${travelEstimate.km.toFixed(1)} km`}
+                                {travelEstimate.minutes > 0 && ` · ${travelEstimate.minutes} min (ida)`}
+                              </span>
+                              <span className="new-appointment-travel-total">
+                                Tempo total ocupado na agenda: <strong>{Number(duration || 0) + travelEstimate.minutes * 2} min</strong>
+                                {" "}({duration} min de atendimento + {travelEstimate.minutes * 2} min de deslocamento)
+                              </span>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                   )}
                 </>
@@ -1356,6 +1854,12 @@ const Calendar = () => {
                       <small>Quando</small>
                       <strong>{appointmentDate} às {appointmentTime}</strong>
                     </div>
+                    {isHomeService && travelEstimate && !travelEstimate.unavailable && !travelEstimate.exceedsMaxDistance && (
+                      <div className="new-appointment-summary-row">
+                        <small>Tempo total ocupado na agenda</small>
+                        <strong>{Number(duration || 0) + travelEstimate.minutes * 2} min</strong>
+                      </div>
+                    )}
                     {isHomeService && (
                       <div className="new-appointment-summary-row">
                         <small>Domicílio</small>
@@ -1364,6 +1868,23 @@ const Calendar = () => {
                             const addr = addresses.find((a) => a.id === selectedAddressId);
                             return addr ? `${addr.street}, ${addr.number}` : "Endereço do cliente";
                           })()}
+                        </strong>
+                      </div>
+                    )}
+                    {isHomeService && travelEstimate && !travelEstimate.unavailable && !travelEstimate.exceedsMaxDistance && (
+                      <div className="new-appointment-summary-row">
+                        <small>Deslocamento (ida e volta)</small>
+                        <strong>
+                          R$ {travelEstimate.cost.toFixed(2).replace(".", ",")}
+                          {travelEstimate.km != null && ` (${travelEstimate.km.toFixed(1)} km)`}
+                        </strong>
+                      </div>
+                    )}
+                    {isHomeService && travelEstimate && !travelEstimate.unavailable && !travelEstimate.exceedsMaxDistance && (
+                      <div className="new-appointment-summary-row">
+                        <small>Total</small>
+                        <strong>
+                          R$ {(Number(price || 0) + travelEstimate.cost).toFixed(2).replace(".", ",")}
                         </strong>
                       </div>
                     )}
@@ -1531,6 +2052,7 @@ const Calendar = () => {
             });
             const priceLabel = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
               .format(Number(appt.price));
+            const isPastAppointment = endDate.getTime() < nowWallClockMs();
 
             return (
               <div className="new-appointment open appointment-details-modal">
@@ -1574,6 +2096,25 @@ const Calendar = () => {
                         <strong>🏠 Atendimento no endereço do cliente</strong>
                       </div>
                     )}
+                    {appt.isHomeService && Number(appt.travelCost) > 0 && (
+                      <div className="new-appointment-summary-row">
+                        <small>Deslocamento (ida e volta)</small>
+                        <strong>
+                          R$ {Number(appt.travelCost).toFixed(2).replace(".", ",")}
+                          {appt.travelDistanceKm != null && ` (${Number(appt.travelDistanceKm).toFixed(1)} km)`}
+                        </strong>
+                      </div>
+                    )}
+                    {appt.isHomeService && !!appt.travelMinutes && (() => {
+                      const freeAt = new Date(scheduled.getTime() + (appt.duration + appt.travelMinutes * 2) * 60000);
+                      return (
+                        <div className="new-appointment-summary-row">
+                          <small>Agenda livre a partir de</small>
+                          <strong>{formatUTC(freeAt)}</strong>
+                          <span>({appt.duration} min de atendimento + {appt.travelMinutes * 2} min de deslocamento ida e volta)</span>
+                        </div>
+                      );
+                    })()}
                     {appt.notes && (
                       <div className="new-appointment-summary-row">
                         <small>Observações</small>
@@ -1583,7 +2124,7 @@ const Calendar = () => {
                   </div>
                 </div>
 
-                {!["completed", "cancelled", "no_show"].includes(appt.status) ? (
+                {!isPastAppointment && !["completed", "cancelled", "no_show"].includes(appt.status) ? (
                   <div className="new-appointment-footer appointment-details-actions">
                     <button
                       className="btn-clear-filters appointment-details-cancel"

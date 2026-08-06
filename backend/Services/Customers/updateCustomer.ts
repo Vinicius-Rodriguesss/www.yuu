@@ -15,6 +15,7 @@ import type { Request, Response } from "express";
 import { eq, and } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { customersTable } from "../../db/schema/customers.js";
+import { duplicateCustomerFieldError } from "./duplicateCustomerFieldError.js";
 
 const UpdateCustomer = async (req: Request, res: Response) => {
   try {
@@ -24,7 +25,14 @@ const UpdateCustomer = async (req: Request, res: Response) => {
 
     const [updated] = await db
       .update(customersTable)
-      .set({ name, document, phone, email, birthDate, notes })
+      .set({
+        name,
+        document: document || null,
+        phone: phone || null,
+        email: email || null,
+        birthDate,
+        notes,
+      })
       .where(and(eq(customersTable.id, Number(id)), eq(customersTable.userId, userId)))
       .returning();
 
@@ -33,7 +41,12 @@ const UpdateCustomer = async (req: Request, res: Response) => {
     }
 
     return res.status(200).json(updated);
-  } catch (error) {
+  } catch (error: any) {
+    const duplicateMessage = duplicateCustomerFieldError(error);
+    if (duplicateMessage) {
+      return res.status(409).json({ error: duplicateMessage });
+    }
+    console.error("ERRO DETALHADO:", error);
     return res.status(500).json({ error: "Erro ao atualizar cliente" });
   }
 };

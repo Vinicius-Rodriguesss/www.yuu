@@ -40,6 +40,8 @@ const VerifyLoginCode = async (req: Request, res: Response) => {
       return res.status(404).json({ message: "Usuário não encontrado" });
     }
 
+    await db.update(usersTable).set({ lastVerifiedAt: new Date() }).where(eq(usersTable.id, user.id));
+
     const token = jwt.sign(
       { id: user.id, name: user.name, document: user.document, accountType: user.accountType },
       process.env.JWT_SECRET || "default_secret_key",

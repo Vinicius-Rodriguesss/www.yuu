@@ -14,6 +14,10 @@ interface LoginBody {
   password: string;
 }
 
+// Mesma validade do JWT de sessão emitido abaixo ("1d") — enquanto o login
+// anterior ainda estaria dentro dessa janela, não pede o código de novo.
+const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
+
 const Authentication = async (req: Request<{}, {}, LoginBody>, res: Response) => {
   try {
     const { document, password } = req.body;
@@ -76,6 +80,12 @@ const Authentication = async (req: Request<{}, {}, LoginBody>, res: Response) =>
     // Sem email cadastrado (contas antigas), não dá pra mandar código —
     // segue o login direto em vez de travar o acesso.
     if (!user.email) {
+      return issueDirectLogin();
+    }
+
+    // Já confirmou o código recentemente (dentro da validade do JWT da
+    // última vez) — não pede de novo, só quando esse período expirar.
+    if (user.lastVerifiedAt && Date.now() - new Date(user.lastVerifiedAt).getTime() < SESSION_TTL_MS) {
       return issueDirectLogin();
     }
 

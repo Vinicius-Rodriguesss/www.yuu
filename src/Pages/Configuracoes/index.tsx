@@ -56,6 +56,8 @@ interface FormState {
   appointmentInterval: number;
   scheduleInterval: number;
   appointmentBuffer: number;
+  breakStart: string;
+  breakEnd: string;
   privacyAccepted: boolean;
   homeServiceMaxDistanceKm: string;
 }
@@ -83,6 +85,8 @@ interface ProfileResponse {
   privacyAccepted?: boolean;
   scheduleInterval?: number;
   appointmentBuffer?: number;
+  breakStart?: string | null;
+  breakEnd?: string | null;
   publicSlug?: string | null;
   homeServiceMaxDistanceKm?: number | null;
 }
@@ -103,6 +107,8 @@ const emptyForm: FormState = {
   appointmentInterval: 30,
   scheduleInterval: 15,
   appointmentBuffer: 0,
+  breakStart: "",
+  breakEnd: "",
   privacyAccepted: true,
   homeServiceMaxDistanceKm: "",
 };
@@ -289,6 +295,8 @@ const Settings = () => {
         appointmentInterval: data.workSchedule.days[0]?.appointmentInterval || 30,
         scheduleInterval: data.scheduleInterval ?? 15,
         appointmentBuffer: data.appointmentBuffer ?? 0,
+        breakStart: data.breakStart || "",
+        breakEnd: data.breakEnd || "",
         privacyAccepted: data.privacyAccepted ?? true,
         homeServiceMaxDistanceKm: data.homeServiceMaxDistanceKm != null ? String(data.homeServiceMaxDistanceKm) : "",
       };
@@ -438,6 +446,9 @@ const Settings = () => {
     if (!form.workStart || !form.workEnd) errors.push({ section: "schedule", message: "Informe o horário de trabalho" });
     if (form.workDays.length === 0) errors.push({ section: "schedule", message: "Selecione ao menos um dia" });
     if (!form.scheduleInterval || form.scheduleInterval <= 0) errors.push({ section: "schedule", message: "Informe o intervalo da agenda" });
+    if (!!form.breakStart !== !!form.breakEnd) errors.push({ section: "schedule", message: "Informe o início e o fim da pausa" });
+    if (form.breakStart && form.breakEnd && form.breakStart >= form.breakEnd)
+      errors.push({ section: "schedule", message: "O início da pausa deve ser antes do fim" });
 
     if (!form.privacyAccepted) errors.push({ section: "schedule", message: "Confirme a política de privacidade" });
 
@@ -488,6 +499,8 @@ const Settings = () => {
       },
       scheduleInterval: form.scheduleInterval,
       appointmentBuffer: form.appointmentBuffer,
+      breakStart: form.breakStart || null,
+      breakEnd: form.breakEnd || null,
       privacyAccepted: form.privacyAccepted,
       homeServiceMaxDistanceKm: form.homeService && form.homeServiceMaxDistanceKm ? form.homeServiceMaxDistanceKm : undefined,
     };
@@ -1091,7 +1104,8 @@ const Settings = () => {
                       <div>
                         <label className={labelClass}>Intervalo da Agenda</label>
                         <p className="text-xs text-gray-400 mb-2">
-                          Define de quanto em quanto tempo os horários são oferecidos (ex: 09:00, 09:15...)
+                          Só define de quanto em quanto tempo os horários aparecem pra escolher (ex: 09:00, 09:10, 09:20...).
+                          Isso <strong>não</strong> é um tempo de descanso — pra isso, veja "Delay entre atendimentos" logo abaixo.
                         </p>
                         <div className="flex flex-wrap gap-2">
                           {[5, 10, 15, 20, 30, 40, 60].map((min) => {
@@ -1118,7 +1132,9 @@ const Settings = () => {
                       <div>
                         <label className={labelClass}>Delay entre atendimentos</label>
                         <p className="text-xs text-gray-400 mb-2">
-                          Tempo de descanso após cada atendimento. O próximo cliente só pode iniciar depois desse período.
+                          Tempo de descanso após cada atendimento, além da duração do serviço. O próximo cliente só
+                          pode iniciar depois desse período. Em atendimentos a domicílio, o tempo de deslocamento
+                          (ida e volta) é reservado à parte, somado a esse delay.
                         </p>
                         <div className="flex flex-wrap gap-2">
                           {[0, 5, 10, 15, 20, 30].map((min) => {
@@ -1139,6 +1155,41 @@ const Settings = () => {
                             );
                           })}
                         </div>
+                      </div>
+
+                      {/* Pausa fixa recorrente (ex: almoço) */}
+                      <div>
+                        <label className={labelClass}>Pausa fixa (opcional)</label>
+                        <p className="text-xs text-gray-400 mb-2">
+                          Um horário bloqueado automaticamente todo dia de trabalho, tipo o almoço. Deixe em branco se não usa.
+                        </p>
+                        <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
+                          <input
+                            type="time"
+                            value={form.breakStart}
+                            onChange={(e) => update("breakStart", e.target.value)}
+                            className={inputClass}
+                          />
+                          <span className="text-xs text-gray-300 font-medium">até</span>
+                          <input
+                            type="time"
+                            value={form.breakEnd}
+                            onChange={(e) => update("breakEnd", e.target.value)}
+                            className={inputClass}
+                          />
+                        </div>
+                        {(form.breakStart || form.breakEnd) && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              update("breakStart", "");
+                              update("breakEnd", "");
+                            }}
+                            className="mt-2 text-xs font-semibold text-gray-400 hover:text-gray-600"
+                          >
+                            Remover pausa
+                          </button>
+                        )}
                       </div>
 
                       <div>

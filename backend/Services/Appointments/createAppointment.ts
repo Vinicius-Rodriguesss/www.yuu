@@ -24,7 +24,7 @@ import { createAppointmentCore } from "./createAppointmentCore.js";
 const CreateAppointment = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
-    const { customerId, serviceId, scheduledAt, notes, tzOffsetMin, isHomeService, customerAddressId } = req.body;
+    const { customerId, serviceId, scheduledAt, notes, tzOffsetMin, isHomeService, customerAddressId, paymentStatus } = req.body;
     const tzOffset = !isNaN(Number(tzOffsetMin)) ? Number(tzOffsetMin) : 0;
     const homeService = Boolean(isHomeService);
 
@@ -99,6 +99,7 @@ const CreateAppointment = async (req: Request, res: Response) => {
       scheduledAt: scheduledDate,
       tzOffsetMin: tzOffset,
       notes: notes || null,
+      paymentStatus: paymentStatus === "paid" ? "paid" : "unpaid",
       isHomeService: homeService,
       travelMinutes,
       travelDistanceKm,

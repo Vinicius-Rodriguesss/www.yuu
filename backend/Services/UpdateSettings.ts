@@ -25,6 +25,8 @@ const UpdateSettings = async (req: Request, res: Response) => {
    privacyAccepted,
    scheduleInterval,
    appointmentBuffer,
+   breakStart,
+   breakEnd,
    homeServiceTransport,
    homeServiceFuelConsumption,
    homeServiceFuelPrice,
@@ -66,6 +68,21 @@ const UpdateSettings = async (req: Request, res: Response) => {
    (isNaN(Number(appointmentBuffer)) || Number(appointmentBuffer) < 0 || Number(appointmentBuffer) > 240)
   ) {
    return res.status(400).json({ error: "Delay entre atendimentos inválido" });
+  }
+
+  const timeRegex = /^\d{2}:\d{2}$/;
+  const hasBreakStart = breakStart !== undefined && breakStart !== null && breakStart !== "";
+  const hasBreakEnd = breakEnd !== undefined && breakEnd !== null && breakEnd !== "";
+  if (hasBreakStart !== hasBreakEnd) {
+   return res.status(400).json({ error: "Informe o início e o fim da pausa" });
+  }
+  if (hasBreakStart && hasBreakEnd) {
+   if (!timeRegex.test(breakStart) || !timeRegex.test(breakEnd)) {
+    return res.status(400).json({ error: "Horário de pausa inválido" });
+   }
+   if (breakStart >= breakEnd) {
+    return res.status(400).json({ error: "O início da pausa deve ser antes do fim" });
+   }
   }
 
   if (!name || !document || !address || !accountType || !businessType || !aiStyle) {
@@ -140,6 +157,12 @@ const UpdateSettings = async (req: Request, res: Response) => {
    }
    if (appointmentBuffer !== undefined) {
     userUpdate.appointmentBuffer = Number(appointmentBuffer);
+   }
+   if (breakStart !== undefined) {
+    userUpdate.breakStart = hasBreakStart ? breakStart : null;
+   }
+   if (breakEnd !== undefined) {
+    userUpdate.breakEnd = hasBreakEnd ? breakEnd : null;
    }
 
    const [updatedUser] = await tx

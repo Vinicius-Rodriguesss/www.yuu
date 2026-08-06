@@ -3,6 +3,44 @@
 // TODO: atualizar para o domínio de produção da API quando publicar
 const API_URL = "http://localhost:3000";
 
+// Animação de entrada do hero — dispara a cascata definida em style.css
+// assim que o DOM estiver pronto (ou de imediato se já carregou)
+(function heroEntrance() {
+  const start = () => document.body.classList.add("is-ready");
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", start);
+  } else {
+    start();
+  }
+})();
+
+// Scroll-reveal — elementos com [data-reveal] ganham a classe .is-visible
+// (definida em style.css) assim que entram na viewport
+(function scrollReveal() {
+  const targets = document.querySelectorAll("[data-reveal]");
+  if (!targets.length) return;
+
+  const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if (prefersReducedMotion || !("IntersectionObserver" in window)) {
+    targets.forEach((el) => el.classList.add("is-visible"));
+    return;
+  }
+
+  const observer = new IntersectionObserver(
+    (entries) => {
+      entries.forEach((entry) => {
+        if (entry.isIntersecting) {
+          entry.target.classList.add("is-visible");
+          observer.unobserve(entry.target);
+        }
+      });
+    },
+    { threshold: 0.15, rootMargin: "0px 0px -40px 0px" }
+  );
+
+  targets.forEach((el) => observer.observe(el));
+})();
+
 // Header muda de estilo ao rolar: transparente sobre o hero escuro, claro sobre o resto da página
 (function headerScroll() {
   const header = document.getElementById("site-header");

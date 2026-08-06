@@ -8,7 +8,7 @@
  * para ser reaproveitado nos próximos agendamentos.
  */
 import type { Request, Response } from "express";
-import { eq, and, desc } from "drizzle-orm";
+import { eq, and, or, desc } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { usersTable } from "../../db/schema/users.js";
 import { servicesTable } from "../../db/schema/services.js";
@@ -91,19 +91,28 @@ const PublicBookAppointment = async (req: Request<{ slug: string }, {}, PublicBo
     if (byAccount) {
       customerId = byAccount.id;
     } else {
-      const [byPhone] = await db
+      // Cadastro antigo feito manualmente pelo profissional: procura por
+      // telefone ou documento antes de criar um registro novo (customers
+      // agora tem índice único por profissional nesses campos).
+      const [byPhoneOrDocument] = await db
         .select({ id: customersTable.id })
         .from(customersTable)
-        .where(and(eq(customersTable.userId, user.id), eq(customersTable.phone, clientAccount.phone)))
+        .where(
+          and(
+            eq(customersTable.userId, user.id),
+            clientAccount.cpf
+              ? or(eq(customersTable.phone, clientAccount.phone), eq(customersTable.document, clientAccount.cpf))
+              : eq(customersTable.phone, clientAccount.phone)
+          )
+        )
         .limit(1);
 
-      if (byPhone) {
-        // Cadastro antigo do mesmo telefone: vincula à conta global
+      if (byPhoneOrDocument) {
         await db
           .update(customersTable)
           .set({ clientAccountId, updatedAt: new Date() })
-          .where(eq(customersTable.id, byPhone.id));
-        customerId = byPhone.id;
+          .where(eq(customersTable.id, byPhoneOrDocument.id));
+        customerId = byPhoneOrDocument.id;
       } else {
         const [createdCustomer] = await db
           .insert(customersTable)
@@ -194,6 +203,7 @@ const PublicBookAppointment = async (req: Request<{ slug: string }, {}, PublicBo
       scheduledAt: scheduledDate,
       tzOffsetMin: tzOffset,
       notes: notes?.trim() || null,
+      paymentStatus: "unpaid",
       isHomeService: homeService,
       travelMinutes,
       travelDistanceKm,

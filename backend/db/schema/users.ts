@@ -1,5 +1,5 @@
 // db/schema/users.ts
-import { pgTable, integer, varchar, boolean, timestamp, numeric } from "drizzle-orm/pg-core";
+import { pgTable, integer, varchar, boolean, timestamp, numeric, time } from "drizzle-orm/pg-core";
 
 export const usersTable = pgTable("users", {
   id: integer().primaryKey().generatedAlwaysAsIdentity(),
@@ -18,6 +18,11 @@ export const usersTable = pgTable("users", {
   appointmentBuffer: integer("appointment_buffer").default(0).notNull(), // delay (descanso) entre atendimentos, em minutos
   publicSlug: varchar("public_slug", { length: 100 }).unique(), // link público de divulgação
 
+  // Pausa fixa recorrente (ex: almoço 12:00-13:00), aplicada todo dia de
+  // trabalho. Null nos dois = sem pausa configurada.
+  breakStart: time("break_start"),
+  breakEnd: time("break_end"),
+
   // Deslocamento no atendimento a domicílio — usado pra cobrar o custo de
   // combustível do cliente e limitar até onde o profissional atende.
   homeServiceTransport: varchar("home_service_transport", { length: 20 }).default("car").notNull(), // car | motorcycle | none (none = a pé/bike/transporte público, sem custo de combustível)
@@ -27,4 +32,10 @@ export const usersTable = pgTable("users", {
 
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp().defaultNow().notNull(),
+
+  // Marca a última vez que o login foi confirmado com o código de 2FA.
+  // Enquanto essa marca estiver dentro da validade do JWT de sessão (1 dia),
+  // o login não pede o código de novo — só volta a pedir depois que o
+  // token da última vez expiraria.
+  lastVerifiedAt: timestamp("last_verified_at"),
 });
