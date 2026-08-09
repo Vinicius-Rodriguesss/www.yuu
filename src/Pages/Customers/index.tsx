@@ -9,10 +9,11 @@ import {
   FiSearch,
   FiPhone,
   FiMail,
+  FiMapPin,
 } from "react-icons/fi";
 import Toast from "../../Components/Toast/index";
 import { apiFetch } from "@/api/client";
-import { formatPhone } from "../../SignUp/passwordValidation";
+import { formatPhone, formatCEP, type ViaCEPResponse } from "../../SignUp/passwordValidation";
 
 interface Customer {
   id: number;
@@ -22,6 +23,19 @@ interface Customer {
   email?: string | null;
   notes?: string | null;
 }
+
+interface CustomerAddress {
+  id: number;
+  cep: string;
+  street: string;
+  number: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  isPrimary: boolean;
+}
+
+const emptyAddress = { cep: "", street: "", number: "", neighborhood: "", city: "", state: "" };
 
 const Customers = () => {
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -37,6 +51,12 @@ const Customers = () => {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [notes, setNotes] = useState("");
+
+  const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
+  const [showAddressForm, setShowAddressForm] = useState(false);
+  const [addressForm, setAddressForm] = useState({ ...emptyAddress });
+  const [savingAddress, setSavingAddress] = useState(false);
+  const [cepStatus, setCepStatus] = useState<{ type: "success" | "error" | "loading"; message: string } | null>(null);
 
   const [toast, setToast] = useState<{
     show: boolean;
@@ -59,6 +79,89 @@ const Customers = () => {
     }
   };
 
+  const fetchAddresses = async (customerId: number) => {
+    try {
+      const data = await apiFetch(`/customers/${customerId}/addresses`);
+      setAddresses(data);
+    } catch (error) {
+      console.error("Erro ao carregar endereços:", error);
+      setAddresses([]);
+    }
+  };
+
+  // Busca o endereço automaticamente quando o CEP tem 8 dígitos
+  useEffect(() => {
+    if (!showAddressForm) return;
+    const numbers = addressForm.cep.replace(/\D/g, "");
+    if (numbers.length !== 8) {
+      setCepStatus(numbers.length > 0 ? { type: "error", message: "CEP deve conter 8 dígitos." } : null);
+      return;
+    }
+    setCepStatus({ type: "loading", message: "Buscando endereço..." });
+    const timer = setTimeout(async () => {
+      try {
+        const response = await fetch(`https://viacep.com.br/ws/${numbers}/json/`);
+        const data: ViaCEPResponse & { erro?: boolean } = await response.json();
+        if (data.erro) {
+          setCepStatus({ type: "error", message: "CEP não encontrado." });
+          return;
+        }
+        setAddressForm((p) => ({
+          ...p,
+          street: data.logradouro || "",
+          neighborhood: data.bairro || "",
+          city: data.localidade || "",
+          state: data.uf || "",
+        }));
+        setCepStatus({ type: "success", message: "Endereço encontrado!" });
+      } catch {
+        setCepStatus({ type: "error", message: "Erro ao buscar CEP." });
+      }
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [addressForm.cep, showAddressForm]);
+
+  const handleCreateAddress = async () => {
+    if (!editingId) return;
+    const a = addressForm;
+    if (!a.cep || !a.street || !a.number || !a.neighborhood || !a.city || !a.state) {
+      setToast({ show: true, type: "error", message: "Preencha o endereço completo." });
+      return;
+    }
+    setSavingAddress(true);
+    try {
+      const created = await apiFetch(`/customers/${editingId}/addresses`, {
+        method: "POST",
+        body: JSON.stringify({ customerId: editingId, ...a, isPrimary: addresses.length === 0 }),
+      });
+      setAddresses((prev) => [...prev, created]);
+      setShowAddressForm(false);
+      setAddressForm({ ...emptyAddress });
+      setCepStatus(null);
+    } catch (error) {
+      setToast({
+        show: true,
+        type: "error",
+        message: error instanceof Error ? error.message : "Erro ao salvar endereço",
+      });
+    } finally {
+      setSavingAddress(false);
+    }
+  };
+
+  const handleDeleteAddress = async (addressId: number) => {
+    try {
+      await apiFetch(`/customers/addresses/${addressId}`, { method: "DELETE" });
+      setAddresses((prev) => prev.filter((a) => a.id !== addressId));
+    } catch (error) {
+      setToast({
+        show: true,
+        type: "error",
+        message: error instanceof Error ? error.message : "Erro ao excluir endereço",
+      });
+    }
+  };
+
   const resetForm = () => {
     setName("");
     setDocument("");
@@ -66,6 +169,10 @@ const Customers = () => {
     setEmail("");
     setNotes("");
     setEditingId(null);
+    setAddresses([]);
+    setShowAddressForm(false);
+    setAddressForm({ ...emptyAddress });
+    setCepStatus(null);
   };
 
   const handleEdit = (customer: Customer) => {
@@ -75,6 +182,10 @@ const Customers = () => {
     setEmail(customer.email ?? "");
     setNotes(customer.notes ?? "");
     setEditingId(customer.id);
+    setShowAddressForm(false);
+    setAddressForm({ ...emptyAddress });
+    setCepStatus(null);
+    fetchAddresses(customer.id);
     setShowForm(true);
   };
 
@@ -128,19 +239,19 @@ const Customers = () => {
           method: "PUT",
           body: JSON.stringify(customerData),
         });
+        await fetchCustomers();
+        closeModal();
+        setToast({ show: true, type: "success", message: "Cliente atualizado com sucesso!" });
       } else {
-        await apiFetch("/customers", {
+        const created = await apiFetch("/customers", {
           method: "POST",
           body: JSON.stringify(customerData),
         });
+        await fetchCustomers();
+        // Mantém o modal aberto, agora em modo de edição, pra permitir cadastrar o endereço na sequência
+        setEditingId(created.id);
+        setToast({ show: true, type: "success", message: "Cliente criado! Agora você pode cadastrar o endereço dele." });
       }
-      await fetchCustomers();
-      closeModal();
-      setToast({
-        show: true,
-        type: "success",
-        message: editingId ? "Cliente atualizado com sucesso!" : "Cliente criado com sucesso!",
-      });
     } catch (error) {
       setToast({
         show: true,
@@ -364,6 +475,166 @@ const Customers = () => {
                   className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg outline-none transition-all duration-200 hover:border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900/10 placeholder:text-gray-300 resize-none"
                 />
               </div>
+
+              {editingId && (
+                <div className="pt-1 border-t border-gray-100">
+                  <label className="text-xs font-semibold text-gray-500 mb-2 mt-4 block tracking-wide">
+                    Endereços
+                  </label>
+
+                  {addresses.length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      {addresses.map((a) => (
+                        <div
+                          key={a.id}
+                          className="flex items-start gap-2.5 px-3.5 py-2.5 border border-gray-200 rounded-lg"
+                        >
+                          <FiMapPin size={14} className="text-gray-400 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-gray-900 truncate">
+                              {a.street}, {a.number}
+                              {a.isPrimary && (
+                                <span className="ml-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                                  Principal
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-xs text-gray-400 truncate">
+                              {a.neighborhood} · {a.city}/{a.state} · {a.cep}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAddress(a.id)}
+                            className="w-7 h-7 rounded-full hover:bg-red-50 flex items-center justify-center transition-colors text-gray-400 hover:text-red-600 flex-shrink-0"
+                            title="Remover endereço"
+                          >
+                            <FiTrash2 size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {!showAddressForm ? (
+                    <button
+                      type="button"
+                      onClick={() => setShowAddressForm(true)}
+                      className="flex items-center gap-1.5 text-xs font-medium text-gray-600 hover:text-gray-900 transition-colors"
+                    >
+                      <FiPlus size={13} /> Adicionar endereço
+                    </button>
+                  ) : (
+                    <div className="space-y-3 border border-gray-200 rounded-lg p-4 bg-gray-50/50">
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 mb-1.5 block tracking-wide">
+                            CEP
+                          </label>
+                          <input
+                            value={addressForm.cep}
+                            onChange={(e) => setAddressForm((p) => ({ ...p, cep: formatCEP(e.target.value) }))}
+                            placeholder="00000-000"
+                            className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg outline-none transition-all duration-200 hover:border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900/10 placeholder:text-gray-300"
+                          />
+                          {cepStatus && (
+                            <small
+                              className={
+                                cepStatus.type === "success"
+                                  ? "text-green-600"
+                                  : cepStatus.type === "loading"
+                                  ? "text-amber-600"
+                                  : "text-red-600"
+                              }
+                            >
+                              {cepStatus.message}
+                            </small>
+                          )}
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 mb-1.5 block tracking-wide">
+                            Número
+                          </label>
+                          <input
+                            value={addressForm.number}
+                            onChange={(e) => setAddressForm((p) => ({ ...p, number: e.target.value }))}
+                            placeholder="123"
+                            className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg outline-none transition-all duration-200 hover:border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900/10 placeholder:text-gray-300"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 mb-1.5 block tracking-wide">
+                          Rua
+                        </label>
+                        <input
+                          value={addressForm.street}
+                          onChange={(e) => setAddressForm((p) => ({ ...p, street: e.target.value }))}
+                          placeholder="Rua / Avenida"
+                          className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg outline-none transition-all duration-200 hover:border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900/10 placeholder:text-gray-300"
+                        />
+                      </div>
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 mb-1.5 block tracking-wide">
+                            Bairro
+                          </label>
+                          <input
+                            value={addressForm.neighborhood}
+                            onChange={(e) => setAddressForm((p) => ({ ...p, neighborhood: e.target.value }))}
+                            placeholder="Bairro"
+                            className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg outline-none transition-all duration-200 hover:border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900/10 placeholder:text-gray-300"
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs font-semibold text-gray-500 mb-1.5 block tracking-wide">
+                            Cidade
+                          </label>
+                          <input
+                            value={addressForm.city}
+                            onChange={(e) => setAddressForm((p) => ({ ...p, city: e.target.value }))}
+                            placeholder="Cidade"
+                            className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg outline-none transition-all duration-200 hover:border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900/10 placeholder:text-gray-300"
+                          />
+                        </div>
+                      </div>
+                      <div>
+                        <label className="text-xs font-semibold text-gray-500 mb-1.5 block tracking-wide">
+                          UF
+                        </label>
+                        <input
+                          maxLength={2}
+                          value={addressForm.state}
+                          onChange={(e) => setAddressForm((p) => ({ ...p, state: e.target.value.toUpperCase() }))}
+                          placeholder="SP"
+                          className="w-24 px-4 py-2.5 text-sm border border-gray-200 rounded-lg outline-none transition-all duration-200 hover:border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900/10 placeholder:text-gray-300"
+                        />
+                      </div>
+                      <div className="flex gap-2.5 justify-end pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowAddressForm(false);
+                            setAddressForm({ ...emptyAddress });
+                            setCepStatus(null);
+                          }}
+                          className="px-4 py-2 text-xs font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-all"
+                        >
+                          Cancelar
+                        </button>
+                        <button
+                          type="button"
+                          disabled={savingAddress}
+                          onClick={handleCreateAddress}
+                          className="flex items-center gap-1.5 px-4 py-2 bg-gray-900 text-white text-xs font-medium rounded-lg hover:bg-gray-800 transition-all disabled:opacity-60"
+                        >
+                          {savingAddress ? "Salvando..." : "Salvar endereço"}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div className="flex gap-2.5 justify-end pt-2">
                 <button

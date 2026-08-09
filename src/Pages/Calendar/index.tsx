@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from "react";
-import { FiChevronDown, FiChevronLeft, FiChevronRight, FiChevronUp, FiCheck, FiDollarSign, FiX, FiPlus, FiSlash, FiLock, FiHome } from "react-icons/fi";
+import { FiChevronDown, FiChevronLeft, FiChevronRight, FiChevronUp, FiCheck, FiDollarSign, FiX, FiPlus, FiSlash, FiLock, FiHome, FiSearch } from "react-icons/fi";
 import { apiFetch, tzOffsetMin } from "@/api/client";
-import { formatCEP, formatPhone, type ViaCEPResponse } from "@/SignUp/passwordValidation";
+import { formatPhone } from "@/SignUp/passwordValidation";
 import Toast from "@/Components/Toast";
 import "./index.css";
 
@@ -10,6 +10,7 @@ interface Customer {
   id: number;
   name: string;
   phone?: string;
+  document?: string | null;
 }
 
 interface Service {
@@ -46,7 +47,6 @@ interface CustomerAddress {
   isPrimary: boolean;
 }
 
-const emptyAddress = { cep: "", street: "", number: "", neighborhood: "", city: "", state: "" };
 
 // Agendamento real, vindo do backend (GET /appointments) — já existe e funciona, só faltava desenhar isso na grade
 interface Appointment {
@@ -136,6 +136,11 @@ const Calendar = () => {
   // Controla se o mini-calendário (nav-calendar) aparece como dropdown — escondido por padrão, abre
   // ao clicar na data do cabeçalho
   const [isNavCalendarOpen, setIsNavCalendarOpen] = useState(false);
+
+  // Busca de cliente no cabeçalho (por nome ou CPF) — ao escolher, pula pro agendamento em aberto dele
+  const [isCustomerSearchOpen, setIsCustomerSearchOpen] = useState(false);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
+  const [findingCustomerAppointment, setFindingCustomerAppointment] = useState(false);
 
   // Estado dos filtros de pagamento (Pago / Não pago)
   const [paidFilter, setPaidFilter] = useState(false);
@@ -322,10 +327,6 @@ const Calendar = () => {
   const [isHomeService, setIsHomeService] = useState(false);
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<number | "">("");
-  const [showAddressForm, setShowAddressForm] = useState(false);
-  const [addressForm, setAddressForm] = useState({ ...emptyAddress });
-  const [savingAddress, setSavingAddress] = useState(false);
-  const [cepStatus, setCepStatus] = useState<{ type: "success" | "error" | "loading"; message: string } | null>(null);
 
   // Estimativa de deslocamento (Google Routes API, com fallback OSRM) pro endereço
   // do cliente selecionado — mesmo cálculo usado no agendamento público
@@ -378,6 +379,33 @@ const Calendar = () => {
     apiFetch(`/appointments?date=${dayKey(selectedDay)}`)
       .then(setAppointments)
       .catch(() => setAppointments([]));
+  };
+
+  // Busca de cliente no cabeçalho: acha o agendamento em aberto dele (não finalizado/cancelado),
+  // pula o calendário pro dia desse agendamento e já abre os detalhes
+  const findCustomerOpenAppointment = async (customer: Customer) => {
+    setFindingCustomerAppointment(true);
+    try {
+      const results: Appointment[] = await apiFetch(`/appointments?customerId=${customer.id}`);
+      const open = results.filter((a) => !["completed", "cancelled", "no_show"].includes(a.status));
+      if (open.length === 0) {
+        showError(`${customer.name} não tem nenhum agendamento em aberto`);
+        return;
+      }
+      const now = new Date().getTime();
+      const upcoming = open.find((a) => new Date(a.scheduledAt).getTime() >= now);
+      const target = upcoming ?? open[open.length - 1];
+
+      const scheduled = new Date(target.scheduledAt);
+      selectDay(new Date(scheduled.getUTCFullYear(), scheduled.getUTCMonth(), scheduled.getUTCDate()));
+      setSelectedAppointment(target);
+      setIsCustomerSearchOpen(false);
+      setCustomerSearchQuery("");
+    } catch (error) {
+      showError(error instanceof Error ? error.message : "Erro ao buscar agendamento do cliente");
+    } finally {
+      setFindingCustomerAppointment(false);
+    }
   };
 
   useEffect(() => {
@@ -813,9 +841,7 @@ const Calendar = () => {
     apiFetch(`/customers/${selectedCustomerId}/addresses`)
       .then((data: CustomerAddress[]) => {
         setAddresses(data);
-        if (data.length === 0) {
-          setShowAddressForm(true);
-        } else {
+        if (data.length > 0) {
           const pendingId = pendingEditAddressIdRef.current;
           const pending = pendingId ? data.find((a) => a.id === pendingId) : null;
           const primary = pending ?? data.find((a) => a.isPrimary) ?? data[0];
@@ -853,64 +879,6 @@ const Calendar = () => {
       .catch(() => setTravelEstimate(null))
       .finally(() => setLoadingTravelEstimate(false));
   }, [isHomeService, selectedCustomerId, selectedAddressId, appointmentDate]);
-
-  // Busca o endereço automaticamente quando o CEP tem 8 dígitos (mesma lógica do calendário antigo)
-  useEffect(() => {
-    if (!showAddressForm) return;
-    const numbers = addressForm.cep.replace(/\D/g, "");
-    if (numbers.length !== 8) {
-      setCepStatus(numbers.length > 0 ? { type: "error", message: "CEP deve conter 8 dígitos." } : null);
-      return;
-    }
-    setCepStatus({ type: "loading", message: "Buscando endereço..." });
-    const timer = setTimeout(async () => {
-      try {
-        const response = await fetch(`https://viacep.com.br/ws/${numbers}/json/`);
-        const data: ViaCEPResponse & { erro?: boolean } = await response.json();
-        if (data.erro) {
-          setCepStatus({ type: "error", message: "CEP não encontrado." });
-          return;
-        }
-        setAddressForm((p) => ({
-          ...p,
-          street: data.logradouro || "",
-          neighborhood: data.bairro || "",
-          city: data.localidade || "",
-          state: data.uf || "",
-        }));
-        setCepStatus({ type: "success", message: "Endereço encontrado!" });
-      } catch {
-        setCepStatus({ type: "error", message: "Erro ao buscar CEP." });
-      }
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [addressForm.cep, showAddressForm]);
-
-  const handleCreateAddress = async () => {
-    if (!selectedCustomerId) return;
-    const a = addressForm;
-    if (!a.cep || !a.street || !a.number || !a.neighborhood || !a.city || !a.state) {
-      setAppointmentError("Preencha o endereço completo para o atendimento a domicílio");
-      return;
-    }
-    setSavingAddress(true);
-    setAppointmentError("");
-    try {
-      const created = await apiFetch(`/customers/${selectedCustomerId}/addresses`, {
-        method: "POST",
-        body: JSON.stringify({ customerId: Number(selectedCustomerId), ...a, isPrimary: addresses.length === 0 }),
-      });
-      setAddresses((prev) => [...prev, created]);
-      setSelectedAddressId(created.id);
-      setShowAddressForm(false);
-      setAddressForm({ ...emptyAddress });
-      setCepStatus(null);
-    } catch (error) {
-      setAppointmentError(error instanceof Error ? error.message : "Erro ao salvar endereço");
-    } finally {
-      setSavingAddress(false);
-    }
-  };
 
   // Ao trocar o serviço, pré-preenche duração e valor com os dados já cadastrados dele
   const handleServiceChange = (serviceId: string) => {
@@ -994,9 +962,6 @@ const Calendar = () => {
     setIsHomeService(false);
     setAddresses([]);
     setSelectedAddressId("");
-    setShowAddressForm(false);
-    setAddressForm({ ...emptyAddress });
-    setCepStatus(null);
     setTravelEstimate(null);
     setAppointmentStep(1);
     setEditingAppointmentId(null);
@@ -1185,13 +1150,79 @@ const Calendar = () => {
             <FiChevronDown />
           </div>
           <button onClick={() => changeSelectedDay(1)} aria-label="Próximo dia"><FiChevronRight /></button>
+
+          <div className="header-content-divider" />
+
+          <button
+            className={`customer-search-trigger${isCustomerSearchOpen ? " customer-search-trigger-active" : ""}`}
+            onClick={() => setIsCustomerSearchOpen((prev) => !prev)}
+            aria-label="Buscar cliente"
+            title="Buscar cliente por nome ou CPF"
+          >
+            <FiSearch />
+          </button>
         </div>
+
+        {/* Busca de cliente: escondida por padrão, aparece como dropdown ao clicar na lupa. Fica
+            FORA do .header-content de propósito — botões dentro dele herdam o tamanho fixo dos
+            botões de navegação de dia, o que espremia cada item da lista num quadradinho. */}
+        {isCustomerSearchOpen && (
+          <>
+            <div className="nav-calendar-backdrop" onClick={() => setIsCustomerSearchOpen(false)} />
+            <div className="customer-picker customer-search-dropdown">
+              <input
+                type="text"
+                autoFocus
+                className="customer-picker-search"
+                placeholder="Nome ou CPF do cliente..."
+                value={customerSearchQuery}
+                onChange={(e) => setCustomerSearchQuery(e.target.value)}
+              />
+              <div className="customer-picker-list">
+                {(() => {
+                  const query = customerSearchQuery.trim().toLowerCase();
+                  const queryDigits = query.replace(/\D/g, "");
+                  const filtered = !query
+                    ? []
+                    : customers.filter((c) => {
+                        const matchesName = c.name.toLowerCase().includes(query);
+                        const matchesDoc = queryDigits.length > 0 && (c.document ?? "").replace(/\D/g, "").includes(queryDigits);
+                        return matchesName || matchesDoc;
+                      });
+
+                  if (!query) {
+                    return <p className="customer-picker-empty">Digite o nome ou CPF do cliente</p>;
+                  }
+                  if (filtered.length === 0) {
+                    return <p className="customer-picker-empty">Nenhum cliente encontrado</p>;
+                  }
+
+                  return filtered.map((customer) => (
+                    <button
+                      type="button"
+                      key={customer.id}
+                      className="customer-picker-item"
+                      disabled={findingCustomerAppointment}
+                      onClick={() => findCustomerOpenAppointment(customer)}
+                    >
+                      <span className="customer-picker-avatar">{getInitials(customer.name)}</span>
+                      <span className="customer-picker-info">
+                        <strong>{customer.name}</strong>
+                        {customer.document && <span>{customer.document}</span>}
+                      </span>
+                    </button>
+                  ));
+                })()}
+              </div>
+            </div>
+          </>
+        )}
 
         {/* Mini-calendário: escondido por padrão, aparece como dropdown ao clicar na data acima */}
         {isNavCalendarOpen && (
           <>
             <div className="nav-calendar-backdrop" onClick={() => setIsNavCalendarOpen(false)} />
-            <div className="nav-calendar nav-calendar-dropdown">
+            <div className="nav-calendar nav-calendar-dropdown mt-9 ml-5 mr-5">
           {/* Mini-calendário de navegação por mês */}
           <div className="mini-calendar-header">
             <span>{monthNamesFull[viewDate.getMonth()]} {viewDate.getFullYear()}</span>
@@ -1878,7 +1909,6 @@ const Calendar = () => {
                         setIsHomeService(e.target.checked);
                         if (!e.target.checked) {
                           setSelectedAddressId("");
-                          setShowAddressForm(false);
                         }
                       }}
                     />
@@ -1891,114 +1921,31 @@ const Calendar = () => {
                         <p className="new-appointment-address-hint">Selecione o cliente para ver os endereços dele.</p>
                       )}
 
-                      {!showAddressForm && addresses.length > 0 && (
-                        <>
-                          <div className="new-appointment-field">
-                            <label>Endereço do cliente</label>
-                            <select
-                              value={selectedAddressId}
-                              onChange={(e) => setSelectedAddressId(Number(e.target.value))}
-                            >
-                              {addresses.map((a) => (
-                                <option key={a.id} value={a.id}>
-                                  {a.street}, {a.number} — {a.neighborhood}, {a.city}/{a.state}
-                                  {a.isPrimary ? " (principal)" : ""}
-                                </option>
-                              ))}
-                            </select>
-                          </div>
-                          <button
-                            type="button"
-                            className="new-appointment-address-add"
-                            onClick={() => setShowAddressForm(true)}
-                          >
-                            <FiPlus /> Cadastrar outro endereço
-                          </button>
-                        </>
+                      {!!selectedCustomerId && addresses.length === 0 && (
+                        <p className="new-appointment-address-hint">
+                          Esse cliente ainda não tem endereço cadastrado. Cadastre um endereço no perfil do cliente pra poder selecioná-lo aqui.
+                        </p>
                       )}
 
-                      {showAddressForm && (
-                        <>
-                          <div className="new-appointment-row">
-                            <div className="new-appointment-field">
-                              <label>CEP</label>
-                              <input
-                                value={addressForm.cep}
-                                onChange={(e) => setAddressForm((p) => ({ ...p, cep: formatCEP(e.target.value) }))}
-                                placeholder="00000-000"
-                              />
-                              {cepStatus && (
-                                <small className={`new-appointment-cep-status new-appointment-cep-${cepStatus.type}`}>
-                                  {cepStatus.message}
-                                </small>
-                              )}
-                            </div>
-                            <div className="new-appointment-field">
-                              <label>Número</label>
-                              <input
-                                value={addressForm.number}
-                                onChange={(e) => setAddressForm((p) => ({ ...p, number: e.target.value }))}
-                                placeholder="123"
-                              />
-                            </div>
-                          </div>
-                          <div className="new-appointment-field">
-                            <label>Rua</label>
-                            <input
-                              value={addressForm.street}
-                              onChange={(e) => setAddressForm((p) => ({ ...p, street: e.target.value }))}
-                              placeholder="Rua / Avenida"
-                            />
-                          </div>
-                          <div className="new-appointment-row">
-                            <div className="new-appointment-field">
-                              <label>Bairro</label>
-                              <input
-                                value={addressForm.neighborhood}
-                                onChange={(e) => setAddressForm((p) => ({ ...p, neighborhood: e.target.value }))}
-                                placeholder="Bairro"
-                              />
-                            </div>
-                            <div className="new-appointment-field">
-                              <label>Cidade</label>
-                              <input
-                                value={addressForm.city}
-                                onChange={(e) => setAddressForm((p) => ({ ...p, city: e.target.value }))}
-                                placeholder="Cidade"
-                              />
-                            </div>
-                          </div>
-                          <div className="new-appointment-field">
-                            <label>UF</label>
-                            <input
-                              maxLength={2}
-                              value={addressForm.state}
-                              onChange={(e) => setAddressForm((p) => ({ ...p, state: e.target.value.toUpperCase() }))}
-                              placeholder="SP"
-                            />
-                          </div>
-                          <button
-                            type="button"
-                            className="btn-apply-filters"
-                            disabled={savingAddress}
-                            onClick={handleCreateAddress}
+                      {addresses.length > 0 && (
+                        <div className="new-appointment-field">
+                          <label>Endereço do cliente</label>
+                          <select
+                            value={selectedAddressId}
+                            onChange={(e) => setSelectedAddressId(Number(e.target.value))}
                           >
-                            {savingAddress ? "Salvando..." : "Salvar endereço"}
-                          </button>
-                          {addresses.length > 0 && (
-                            <button
-                              type="button"
-                              className="new-appointment-address-add"
-                              onClick={() => setShowAddressForm(false)}
-                            >
-                              Usar um endereço existente
-                            </button>
-                          )}
-                        </>
+                            {addresses.map((a) => (
+                              <option key={a.id} value={a.id}>
+                                {a.street}, {a.number} — {a.neighborhood}, {a.city}/{a.state}
+                                {a.isPrimary ? " (principal)" : ""}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
                       )}
 
                       {/* Estimativa de deslocamento (Google Routes API) pro endereço escolhido */}
-                      {!showAddressForm && selectedAddressId && (
+                      {selectedAddressId && (
                         <div className="new-appointment-travel-estimate">
                           {loadingTravelEstimate && <span>Calculando deslocamento...</span>}
                           {!loadingTravelEstimate && travelEstimate?.unavailable && (
@@ -2040,6 +1987,10 @@ const Calendar = () => {
                     <div className="new-appointment-summary-row">
                       <small>Serviço</small>
                       <strong>{services.find((s) => String(s.id) === selectedServiceId)?.title}</strong>
+                      <span>
+                        {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" })
+                          .format(Number(price || 0))}
+                      </span>
                     </div>
                     {selectedProducts.filter((sp) => sp.quantity > 0).map((sp) => {
                       const product = products.find((p) => p.id === sp.productId);
