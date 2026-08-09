@@ -1,5 +1,5 @@
 // db/schema/addresses.ts
-import { pgTable, integer, varchar } from "drizzle-orm/pg-core";
+import { pgTable, integer, varchar, timestamp } from "drizzle-orm/pg-core";
 import { usersTable } from "./users.js";
 
 export const addressesTable = pgTable("addresses", {
@@ -14,4 +14,6 @@ export const addressesTable = pgTable("addresses", {
   neighborhood: varchar({ length: 100 }).notNull(),
   city: varchar({ length: 100 }).notNull(),
   state: varchar({ length: 2 }).notNull(),
+  createdAt: timestamp().defaultNow().notNull(),
+  updatedAt: timestamp().defaultNow().notNull(),
 });

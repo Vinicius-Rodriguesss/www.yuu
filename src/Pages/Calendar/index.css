@@ -1,0 +1,1537 @@
+.container-calendar {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.header-calendar {
+  flex-shrink: 0;
+  position: relative;
+}
+
+.header-content-text-container-active {
+  background-color: #00000010;
+}
+
+/* Separador fino entre a navegação de dia e o botão de busca, dentro da mesma pílula do cabeçalho */
+.header-content-divider {
+  width: 1px;
+  align-self: stretch;
+  background-color: #ececec;
+  margin: 0 .1rem;
+}
+
+/* Botão de busca de cliente, dentro da mesma pílula do cabeçalho (mesmo visual dos botões de dia) */
+.customer-search-trigger {
+  border: 1px solid #ececec;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: .5rem;
+  transition: all .2s;
+  cursor: pointer;
+  background-color: #fff;
+  color: #333;
+}
+
+.customer-search-trigger:hover,
+.customer-search-trigger-active {
+  background-color: #00000010;
+  border-color: #d9d9d9;
+}
+
+/* Dropdown de busca de cliente — mesma base visual do seletor de cliente do Novo Agendamento,
+   ancorado embaixo do botão de lupa */
+.customer-search-dropdown {
+  position: absolute;
+  top: calc(100% + .5rem);
+  right: 0;
+  width: 340px;
+  max-width: calc(100vw - 2rem);
+  background-color: #fff;
+  border: 1px solid #ececec;
+  border-radius: .9rem;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+  z-index: 25;
+  padding: 1.1rem;
+}
+
+/* Backdrop transparente pra fechar o dropdown do mini-calendário ao clicar fora */
+.nav-calendar-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 24;
+}
+
+/* Mini-calendário como dropdown: escondido por padrão, aparece flutuando ao clicar na data do cabeçalho */
+.nav-calendar-dropdown {
+  position: absolute;
+  top: calc(100% + .5rem);
+  left: 0;
+  width: 320px;
+  max-width: calc(100vw - 2rem);
+  max-height: 70vh;
+  background-color: #fff;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, .18);
+  z-index: 25;
+}
+
+/* Botão único que substitui os antigos botões "Novo Agendamento" repetidos em cada linha da grade —
+   fixo no canto inferior direito da página, sempre acessível independente do scroll. */
+.new-appointment-trigger {
+  position: fixed;
+  right: 2rem;
+  bottom: 2rem;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  border: none;
+  border-radius: 999px;
+  padding: .9rem 1.4rem;
+  font-size: .85rem;
+  font-weight: 600;
+  cursor: pointer;
+  background-color: #1a1a1a;
+  color: #fff;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .25);
+  transition: background-color .15s, transform .15s;
+}
+
+.new-appointment-trigger:hover {
+  background-color: #000;
+  transform: translateY(-2px);
+}
+
+@media (max-width: 991px) {
+  .new-appointment-trigger {
+    right: 1rem;
+    bottom: 1rem;
+  }
+}
+
+.header-content {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: auto;
+  background-color: #fff;
+  border: 1px solid #ececec;
+  padding: .75rem 1rem;
+  border-radius: .75rem;
+  gap: 1rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .06);
+}
+
+.header-content-text-container {
+  display: flex;
+  align-items: center;
+  flex-direction: row;
+  gap: .75rem;
+  padding: .4rem .9rem;
+  border-radius: .5rem;
+  cursor: pointer;
+  transition: background-color .2s;
+}
+
+.header-content-text-container:hover {
+  background-color: #00000008;
+}
+
+.header-content-text {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: .1rem;
+}
+
+.header-content-text span:first-child {
+  font-size: .95rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.header-content-text span:last-child {
+  font-size: .8rem;
+  color: #767676;
+}
+
+.header-content-text-container svg {
+  color: #767676;
+  font-size: .9rem;
+}
+
+.header-content button {
+  border: 1px solid #ececec;
+  width: 2.25rem;
+  height: 2.25rem;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  border-radius: .5rem;
+  transition: all .2s;
+  cursor: pointer;
+  background-color: #fff;
+  color: #333;
+}
+
+.header-content button:hover {
+  background-color: #00000010;
+  border-color: #d9d9d9;
+}
+
+.header-content button:active {
+  transform: scale(.94);
+}
+
+.main-calendar {
+  flex: 1;
+  min-height: 0;
+  margin-top: 1rem;
+  display: flex;
+}
+
+.main-calendar .calendar {
+  width: 100%;
+  height: 100%;
+}
+
+/* NavBar calendar */
+.nav-calendar {
+  border: 1px solid #ececec;
+  border-radius: .75rem;
+  padding: .75rem 1rem;
+  overflow-y: auto;
+}
+
+/* Estilização da barra de rolagem: Firefox (scrollbar-width/color) + Chrome/Edge/Safari (::-webkit-scrollbar) */
+.nav-calendar,
+.calendar {
+  scrollbar-width: thin;
+  scrollbar-color: #d9d9d9 transparent;
+}
+
+.nav-calendar::-webkit-scrollbar,
+.calendar::-webkit-scrollbar {
+  width: 8px;
+}
+
+.nav-calendar::-webkit-scrollbar-track,
+.calendar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.nav-calendar::-webkit-scrollbar-thumb,
+.calendar::-webkit-scrollbar-thumb {
+  background-color: #d9d9d9;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: padding-box;
+}
+
+.nav-calendar::-webkit-scrollbar-thumb:hover,
+.calendar::-webkit-scrollbar-thumb:hover {
+  background-color: #b8b8b8;
+  background-clip: padding-box;
+}
+
+/* Cabeçalho do mini-calendário (mês + setas de navegação) */
+.mini-calendar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: .9rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  margin-bottom: .75rem;
+}
+
+.mini-calendar-header-actions {
+  display: flex;
+  gap: .35rem;
+}
+
+.mini-calendar-header-actions button {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #767676;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* Grade de dias do mini-calendário */
+.mini-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  row-gap: .5rem;
+  text-align: center;
+}
+
+.mini-calendar-weekday {
+  font-size: .7rem;
+  color: #a0a0a0;
+  font-weight: 600;
+}
+
+.mini-calendar-day {
+  font-size: .8rem;
+  color: #333;
+  border-radius: 50%;
+  cursor: pointer;
+  user-select: none;
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.mini-calendar-day:hover {
+  background-color: #00000008;
+}
+
+.mini-calendar-day-today {
+  color: #e0263f;
+  font-weight: 700;
+  background-color: #fdecef;
+}
+
+.mini-calendar-day-out {
+  color: #c9c9c9;
+}
+
+.mini-calendar-day-selected:not(.mini-calendar-day-today) {
+  background-color: #1a1a1a;
+  color: #fff;
+  font-weight: 700;
+}
+
+.nav-calendar-label {
+  display: block;
+  font-size: .8rem;
+  color: #767676;
+  margin: 1rem 0 .5rem;
+}
+
+.nav-calendar-divider {
+  border-top: 1px solid #ececec;
+  margin: 1rem 0;
+}
+
+/* Painel colapsável "Destacar Agendamentos" */
+.highlight-appointments-toggle {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  font-size: .85rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  padding: 0;
+}
+
+.highlight-appointments-toggle svg {
+  color: #767676;
+}
+
+.highlight-appointments-content {
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  margin-top: .9rem;
+}
+
+/* Cada bloco de filtro (Pagamentos, Status da Reserva) */
+.filter-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.filter-section-title {
+  font-size: .72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: .04em;
+  color: #a0a0a0;
+  margin-bottom: .5rem;
+}
+
+/* Linha inteira clicável de cada opção de filtro */
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  cursor: pointer;
+  padding: .5rem .5rem;
+  border-radius: .5rem;
+  transition: background-color .15s;
+}
+
+.filter-row:hover {
+  background-color: #00000008;
+}
+
+.filter-row-active {
+  background-color: #f2f7f3;
+}
+
+.filter-row input {
+  /* Input nativo escondido: o visual fica por conta do .filter-checkbox-box */
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+
+.filter-checkbox-box {
+  width: 1.1rem;
+  height: 1.1rem;
+  border: 1.5px solid #d9d9d9;
+  border-radius: .3rem;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: .65rem;
+  transition: all .15s;
+}
+
+.filter-row input:checked+.filter-checkbox-box {
+  background-color: #1a1a1a;
+  border-color: #1a1a1a;
+}
+
+/* Ícone de check só aparece quando marcado */
+.filter-checkbox-box svg {
+  opacity: 0;
+  transform: scale(.6);
+  transition: all .15s;
+}
+
+.filter-row input:checked+.filter-checkbox-box svg {
+  opacity: 1;
+  transform: scale(1);
+}
+
+/* Selo colorido (S / check) que identifica visualmente cada opção */
+.filter-tag {
+  width: 1.4rem;
+  height: 1.4rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: #fff;
+  font-size: .75rem;
+  flex-shrink: 0;
+}
+
+.filter-tag-paid {
+  background-color: #2fb350;
+}
+
+.filter-tag-unpaid {
+  background-color: #9a9a9a;
+}
+
+.filter-tag-confirmed {
+  background-color: #2fb350;
+}
+
+.filter-tag-unconfirmed {
+  background-color: #e0263f;
+}
+
+.filter-tag-home {
+  background-color: #3c7df0;
+}
+
+.filter-row-label {
+  font-size: .85rem;
+  color: #333;
+}
+
+/* Botões de ação do painel de filtros */
+.highlight-appointments-actions {
+  display: flex;
+  gap: .6rem;
+  margin-top: .3rem;
+}
+
+.btn-clear-filters,
+.btn-apply-filters {
+  flex: 1;
+  border-radius: .5rem;
+  padding: .65rem 0;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all .15s;
+}
+
+.btn-clear-filters {
+  border: 1px solid #ececec;
+  background-color: #fff;
+  color: #333;
+}
+
+.btn-clear-filters:hover {
+  background-color: #00000008;
+  border-color: #d9d9d9;
+}
+
+.btn-apply-filters {
+  border: none;
+  background-color: #1a1a1a;
+  color: #fff;
+}
+
+.btn-apply-filters:hover {
+  background-color: #000;
+}
+
+.calendar {
+  border: 1px solid #ececec;
+  border-radius: .75rem;
+  padding: .75rem 1rem;
+  overflow-y: auto;
+}
+
+@media (max-width: 991px) {
+  .nav-calendar-dropdown {
+    right: 0;
+    left: auto;
+  }
+}
+
+/* Linha horizontal dentro de cada hora do calendário */
+.calendar {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 3rem 2rem;
+  position: relative;
+}
+
+.calendar-hour {
+  display: flex;
+}
+
+/* Altura fixa só nas horas dentro do expediente (via style inline, ver Calendar/index.tsx) — sem isso,
+   uma hora "ocupada" (sem botão) fica muito mais baixa que uma hora livre dentro do mesmo expediente,
+   e a conversão pixel-arrastado ↔ horário real (posição dos blocos e arrastar-para-reagendar) fica
+   distorcida. Fora do expediente a hora continua compacta (só a linha), como sempre foi. */
+.calendar-hour-workday {
+  min-height: 7rem;
+}
+
+.calendar-hour-label {
+  width: 3.5rem;
+  flex-shrink: 0;
+  padding: 0rem 2rem 1rem 0rem;
+}
+
+/* Marcação de minuto dentro da hora (ex.: :15, :30, :45) — linha bem discreta, sem invadir a coluna
+   da hora cheia, só pra dar uma referência visual de onde cada quarto de hora começa */
+.calendar-subhour-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background-color: #f2f2f2;
+  pointer-events: none;
+}
+
+/* Bloco de agendamento real, posicionado por cima da grade (top/height calculados via JS) */
+.calendar-no-workday {
+  position: sticky;
+  top: 0;
+  z-index: 6;
+  background-color: #fdecef;
+  color: #e0263f;
+  font-size: .8rem;
+  font-weight: 600;
+  text-align: center;
+  padding: .6rem 1rem;
+  border-radius: .5rem;
+  margin: 0 0 1rem;
+}
+
+/* Camada invisível sobre a grade que captura o arrastar-para-selecionar. Fica atrás dos blocos de
+   agendamento/bloqueio (que são renderizados depois no DOM), então não intercepta cliques neles. */
+.calendar-range-select-layer {
+  position: absolute;
+  top: 0;
+  left: 5.5rem;
+  right: 0;
+  cursor: crosshair;
+  touch-action: none;
+  z-index: 1;
+}
+
+/* Prévia visual do intervalo sendo arrastado */
+.range-select-preview {
+  position: absolute;
+  left: 5.5rem;
+  right: 0;
+  min-height: 4px;
+  background-color: rgba(26, 26, 26, .12);
+  border: 1px dashed #1a1a1a;
+  border-radius: .3rem;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Backdrop transparente pra fechar o menu ao clicar fora */
+.range-select-menu-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 6;
+}
+
+/* Menu que aparece ao soltar o arraste, perguntando Agendamento ou Bloqueio */
+.range-select-menu {
+  position: absolute;
+  left: 5.5rem;
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  background-color: #fff;
+  border: 1px solid #ececec;
+  border-radius: .5rem;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, .18);
+  padding: .4rem .5rem;
+  transform: translateY(-50%);
+}
+
+.range-select-menu-time {
+  font-size: .72rem;
+  font-weight: 600;
+  color: #767676;
+  padding: 0 .3rem;
+  white-space: nowrap;
+}
+
+.range-select-menu-option {
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  border: none;
+  border-radius: .4rem;
+  padding: .45rem .7rem;
+  font-size: .78rem;
+  font-weight: 600;
+  cursor: pointer;
+  background-color: #1a1a1a;
+  color: #fff;
+  white-space: nowrap;
+  transition: background-color .15s;
+}
+
+.range-select-menu-option:hover {
+  background-color: #000;
+}
+
+.range-select-menu-option-block {
+  background-color: #fff;
+  color: #333;
+  border: 1px solid #ececec;
+}
+
+.range-select-menu-option-block:hover {
+  background-color: #00000008;
+}
+
+.range-select-menu-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: none;
+  color: #767676;
+  cursor: pointer;
+  padding: .3rem;
+}
+
+.appointment-block {
+  position: absolute;
+  left: 5.5rem;
+  right: 0;
+  min-height: 2.625rem;
+  background-color: #767676;
+  border-radius: .4rem;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, .12);
+  padding: .4rem .7rem;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .5rem;
+  cursor: pointer;
+  z-index: 4;
+  transition: filter .15s;
+}
+
+.appointment-block:hover {
+  filter: brightness(0.95);
+}
+
+.appointment-block-draggable {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.appointment-block-dragging {
+  cursor: grabbing;
+  z-index: 6;
+  opacity: .85;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, .25);
+  transition: none;
+}
+
+/* Esmaecido quando o filtro "A domicílio" está ativo e o atendimento não é a domicílio */
+.appointment-block-dimmed {
+  opacity: .25;
+  filter: grayscale(.4);
+}
+
+.appointment-block-dimmed:hover {
+  opacity: .45;
+}
+
+/* Faixa de "descanso" (delay entre atendimentos) logo abaixo de um agendamento — não é um bloco
+   clicável, só um aviso visual de que esse trecho também está indisponível pra outro horário */
+.appointment-buffer-strip {
+  position: absolute;
+  left: 5.5rem;
+  right: 0;
+  min-height: 18px;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(0, 0, 0, 0.12),
+    rgba(0, 0, 0, 0.12) 5px,
+    transparent 5px,
+    transparent 10px
+  );
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 0 0 .4rem .4rem;
+  pointer-events: none;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  padding: 0 .7rem;
+  overflow: hidden;
+}
+
+.appointment-buffer-strip span {
+  font-size: .65rem;
+  font-weight: 600;
+  color: #5a5a5a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.appointment-block-info {
+  display: flex;
+  flex-direction: column;
+  gap: .1rem;
+  min-width: 0;
+}
+
+.appointment-block strong {
+  font-size: .78rem;
+  line-height: 1.15;
+  color: #fff;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.appointment-block span {
+  font-size: .72rem;
+  line-height: 1.15;
+  color: #ffffffd9;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.appointment-block-badge {
+  flex-shrink: 0;
+  font-size: .85rem;
+}
+
+/* Modal de detalhes do agendamento (reaproveita a base do modal "Novo Agendamento") */
+.appointment-details-modal .new-appointment-body {
+  gap: 1.1rem;
+}
+
+.appointment-details-status {
+  align-self: flex-start;
+  color: #fff;
+  font-size: .75rem;
+  font-weight: 700;
+  padding: .3rem .7rem;
+  border-radius: 1rem;
+}
+
+.appointment-details-modal .new-appointment-summary-row span {
+  font-size: .78rem;
+  color: #767676;
+}
+
+.appointment-details-actions {
+  flex-direction: column;
+}
+
+.appointment-details-cancel {
+  color: #e0263f;
+  border-color: #f7c9d0;
+}
+
+.appointment-details-cancel:hover {
+  background-color: #fdecef;
+}
+
+.calendar-hour-line {
+  width: 100%;
+  height: 1px;
+  background-color: #ececec;
+}
+
+.container-tasks {
+  width: 100%;
+  position: relative;
+}
+
+.task-default {
+  margin: 1rem 0rem;
+  background-color: rgba(0, 0, 0, 0);
+  border-radius: 0.2rem;
+  border: 3px dotted rgba(0, 0, 0, 0.083);
+  padding: 1.5rem 1rem;
+  height: auto;
+  opacity: 40%;
+  transition: opacity .2s;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  width: 100%;
+}
+
+.task-default:hover {
+  transition: opacity .2s;
+  opacity: 100%;
+}
+
+.task-unavailable {
+  cursor: not-allowed;
+  justify-content: center;
+  color: rgba(0, 0, 0, 0.4);
+}
+
+.task-default-actions {
+  display: flex;
+  align-items: stretch;
+  gap: .5rem;
+  width: 100%;
+}
+
+.task-default-actions .task-default {
+  flex: 1;
+}
+
+.task-block {
+  margin: 1rem 0rem;
+  background-color: rgba(0, 0, 0, 0);
+  border-radius: 0.2rem;
+  border: 3px dotted rgba(0, 0, 0, 0.083);
+  padding: 1.5rem 1rem;
+  opacity: 40%;
+  transition: opacity .2s, color .2s, border-color .2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.task-block:hover {
+  opacity: 100%;
+  color: #e0263f;
+  border-color: #f7c9d0;
+}
+
+/* Reaproveita a base visual do .appointment-block, só troca a cor de fundo pro tom escuro
+   já usado nos elementos "ativos" do sistema (botões, seleção), em vez do cinza genérico */
+.blocked-slot-block {
+  background-color: #1a1a1a;
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.06),
+    rgba(255, 255, 255, 0.06) 6px,
+    transparent 6px,
+    transparent 12px
+  );
+}
+
+.appointment-break-block {
+  cursor: default;
+}
+
+.task-unavailable:hover {
+  opacity: 40%;
+}
+
+/* Indicador do horário atual: linha vermelha + rótulo HH:mm posicionado acima dela */
+.current-time-indicator {
+  position: absolute;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  pointer-events: none;
+}
+
+.current-time-label {
+  position: absolute;
+  top: -1.15rem;
+  left: 2rem;
+  font-size: .7rem;
+  font-weight: 700;
+  color: #fff;
+  background-color: #e0263f;
+  padding: .1rem .45rem;
+  border-radius: .25rem;
+  white-space: nowrap;
+}
+
+.current-time-line {
+  width: 100%;
+  height: 1px;
+  background-color: #e0263f56;
+}
+
+/* Novo agendamento: modal centralizado na tela */
+.texture-appointment {
+  position: fixed;
+  inset: 0;
+  background-color: #00000040;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity .2s ease-in-out, visibility .2s ease-in-out;
+  z-index: 19;
+}
+
+.texture-appointment.open {
+  opacity: 1;
+  visibility: visible;
+}
+
+.new-appointment {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  width: min(480px, 92vw);
+  max-height: 85dvh;
+  background-color: #fff;
+  border-radius: .9rem;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, .18);
+  z-index: 20;
+  opacity: 0;
+  visibility: hidden;
+  transform: translate(-50%, -50%) scale(.96);
+  transition: opacity .2s ease-in-out, transform .2s ease-in-out, visibility .2s ease-in-out;
+}
+
+.new-appointment.open {
+  opacity: 1;
+  visibility: visible;
+  transform: translate(-50%, -50%) scale(1);
+}
+
+@media (max-width: 991px) {
+  .new-appointment {
+    width: 92vw;
+    max-height: 80dvh;
+  }
+}
+
+/* O modal é uma coluna: cabeçalho fixo, corpo com scroll e rodapé fixo com as ações */
+.new-appointment {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Cabeçalho do painel "Novo Agendamento" (título + botão de fechar) */
+.new-appointment-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.25rem 1.5rem;
+  border-bottom: 1px solid #ececec;
+  font-size: 1rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.new-appointment-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.1rem;
+  min-width: 320px;
+}
+
+.new-appointment-header-left {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+}
+
+.new-appointment-back {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #767676;
+  width: 1.8rem;
+  height: 1.8rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: .4rem;
+  transition: background-color .15s;
+  flex-shrink: 0;
+}
+
+.new-appointment-back:hover {
+  background-color: #00000008;
+}
+
+/* Indicador de progresso das 4 etapas do formulário */
+.new-appointment-progress {
+  display: flex;
+  justify-content: space-between;
+  padding: 1rem 1.5rem 0;
+  flex-shrink: 0;
+}
+
+.new-appointment-progress-step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: .35rem;
+  flex: 1;
+  color: #a0a0a0;
+}
+
+.new-appointment-progress-dot {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  border: 1.5px solid #d9d9d9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: .75rem;
+  font-weight: 600;
+  color: #a0a0a0;
+  transition: all .15s;
+}
+
+.new-appointment-progress-step.done .new-appointment-progress-dot {
+  background-color: #1a1a1a;
+  border-color: #1a1a1a;
+  color: #fff;
+}
+
+.new-appointment-progress-step.current small {
+  color: #1a1a1a;
+  font-weight: 600;
+}
+
+.new-appointment-progress-step small {
+  font-size: .68rem;
+}
+
+/* Resumo da etapa de confirmação */
+.new-appointment-summary {
+  display: flex;
+  flex-direction: column;
+  gap: .8rem;
+  background-color: #fafafa;
+  border-radius: .6rem;
+  padding: 1rem;
+}
+
+.new-appointment-summary-row {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+}
+
+.new-appointment-summary-row small {
+  font-size: .72rem;
+  color: #767676;
+}
+
+.new-appointment-summary-row strong {
+  font-size: .85rem;
+  color: #1a1a1a;
+}
+
+.new-appointment-service-info {
+  display: flex;
+  justify-content: space-between;
+  background-color: #fafafa;
+  border-radius: .5rem;
+  padding: .7rem .9rem;
+  font-size: .8rem;
+  color: #767676;
+}
+
+.new-appointment-service-info strong {
+  color: #1a1a1a;
+}
+
+.new-appointment-checkbox {
+  display: flex;
+  align-items: center;
+  gap: .5rem;
+  font-size: .85rem;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.new-appointment-address-box {
+  display: flex;
+  flex-direction: column;
+  gap: .8rem;
+  padding: 1rem;
+  border: 1px dashed #d9d9d9;
+  border-radius: .6rem;
+  background-color: #fafafa;
+}
+
+.new-appointment-address-hint {
+  font-size: .8rem;
+  color: #767676;
+  margin: 0;
+}
+
+.new-appointment-address-add {
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: .35rem;
+  border: none;
+  background: transparent;
+  color: #1a1a1a;
+  font-size: .8rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0;
+}
+
+.new-appointment-address-add:hover {
+  text-decoration: underline;
+}
+
+.new-appointment-cep-status {
+  font-size: .72rem;
+}
+
+.new-appointment-cep-success {
+  color: #2fb350;
+}
+
+.new-appointment-cep-error {
+  color: #e0263f;
+}
+
+.new-appointment-cep-loading {
+  color: #d97706;
+}
+
+.new-appointment-travel-estimate {
+  font-size: .8rem;
+  color: #1a1a1a;
+  background: #f4f4f4;
+  border-radius: .5rem;
+  padding: .6rem .8rem;
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+}
+
+.new-appointment-travel-total {
+  color: #767676;
+  font-size: .75rem;
+}
+
+.new-appointment-travel-warning {
+  color: #e0263f;
+}
+
+.new-appointment-error {
+  background-color: #fdecef;
+  color: #e0263f;
+  border-radius: .5rem;
+  padding: .6rem .8rem;
+  font-size: .8rem;
+}
+
+.new-appointment-row {
+  display: flex;
+  gap: 1rem;
+}
+
+.new-appointment-row .new-appointment-field {
+  flex: 1;
+  min-width: 0;
+}
+
+.new-appointment-field {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  min-width: 0;
+}
+
+.new-appointment-field input,
+.new-appointment-field select,
+.new-appointment-field textarea {
+  width: 100%;
+  min-width: 0;
+}
+
+.new-appointment-field label {
+  font-size: .75rem;
+  font-weight: 600;
+  color: #767676;
+}
+
+.new-appointment-field-hint {
+  font-size: .72rem;
+  color: #a0a0a0;
+}
+
+.new-appointment-field input,
+.new-appointment-field select,
+.new-appointment-field textarea {
+  border: 1px solid #ececec;
+  border-radius: .5rem;
+  padding: .6rem .75rem;
+  font-size: .85rem;
+  color: #1a1a1a;
+  font-family: inherit;
+  transition: border-color .15s;
+}
+
+.new-appointment-field textarea {
+  resize: vertical;
+}
+
+.new-appointment-field input:focus,
+.new-appointment-field select:focus,
+.new-appointment-field textarea:focus {
+  outline: none;
+  border-color: #1a1a1a;
+}
+
+.new-appointment-field-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.new-appointment-link-btn {
+  display: flex;
+  align-items: center;
+  gap: .3rem;
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: .78rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.new-appointment-link-btn:hover {
+  text-decoration: underline;
+}
+
+/* Seletor visual de cliente (etapa 1 do Novo Agendamento) — substitui o <select> nativo por uma
+   lista com busca, avatar de iniciais e destaque de seleção */
+.customer-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.customer-picker,
+.customer-picker * {
+  box-sizing: border-box;
+}
+
+.customer-picker-search {
+  width: 100%;
+  border: 1px solid #ececec;
+  border-radius: .5rem;
+  padding: .75rem .9rem;
+  font-size: .85rem;
+  font-family: inherit;
+  color: #1a1a1a;
+  transition: border-color .15s;
+}
+
+.customer-picker-search:focus {
+  outline: none;
+  border-color: #1a1a1a;
+}
+
+.customer-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: .6rem;
+  max-height: 15rem;
+  overflow-y: auto;
+  padding: .1rem;
+}
+
+.customer-picker-empty {
+  font-size: .8rem;
+  color: #a0a0a0;
+  text-align: center;
+  padding: 1.2rem 0;
+}
+
+.customer-picker-item {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  width: 100%;
+  border: 1px solid #ececec;
+  border-radius: .6rem;
+  padding: .8rem .9rem;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s, background-color .15s;
+}
+
+.customer-picker-item:hover {
+  border-color: #d9d9d9;
+  background-color: #fafafa;
+}
+
+.customer-picker-item-active {
+  border-color: #1a1a1a;
+  background-color: #fafafa;
+}
+
+.customer-picker-avatar {
+  flex-shrink: 0;
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #1a1a1a;
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 700;
+}
+
+.customer-picker-info {
+  display: flex;
+  flex-direction: column;
+  gap: .25rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.customer-picker-info strong {
+  font-size: .85rem;
+  color: #1a1a1a;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.customer-picker-info span {
+  font-size: .75rem;
+  color: #a0a0a0;
+}
+
+.customer-picker-check {
+  flex-shrink: 0;
+  color: #1a1a1a;
+}
+
+/* Seletor visual de serviço (etapa 2 do Novo Agendamento) — mesma linguagem do seletor de cliente,
+   sem avatar já que não faz sentido pra serviço */
+.service-picker-list,
+.service-picker-list * {
+  box-sizing: border-box;
+}
+
+.service-picker-list {
+  display: flex;
+  flex-direction: column;
+  gap: .4rem;
+  max-height: 20rem;
+  overflow-y: auto;
+}
+
+.service-picker-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: .7rem;
+  width: 100%;
+  border: 1px solid #ececec;
+  border-radius: .6rem;
+  padding: .75rem .9rem;
+  background: #fff;
+  cursor: pointer;
+  text-align: left;
+  transition: border-color .15s, background-color .15s;
+}
+
+.service-picker-item:hover {
+  border-color: #d9d9d9;
+  background-color: #fafafa;
+}
+
+.service-picker-item-active {
+  border-color: #1a1a1a;
+  background-color: #fafafa;
+}
+
+.service-picker-info {
+  display: flex;
+  flex-direction: column;
+  gap: .15rem;
+  min-width: 0;
+}
+
+.service-picker-info strong {
+  font-size: .85rem;
+  color: #1a1a1a;
+}
+
+/* Item de produto (etapa "Produtos" do Novo Agendamento) — mesma base visual do seletor de
+   serviço, mas com um contador de quantidade em vez de seleção única */
+.product-picker-item {
+  cursor: default;
+}
+
+.product-qty-stepper {
+  display: flex;
+  align-items: center;
+  gap: .6rem;
+  flex-shrink: 0;
+}
+
+.product-qty-btn {
+  width: 1.6rem;
+  height: 1.6rem;
+  border-radius: 50%;
+  border: 1px solid #ececec;
+  background: #fff;
+  color: #1a1a1a;
+  font-size: .9rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: border-color .15s, background-color .15s;
+}
+
+.product-qty-btn:hover:not(:disabled) {
+  border-color: #d9d9d9;
+  background-color: #fafafa;
+}
+
+.product-qty-btn:disabled {
+  opacity: .35;
+  cursor: not-allowed;
+}
+
+.product-qty-value {
+  min-width: 1rem;
+  text-align: center;
+  font-size: .85rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.service-picker-info span {
+  font-size: .75rem;
+  color: #a0a0a0;
+}
+
+.new-appointment-inline-form {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  border: 1px solid #ececec;
+  border-radius: .6rem;
+  padding: 1rem;
+  background: #fafafa;
+}
+
+.new-appointment-inline-form-actions {
+  display: flex;
+  gap: .6rem;
+  justify-content: flex-end;
+}
+
+.new-appointment-footer {
+  display: flex;
+  gap: .6rem;
+  padding: 1rem 1.5rem;
+  border-top: 1px solid #ececec;
+  flex-shrink: 0;
+}
+
+.new-appointment-close {
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  color: #767676;
+  width: 2rem;
+  height: 2rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: .4rem;
+  transition: background-color .15s;
+  flex-shrink: 0;
+}
+
+.new-appointment-close:hover {
+  background-color: #00000008;
+}
+

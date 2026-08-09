@@ -20,6 +20,7 @@ services:
     environment:
       - CHOKIDAR_USEPOLLING=true
       - CHOKIDAR_INTERVAL=300
+      - TZ=UTC
 
     depends_on:
       postgres:
@@ -39,6 +40,9 @@ services:
     volumes:
       - .:/app
       - /app/node_modules
+
+    env_file:
+      - .env
 
     depends_on:
       - api
@@ -61,7 +65,11 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
     healthcheck:
+<<<<<<< HEAD
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
+=======
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+>>>>>>> develop
       interval: 2s
       timeout: 5s
       retries: 20

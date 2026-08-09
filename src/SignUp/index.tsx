@@ -1,9 +1,10 @@
-import { useEffect, useState, type CSSProperties } from "react";
+import { useEffect, useState } from "react";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 import { validatePassword, isAllValid, isPasswordMatch, passwordRequirements, validateFullName, validateCPF, isAddressValid, formatCEP, type ViaCEPResponse } from "./passwordValidation";
 import Toast from "../Components/Toast";
 import Header from "@/Components/Header";
 import { Link } from "react-router";
+import { API_URL } from "@/api/client";
 
 const SignUp = () => {
   const [step, setStep] = useState(1);
@@ -12,7 +13,7 @@ const SignUp = () => {
   const [password, setPassWord] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
-  const [passwordError, setPasswordError] = useState("");
+  const [email, setEmail] = useState("");
 
   const [cpfCnpj, setCpfCnpj] = useState("");
   const [cpfCnpjStatus, setCpfCnpjStatus] = useState<{ type: "success" | "error" | "loading"; message: string } | null>(null);
@@ -39,6 +40,7 @@ const SignUp = () => {
   const [workStart, setWorkStart] = useState("");
   const [workEnd, setWorkEnd] = useState("");
   const [workDays, setWorkDays] = useState<number[]>([1, 2, 3, 4, 5]);
+  const [appointmentInterval, setAppointmentInterval] = useState(30);
 
   const [privacyAccepted, setPrivacyAccepted] = useState(false);
 
@@ -87,6 +89,10 @@ const SignUp = () => {
     if (step === 1) {
       if (!nameValidation.valid) {
         setToast({ show: true, type: "error", message: nameValidation.message });
+        return;
+      }
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        setToast({ show: true, type: "error", message: "Informe um email válido — ele será usado para login e recuperação de senha." });
         return;
       }
       if (!cpfCnpjStatus || cpfCnpjStatus.type !== "success") {
@@ -148,6 +154,10 @@ const SignUp = () => {
         setToast({ show: true, type: "warning", message: "Selecione pelo menos um dia da semana." });
         return;
       }
+      if (!appointmentInterval || appointmentInterval <= 0) {
+        setToast({ show: true, type: "warning", message: "Selecione o intervalo entre atendimentos." });
+        return;
+      }
     }
 
     if (step === 7) {
@@ -171,6 +181,7 @@ const SignUp = () => {
       name,
       document: cleanDocument,
       password,
+      email,
       address: {
         cep,
         street,
@@ -186,15 +197,20 @@ const SignUp = () => {
       aiStyle,
       customAiStyle: customAiStyle || undefined,
       workSchedule: {
-        startTime: workStart,
-        endTime: workEnd,
-        daysOfWeek: workDays,
+        name: "Jornada Padrão",
+        days: workDays.map(day => ({
+          dayOfWeek: day,
+          startTime: workStart,
+          endTime: workEnd,
+          appointmentInterval,
+          isActive: true,
+        })),
       },
       privacyAccepted,
     };
 
     try {
-      const response = await fetch("http://localhost:3000/signup", {
+      const response = await fetch(`${API_URL}/signup`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(formData),
@@ -214,7 +230,7 @@ const SignUp = () => {
 
       setTimeout(() => {
         console.log("Redirecionando para dashboard...");
-        window.location.href = "/login";
+        window.location.href = "/";
         setIsSubmitting(false);
       }, 1000);
 
@@ -578,6 +594,18 @@ const SignUp = () => {
 
               <div style={styles.inputGroup}>
                 <input
+                  type="email"
+                  placeholder="Email (usado para login e recuperação de senha)"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  style={styles.input}
+                  onFocus={(e) => e.currentTarget.style.borderColor = "#1a1a1a"}
+                  onBlur={(e) => e.currentTarget.style.borderColor = "#eaeaea"}
+                />
+              </div>
+
+              <div style={styles.inputGroup}>
+                <input
                   type="text"
                   placeholder="CPF / CNPJ"
                   value={cpfCnpj}
@@ -598,7 +626,7 @@ const SignUp = () => {
                   type={typePassword}
                   placeholder="Crie uma senha"
                   value={password}
-                  onChange={(e) => { setPassWord(e.target.value); setPasswordError(""); }}
+                  onChange={(e) => setPassWord(e.target.value)}
                   style={{ ...styles.input, flex: 1 }}
                   onFocus={(e) => e.currentTarget.style.borderColor = "#1a1a1a"}
                   onBlur={(e) => e.currentTarget.style.borderColor = "#eaeaea"}
@@ -617,7 +645,7 @@ const SignUp = () => {
                   type={typePassword}
                   placeholder="Confirme a senha"
                   value={confirmPassword}
-                  onChange={(e) => { setConfirmPassword(e.target.value); setPasswordError(""); }}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
                   style={styles.input}
                   onFocus={(e) => e.currentTarget.style.borderColor = "#1a1a1a"}
                   onBlur={(e) => e.currentTarget.style.borderColor = "#eaeaea"}
@@ -1236,6 +1264,49 @@ const SignUp = () => {
                       Saída
                     </div>
                   </div>
+                </div>
+              </div>
+
+              {/* Intervalo entre atendimentos */}
+              <div style={{
+                background: "#f7f7f8",
+                padding: "18px",
+                borderRadius: "8px",
+              }}>
+                <div style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: "14px"
+                }}>
+                  <span style={{ fontSize: "13px", fontWeight: "500", color: "#1a1a1a" }}>
+                    Intervalo entre atendimentos
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  {[15, 30, 45, 60].map((min) => {
+                    const isActive = appointmentInterval === min;
+                    return (
+                      <button
+                        key={min}
+                        type="button"
+                        onClick={() => setAppointmentInterval(min)}
+                        style={{
+                          padding: "8px 16px",
+                          borderRadius: "4px",
+                          border: isActive ? "1.5px solid #1a1a1a" : "1px solid #d0d0d0",
+                          background: isActive ? "#1a1a1a" : "white",
+                          color: isActive ? "white" : "#1a1a1a",
+                          fontSize: "13px",
+                          fontWeight: isActive ? "500" : "400",
+                          cursor: "pointer",
+                          transition: "all 0.15s ease",
+                        }}
+                      >
+                        {min} min
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
 

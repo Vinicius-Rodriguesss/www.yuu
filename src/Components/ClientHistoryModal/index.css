@@ -1,0 +1,133 @@
+.chm-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.chm-modal {
+  width: 100%;
+  max-width: 420px;
+  max-height: 80vh;
+  background: #ffffff;
+  border-radius: 0.875rem;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.chm-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1.125rem 1.25rem;
+  border-bottom: 1px solid #ececec;
+  flex-shrink: 0;
+}
+
+.chm-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.chm-close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  color: #6b6b6b;
+  cursor: pointer;
+}
+
+.chm-close:hover {
+  background: #f0f0f0;
+  color: #1a1a1a;
+}
+
+.chm-body {
+  padding: 1rem 1.25rem 1.25rem;
+  overflow-y: auto;
+}
+
+.chm-empty {
+  text-align: center;
+  color: #9b9b9b;
+  font-size: 0.8125rem;
+  padding: 1.5rem 0;
+  margin: 0;
+}
+
+.chm-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.625rem;
+}
+
+.chm-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+  padding: 0.75rem 0.875rem;
+  border: 1px solid #ececec;
+  border-radius: 0.625rem;
+  background: #fafafa;
+}
+
+.chm-item-date {
+  display: flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.6875rem;
+  color: #9b9b9b;
+  text-transform: capitalize;
+}
+
+.chm-item-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.chm-item-row strong {
+  font-size: 0.875rem;
+}
+
+.chm-item-price {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.125rem;
+  font-size: 0.8125rem;
+  color: #37352f;
+  font-weight: 600;
+}
+
+.chm-item-home {
+  font-size: 0.75rem;
+  color: #6b6b6b;
+}
+
+.chm-badge {
+  font-size: 0.6875rem;
+  font-weight: 600;
+  padding: 0.1875rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.chm-badge-scheduled { background: #eef2ff; color: #4338ca; }
+.chm-badge-confirmed { background: #eaf5ee; color: #16803c; }
+.chm-badge-in_progress { background: #fff8e6; color: #92650a; }
+.chm-badge-completed { background: #f1f1ef; color: #37352f; }
+.chm-badge-cancelled { background: #faf1f1; color: #b91c1c; }
+.chm-badge-no_show { background: #faf1f1; color: #b91c1c; }

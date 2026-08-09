@@ -1,0 +1,162 @@
+.cgate-page {
+  min-height: 100dvh;
+  background: #fafafa;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1rem;
+  box-sizing: border-box;
+}
+
+.cgate-card {
+  width: 100%;
+  max-width: 420px;
+  background: #ffffff;
+  border: 1px solid #ececec;
+  border-radius: 0.875rem;
+  padding: 1.75rem 1.5rem;
+  box-sizing: border-box;
+}
+
+.cgate-card h2 {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+
+.cgate-sub {
+  margin: 0.375rem 0 1.25rem;
+  font-size: 0.8125rem;
+  color: #6b6b6b;
+}
+
+.cgate-tabs {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+}
+
+.cgate-tabs button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.375rem;
+  padding: 0.5625rem;
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 500;
+  border: 1px solid #ececec;
+  border-radius: 0.5rem;
+  background: #ffffff;
+  color: #6b6b6b;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.cgate-tabs button.active {
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+  color: #ffffff;
+}
+
+.cgate-error {
+  font-size: 0.8125rem;
+  color: #d44c47;
+  background: #faf1f1;
+  border: 1px solid #f1c4c2;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  margin-bottom: 1rem;
+}
+
+.cgate-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.875rem;
+}
+
+.cgate-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.375rem;
+}
+
+.cgate-field label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #6b6b6b;
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.cgate-field input {
+  font-family: inherit;
+  font-size: 0.875rem;
+  padding: 0.625rem 0.75rem;
+  border: 1px solid #ececec;
+  border-radius: 0.5rem;
+  outline: none;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.cgate-field input:focus {
+  border-color: #9b9b9b;
+}
+
+.cgate-lgpd {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.6875rem;
+  line-height: 1.45;
+  color: #6b6b6b;
+  padding: 0.75rem;
+  background: #fafafa;
+  border-radius: 0.625rem;
+  cursor: pointer;
+}
+
+.cgate-lgpd input {
+  margin-top: 0.125rem;
+  flex-shrink: 0;
+}
+
+.cgate-btn {
+  min-height: 44px;
+  padding: 0.75rem;
+  background: #1a1a1a;
+  color: #ffffff;
+  border: none;
+  border-radius: 0.5rem;
+  font-family: inherit;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background-color 0.15s ease;
+}
+
+.cgate-btn:hover:not(:disabled) {
+  background: #333333;
+}
+
+.cgate-btn:disabled {
+  background: #d4d4d4;
+  cursor: not-allowed;
+}
+
+@media screen and (max-width: 640px) {
+  .cgate-page {
+    background: #ffffff;
+    align-items: flex-start;
+    padding-top: 2rem;
+  }
+
+  .cgate-card {
+    border: none;
+    padding: 1rem 0.5rem;
+  }
+}

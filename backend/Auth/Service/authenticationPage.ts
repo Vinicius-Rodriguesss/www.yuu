@@ -12,7 +12,11 @@ const AuthenticationPage = (req: Request, res: Response) => {
       });
     }
 
-    jwt.verify(token, process.env.JWT_SECRET || 'default_secret_key');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET || 'default_secret_key');
+
+    if (decoded && typeof decoded === 'object' && (decoded as any).type) {
+      return res.status(401).json({ valid: false, error: 'Token inválido ou expirado' });
+    }
 
     return res.status(200).json({
       valid: true,

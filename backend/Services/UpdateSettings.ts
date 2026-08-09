@@ -1,13 +1,11 @@
 // Services/UpdateSettings.ts
 import type { Request, Response } from "express";
 import { and, eq, ne } from "drizzle-orm";
-import bcrypt from "bcryptjs";
 import { db } from "../db/index.js";
 import { usersTable } from "../db/schema/users.js";
 import { addressesTable } from "../db/schema/addresses.js";
 import { workSchedulesTable } from "../db/schema/workSchedules.js";
-
-const SALT_ROUNDS = 10;
+import { workScheduleDaysTable } from "../db/schema/workScheduleDays.js";
 
 const UpdateSettings = async (req: Request, res: Response) => {
  try {
@@ -15,8 +13,9 @@ const UpdateSettings = async (req: Request, res: Response) => {
   const {
    name,
    document,
-   password,
+   email,
    address,
+   phone,
    accountType,
    homeService,
    businessType,
@@ -24,11 +23,75 @@ const UpdateSettings = async (req: Request, res: Response) => {
    customAiStyle,
    workSchedule,
    privacyAccepted,
+   scheduleInterval,
+   appointmentBuffer,
+   breakStart,
+   breakEnd,
+   homeServiceTransport,
+   homeServiceFuelConsumption,
+   homeServiceFuelPrice,
+   homeServiceMaxDistanceKm,
   } = req.body;
 
-  if (!name || !document || !address || !accountType || !businessType || !aiStyle || !workSchedule) {
+  const validTransports = ["car", "motorcycle", "none"];
+  if (homeServiceTransport !== undefined && !validTransports.includes(homeServiceTransport)) {
+   return res.status(400).json({ error: "Tipo de transporte inválido" });
+  }
+  if (
+   homeServiceFuelConsumption !== undefined &&
+   homeServiceFuelConsumption !== null &&
+   (isNaN(Number(homeServiceFuelConsumption)) || Number(homeServiceFuelConsumption) <= 0)
+  ) {
+   return res.status(400).json({ error: "Consumo do veículo inválido" });
+  }
+  if (
+   homeServiceFuelPrice !== undefined &&
+   homeServiceFuelPrice !== null &&
+   (isNaN(Number(homeServiceFuelPrice)) || Number(homeServiceFuelPrice) <= 0)
+  ) {
+   return res.status(400).json({ error: "Preço do combustível inválido" });
+  }
+  if (
+   homeServiceMaxDistanceKm !== undefined &&
+   homeServiceMaxDistanceKm !== null &&
+   (isNaN(Number(homeServiceMaxDistanceKm)) || Number(homeServiceMaxDistanceKm) <= 0)
+  ) {
+   return res.status(400).json({ error: "Distância máxima inválida" });
+  }
+
+  const validIntervals = [5, 10, 15, 20, 30, 40, 60];
+  if (scheduleInterval !== undefined && !validIntervals.includes(Number(scheduleInterval))) {
+   return res.status(400).json({ error: "Intervalo da agenda inválido" });
+  }
+  if (
+   appointmentBuffer !== undefined &&
+   (isNaN(Number(appointmentBuffer)) || Number(appointmentBuffer) < 0 || Number(appointmentBuffer) > 240)
+  ) {
+   return res.status(400).json({ error: "Delay entre atendimentos inválido" });
+  }
+
+  const timeRegex = /^\d{2}:\d{2}$/;
+  const hasBreakStart = breakStart !== undefined && breakStart !== null && breakStart !== "";
+  const hasBreakEnd = breakEnd !== undefined && breakEnd !== null && breakEnd !== "";
+  if (hasBreakStart !== hasBreakEnd) {
+   return res.status(400).json({ error: "Informe o início e o fim da pausa" });
+  }
+  if (hasBreakStart && hasBreakEnd) {
+   if (!timeRegex.test(breakStart) || !timeRegex.test(breakEnd)) {
+    return res.status(400).json({ error: "Horário de pausa inválido" });
+   }
+   if (breakStart >= breakEnd) {
+    return res.status(400).json({ error: "O início da pausa deve ser antes do fim" });
+   }
+  }
+
+  if (!name || !document || !address || !accountType || !businessType || !aiStyle) {
    return res.status(400).json({ error: "Campos obrigatórios ausentes" });
   }
+  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+   return res.status(400).json({ error: "Email inválido" });
+  }
+  const cleanEmail = email ? String(email).trim().toLowerCase() : null;
   if (
    !address.cep ||
    !address.street ||
@@ -39,8 +102,10 @@ const UpdateSettings = async (req: Request, res: Response) => {
   ) {
    return res.status(400).json({ error: "Endereço incompleto" });
   }
-  if (!workSchedule.startTime || !workSchedule.endTime || !Array.isArray(workSchedule.daysOfWeek)) {
-   return res.status(400).json({ error: "Horário de trabalho incompleto" });
+
+  // workSchedule.days agora é um array de dias (opcional na atualização)
+  if (workSchedule && workSchedule.days && !Array.isArray(workSchedule.days)) {
+   return res.status(400).json({ error: "Dias da jornada devem ser um array" });
   }
 
   const documentDigits = String(document).replace(/\D/g, "");
@@ -56,21 +121,48 @@ const UpdateSettings = async (req: Request, res: Response) => {
    return res.status(409).json({ error: "Este CPF/CNPJ já está em uso por outra conta" });
   }
 
+  // Garante que o email não pertence a outro usuário
+  if (cleanEmail) {
+   const [emailOwner] = await db
+    .select({ id: usersTable.id })
+    .from(usersTable)
+    .where(and(eq(usersTable.email, cleanEmail), ne(usersTable.id, userId)))
+    .limit(1);
+
+   if (emailOwner) {
+    return res.status(409).json({ error: "Este email já está em uso por outra conta" });
+   }
+  }
+
   const result = await db.transaction(async (tx) => {
    const userUpdate: Record<string, unknown> = {
     name,
     document: documentDigits,
+    email: cleanEmail,
     accountType,
     homeService: homeService ?? false,
     businessType,
     aiStyle,
     customAiStyle: customAiStyle || null,
     privacyAccepted: privacyAccepted ?? false,
+    phone: phone || null,
+    homeServiceTransport: homeServiceTransport || "car",
+    homeServiceFuelConsumption: homeServiceFuelConsumption ? String(homeServiceFuelConsumption) : null,
+    homeServiceFuelPrice: homeServiceFuelPrice ? String(homeServiceFuelPrice) : null,
+    homeServiceMaxDistanceKm: homeServiceMaxDistanceKm ? Number(homeServiceMaxDistanceKm) : null,
    };
 
-   // senha só entra no update se foi enviada
-   if (password) {
-    userUpdate.password = await bcrypt.hash(password, SALT_ROUNDS);
+   if (scheduleInterval !== undefined) {
+    userUpdate.scheduleInterval = Number(scheduleInterval);
+   }
+   if (appointmentBuffer !== undefined) {
+    userUpdate.appointmentBuffer = Number(appointmentBuffer);
+   }
+   if (breakStart !== undefined) {
+    userUpdate.breakStart = hasBreakStart ? breakStart : null;
+   }
+   if (breakEnd !== undefined) {
+    userUpdate.breakEnd = hasBreakEnd ? breakEnd : null;
    }
 
    const [updatedUser] = await tx
@@ -108,36 +200,69 @@ const UpdateSettings = async (req: Request, res: Response) => {
     throw new Error("ADDRESS_UPDATE_FAILED");
    }
 
-   // Horário de trabalho: mesma lógica de update-ou-insere
-   const [existingSchedule] = await tx
-    .select({ id: workSchedulesTable.id })
-    .from(workSchedulesTable)
-    .where(eq(workSchedulesTable.userId, userId))
-    .limit(1);
+   // Horário de trabalho: atualiza o template e os dias
+   let updatedScheduleData: any = null;
+   let updatedScheduleDays: any[] = [];
 
-   const scheduleData = {
-    startTime: workSchedule.startTime,
-    endTime: workSchedule.endTime,
-    daysOfWeek: workSchedule.daysOfWeek.join(","),
-    // lunchStart: workSchedule.lunchStart ?? null,
-    // lunchEnd: workSchedule.lunchEnd ?? null,
-    // ^ descomente depois de rodar a migration adicionando lunch_start/lunch_end em work_schedules
-    updatedAt: new Date(),
-   };
-
-   const [updatedSchedule] = existingSchedule
-    ? await tx
-     .update(workSchedulesTable)
-     .set(scheduleData)
+   if (workSchedule) {
+    const [existingSchedule] = await tx
+     .select({ id: workSchedulesTable.id })
+     .from(workSchedulesTable)
      .where(eq(workSchedulesTable.userId, userId))
-     .returning()
-    : await tx
-     .insert(workSchedulesTable)
-     .values({ userId, ...scheduleData })
-     .returning();
+     .limit(1);
 
-   if (!updatedSchedule) {
-    throw new Error("SCHEDULE_UPDATE_FAILED");
+    const scheduleTemplateData = {
+     name: workSchedule.name || "Jornada Padrão",
+     isActive: workSchedule.isActive ?? true,
+     updatedAt: new Date(),
+    };
+
+    let scheduleId: number;
+
+    if (existingSchedule) {
+     const [updated] = await tx
+      .update(workSchedulesTable)
+      .set(scheduleTemplateData)
+      .where(eq(workSchedulesTable.userId, userId))
+      .returning();
+     scheduleId = updated!.id;
+    } else {
+     const [created] = await tx
+      .insert(workSchedulesTable)
+      .values({ userId, ...scheduleTemplateData })
+      .returning();
+     scheduleId = created!.id;
+    }
+
+    // Atualiza os dias da jornada
+    if (workSchedule.days && Array.isArray(workSchedule.days) && workSchedule.days.length > 0) {
+     // Remove dias antigos
+     await tx
+      .delete(workScheduleDaysTable)
+      .where(eq(workScheduleDaysTable.workScheduleId, scheduleId));
+
+     // Insere novos dias
+     const daysToInsert = workSchedule.days.map((day: any) => ({
+      workScheduleId: scheduleId,
+      dayOfWeek: day.dayOfWeek,
+      startTime: day.startTime,
+      endTime: day.endTime,
+      appointmentInterval: day.appointmentInterval,
+      isActive: day.isActive ?? true,
+     }));
+
+     updatedScheduleDays = await tx
+      .insert(workScheduleDaysTable)
+      .values(daysToInsert)
+      .returning();
+    }
+
+    updatedScheduleData = {
+     id: scheduleId,
+     name: scheduleTemplateData.name,
+     isActive: scheduleTemplateData.isActive,
+     days: updatedScheduleDays,
+    };
    }
 
    const { password: _password, ...userWithoutPassword } = updatedUser;
@@ -145,10 +270,7 @@ const UpdateSettings = async (req: Request, res: Response) => {
    return {
     ...userWithoutPassword,
     address: updatedAddress,
-    workSchedule: {
-     ...updatedSchedule,
-     daysOfWeek: updatedSchedule.daysOfWeek.split(",").filter(Boolean).map(Number),
-    },
+    workSchedule: updatedScheduleData,
    };
   });
 
@@ -158,7 +280,10 @@ const UpdateSettings = async (req: Request, res: Response) => {
    return res.status(404).json({ error: "Usuário não encontrado" });
   }
   if (error?.code === "23505") {
-   return res.status(409).json({ error: "Este CPF/CNPJ já está em uso por outra conta" });
+   const isEmailConflict = String(error?.constraint || "").includes("email");
+   return res.status(409).json({
+    error: isEmailConflict ? "Este email já está em uso por outra conta" : "Este CPF/CNPJ já está em uso por outra conta",
+   });
   }
   console.error("ERRO DETALHADO:", error); // <-- adiciona isso
   return res.status(500).json({ error: "Erro ao salvar configurações" });

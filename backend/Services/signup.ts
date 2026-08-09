@@ -6,15 +6,19 @@ import { db } from "../db/index.js";
 import { usersTable } from "../db/schema/users.js";
 import { addressesTable } from "../db/schema/addresses.js";
 import { workSchedulesTable } from "../db/schema/workSchedules.js";
+import { workScheduleDaysTable } from "../db/schema/workScheduleDays.js";
+import { welcomeEmailTemplate } from "./Email/templates.js";
+import { sendMail } from "./Email/mailer.js";
 
 // Estrutura esperada no body da requisição
 interface SignupBody {
   name: string;
   document: string;
   password: string;
+  email: string;
 
   address: {
-    cep: string;
+    cep: string;  
     street: string;
     number: string;
     complement?: string;
@@ -31,11 +35,14 @@ interface SignupBody {
   customAiStyle?: string;
 
   workSchedule: {
-    startTime: string;
-    endTime: string;
-    daysOfWeek: number[];
-    lunchStart?: string | null;
-    lunchEnd?: string | null;
+    name?: string;
+    days: {
+      dayOfWeek: number;
+      startTime: string;
+      endTime: string;
+      appointmentInterval: number;
+      isActive?: boolean;
+    }[];
   };
 
   privacyAccepted: boolean;
@@ -48,6 +55,7 @@ const Signup = async (req: Request<{}, {}, SignupBody>, res: Response) => {
       name,
       document,
       password,
+      email,
       address,
       accountType,
       homeService,
@@ -65,6 +73,13 @@ const Signup = async (req: Request<{}, {}, SignupBody>, res: Response) => {
       });
     }
 
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({
+        message: "Email válido é obrigatório (usado para login e recuperação de senha)",
+      });
+    }
+    const cleanEmail = email.trim().toLowerCase();
+
     if (!privacyAccepted) {
       return res.status(400).json({
         message: "É necessário aceitar os termos de privacidade",
@@ -72,15 +87,9 @@ const Signup = async (req: Request<{}, {}, SignupBody>, res: Response) => {
     }
 
     // Validação da jornada de trabalho
-    if (!workSchedule || !workSchedule.startTime || !workSchedule.endTime) {
+    if (!workSchedule || !Array.isArray(workSchedule.days) || workSchedule.days.length === 0) {
       return res.status(400).json({
-        message: "Horário de início e fim são obrigatórios",
-      });
-    }
-
-    if (workSchedule.daysOfWeek.length === 0) {
-      return res.status(400).json({
-        message: "Selecione pelo menos um dia da semana",
+        message: "Informe pelo menos um dia de trabalho",
       });
     }
 
@@ -97,11 +106,21 @@ const Signup = async (req: Request<{}, {}, SignupBody>, res: Response) => {
       });
     }
 
+    // Verifica se o email já está em uso
+    const existingEmail = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.email, cleanEmail))
+      .limit(1);
+
+    if (existingEmail.length > 0) {
+      return res.status(409).json({
+        message: "Este email já está cadastrado no sistema",
+      });
+    }
+
     // Criptografa senha
     const hashedPassword = await bcrypt.hash(password, 10);
-
-    // Converte array de dias para string separada por vírgula
-    const daysOfWeekString = workSchedule.daysOfWeek.join(",");
 
     // Transaction garante consistência
     const result = await db.transaction(async (tx) => {
@@ -112,6 +131,7 @@ const Signup = async (req: Request<{}, {}, SignupBody>, res: Response) => {
           name,
           document,
           password: hashedPassword,
+          email: cleanEmail,
           accountType,
           homeService,
           businessType,
@@ -137,17 +157,38 @@ const Signup = async (req: Request<{}, {}, SignupBody>, res: Response) => {
         state: address.state,
       });
 
-      // 3. Criando jornada de trabalho
-      await tx.insert(workSchedulesTable).values({
-        userId: user.id,
-        startTime: workSchedule.startTime,
-        endTime: workSchedule.endTime,
-        daysOfWeek: daysOfWeekString,
-        isActive: true,
-      });
+      // 3. Criando jornada de trabalho (template)
+      const [schedule] = await tx
+        .insert(workSchedulesTable)
+        .values({
+          userId: user.id,
+          name: workSchedule.name || "Jornada Padrão",
+          isActive: true,
+        })
+        .returning();
+
+      // 4. Criando os dias da jornada
+      const daysToInsert = workSchedule.days.map((day) => ({
+        workScheduleId: schedule!.id,
+        dayOfWeek: day.dayOfWeek,
+        startTime: day.startTime,
+        endTime: day.endTime,
+        appointmentInterval: day.appointmentInterval,
+        isActive: day.isActive ?? true,
+      }));
+
+      await tx.insert(workScheduleDaysTable).values(daysToInsert);
 
       return user;
     });
+
+    // Email de boas-vindas não bloqueia o cadastro se falhar
+    try {
+      const { subject, html } = welcomeEmailTemplate(result.name);
+      await sendMail(cleanEmail, subject, html);
+    } catch (emailError) {
+      console.warn("Falha ao enviar email de boas-vindas:", emailError);
+    }
 
     return res.status(201).json({
       message: "Usuário criado com sucesso",
@@ -164,8 +205,11 @@ const Signup = async (req: Request<{}, {}, SignupBody>, res: Response) => {
 
     // Erro de chave duplicada (PostgreSQL)
     if (error?.code === "23505") {
+      const isEmailConflict = String(error?.constraint || "").includes("email");
       return res.status(409).json({
-        message: "Registro duplicado. Este dado já existe no sistema.",
+        message: isEmailConflict
+          ? "Este email já está cadastrado no sistema"
+          : "Registro duplicado. Este dado já existe no sistema.",
         detail: error?.detail,
         constraint: error?.constraint,
       });

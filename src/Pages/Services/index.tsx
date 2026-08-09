@@ -16,6 +16,7 @@ import {
   FiAlertCircle,
 } from "react-icons/fi";
 import Toast from "../../Components/Toast/index";
+import { API_URL } from "@/api/client";
 
 interface Service {
   id: number;
@@ -25,6 +26,8 @@ interface Service {
   price: number;
   category: string;
   active: boolean;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 // Paleta de cores para categorias dinâmicas
@@ -92,7 +95,7 @@ const Services = () => {
 
   const fetchServices = async () => {
     try {
-      const response = await fetch("http://localhost:3000/services", {
+      const response = await fetch(`${API_URL}/services`, {
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
         },
@@ -167,7 +170,7 @@ const Services = () => {
     if (!deletingService) return;
 
     try {
-      const response = await fetch(`http://localhost:3000/services/${deletingService.id}`, {
+      const response = await fetch(`${API_URL}/services/${deletingService.id}`, {
         method: "DELETE",
         headers: {
           Authorization: `Bearer ${localStorage.getItem("token")}`,
@@ -214,8 +217,8 @@ const Services = () => {
 
     try {
       const url = editingId
-        ? `http://localhost:3000/services/${editingId}`
-        : "http://localhost:3000/services";
+        ? `${API_URL}/services/${editingId}`
+        : `${API_URL}/services`;
 
       const method = editingId ? "PUT" : "POST";
 
@@ -247,7 +250,7 @@ const Services = () => {
 
   const toggleServiceStatus = async (id: number, currentStatus: boolean) => {
     try {
-      const response = await fetch(`http://localhost:3000/services/${id}/toggle`, {
+      const response = await fetch(`${API_URL}/services/${id}/toggle`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",

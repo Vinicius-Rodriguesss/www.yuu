@@ -10,10 +10,11 @@ import {
   FiClock,
   FiChevronDown,
   FiShield,
-  FiCoffee,
   FiAlertCircle,
   FiCheck,
   FiNavigation,
+  FiLink,
+  FiCopy,
 } from "react-icons/fi";
 import {
   validatePassword,
@@ -24,6 +25,7 @@ import {
   type ViaCEPResponse,
 } from "../../SignUp/passwordValidation";
 import Toast from "../../Components/Toast";
+import { API_URL } from "@/api/client";
 
 interface AddressState {
   cep: string;
@@ -41,6 +43,7 @@ type AiStyleType = "direto" | "amigavel" | "profissional" | "";
 interface FormState {
   name: string;
   document: string;
+  email: string;
   address: AddressState;
   accountType: AccountType;
   homeService: boolean;
@@ -50,15 +53,19 @@ interface FormState {
   workStart: string;
   workEnd: string;
   workDays: number[];
-  hasLunchBreak: boolean;
-  lunchStart: string;
-  lunchEnd: string;
+  appointmentInterval: number;
+  scheduleInterval: number;
+  appointmentBuffer: number;
+  breakStart: string;
+  breakEnd: string;
   privacyAccepted: boolean;
+  homeServiceMaxDistanceKm: string;
 }
 
 interface ProfileResponse {
   name: string;
   document: string;
+  email?: string | null;
   address: AddressState;
   accountType: "establishment" | "professional";
   homeService: boolean;
@@ -66,18 +73,28 @@ interface ProfileResponse {
   aiStyle: "direto" | "amigavel" | "profissional";
   customAiStyle?: string;
   workSchedule: {
-    startTime: string;
-    endTime: string;
-    daysOfWeek: number[];
-    lunchStart?: string | null;
-    lunchEnd?: string | null;
+    name?: string;
+    days: {
+      dayOfWeek: number;
+      startTime: string;
+      endTime: string;
+      appointmentInterval: number;
+      isActive: boolean;
+    }[];
   };
   privacyAccepted?: boolean;
+  scheduleInterval?: number;
+  appointmentBuffer?: number;
+  breakStart?: string | null;
+  breakEnd?: string | null;
+  publicSlug?: string | null;
+  homeServiceMaxDistanceKm?: number | null;
 }
 
 const emptyForm: FormState = {
   name: "",
   document: "",
+  email: "",
   address: { cep: "", street: "", number: "", complement: "", neighborhood: "", city: "", state: "" },
   accountType: "",
   homeService: false,
@@ -87,10 +104,13 @@ const emptyForm: FormState = {
   workStart: "",
   workEnd: "",
   workDays: [1, 2, 3, 4, 5],
-  hasLunchBreak: false,
-  lunchStart: "",
-  lunchEnd: "",
+  appointmentInterval: 30,
+  scheduleInterval: 15,
+  appointmentBuffer: 0,
+  breakStart: "",
+  breakEnd: "",
   privacyAccepted: true,
+  homeServiceMaxDistanceKm: "",
 };
 
 const inputClass =
@@ -129,15 +149,16 @@ const formatDocument = (value: string) => {
     .replace(/(\d{4})(\d)/, "$1-$2");
 };
 
-type SectionId = "personal" | "password" | "address" | "account" | "ai" | "schedule";
+type SectionId = "personal" | "password" | "address" | "account" | "ai" | "schedule" | "public";
 
 const SECTIONS: { id: SectionId; icon: typeof FiUser; label: string; subtitle: string }[] = [
   { id: "personal", icon: FiUser, label: "Dados pessoais", subtitle: "Nome e documento" },
-  { id: "password", icon: FiEye, label: "Senha", subtitle: "Opcional — deixe em branco para manter" },
+  { id: "password", icon: FiEye, label: "Senha", subtitle: "Trocar com confirmação por email" },
   { id: "address", icon: FiMapPin, label: "Endereço", subtitle: "Onde você atende" },
   { id: "account", icon: FiBriefcase, label: "Tipo de conta", subtitle: "Estabelecimento ou profissional" },
   { id: "ai", icon: FiMessageSquare, label: "Estilo da IA", subtitle: "Como ela fala com seus clientes" },
-  { id: "schedule", icon: FiClock, label: "Horários", subtitle: "Jornada e intervalo" },
+  { id: "schedule", icon: FiClock, label: "Horários", subtitle: "Jornada, intervalo da agenda e delay" },
+  { id: "public", icon: FiLink, label: "Divulgação", subtitle: "Seu link público de agendamento" },
 ];
 
 const Settings = () => {
@@ -149,9 +170,19 @@ const Settings = () => {
   const [form, setForm] = useState<FormState>(emptyForm);
   const initialSnapshot = useRef<string>(JSON.stringify(emptyForm));
 
+  const [publicSlug, setPublicSlug] = useState<string | null>(null);
+  const [generatingLink, setGeneratingLink] = useState(false);
+  const [linkCopied, setLinkCopied] = useState(false);
+  const [bookingLinkCopied, setBookingLinkCopied] = useState(false);
+
+  // Troca de senha (fluxo separado, com código enviado por email)
+  const [passwordCodeSent, setPasswordCodeSent] = useState(false);
+  const [passwordCode, setPasswordCode] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
+  const [requestingPasswordCode, setRequestingPasswordCode] = useState(false);
+  const [confirmingPasswordChange, setConfirmingPasswordChange] = useState(false);
 
   const [cpfCnpjStatus, setCpfCnpjStatus] = useState<{ type: "success" | "error" | "loading"; message: string } | null>(
     null
@@ -166,7 +197,61 @@ const Settings = () => {
 
   const nameValidation = validateFullName(form.name);
   const passwordChecks = validatePassword(password);
-  const isDirty = JSON.stringify(form) !== initialSnapshot.current || password.length > 0;
+  const isDirty = JSON.stringify(form) !== initialSnapshot.current;
+
+  const handleRequestPasswordCode = async () => {
+    setRequestingPasswordCode(true);
+    try {
+      const res = await fetch(`${API_URL}/user/password/request-code`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Erro ao enviar código");
+      setPasswordCodeSent(true);
+      setToast({ show: true, type: "success", message: "Código enviado para o seu email" });
+    } catch (error) {
+      setToast({ show: true, type: "error", message: error instanceof Error ? error.message : "Erro ao enviar código" });
+    } finally {
+      setRequestingPasswordCode(false);
+    }
+  };
+
+  const handleConfirmPasswordChange = async () => {
+    if (passwordCode.trim().length !== 6) {
+      setToast({ show: true, type: "error", message: "Informe o código de 6 dígitos" });
+      return;
+    }
+    const allValid = Object.values(passwordChecks).every(Boolean);
+    if (!allValid) {
+      setToast({ show: true, type: "error", message: "A nova senha não atende aos requisitos" });
+      return;
+    }
+    if (password !== confirmPassword) {
+      setToast({ show: true, type: "error", message: "As senhas não conferem" });
+      return;
+    }
+
+    setConfirmingPasswordChange(true);
+    try {
+      const res = await fetch(`${API_URL}/user/password/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+        body: JSON.stringify({ code: passwordCode.trim(), newPassword: password }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Erro ao alterar senha");
+      setToast({ show: true, type: "success", message: "Senha alterada com sucesso!" });
+      setPasswordCodeSent(false);
+      setPasswordCode("");
+      setPassword("");
+      setConfirmPassword("");
+    } catch (error) {
+      setToast({ show: true, type: "error", message: error instanceof Error ? error.message : "Erro ao alterar senha" });
+    } finally {
+      setConfirmingPasswordChange(false);
+    }
+  };
 
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
@@ -188,7 +273,7 @@ const Settings = () => {
 
   const fetchProfile = async () => {
     try {
-      const response = await fetch("http://localhost:3000/user/profile", {
+      const response = await fetch(`${API_URL}/user/profile`, {
         headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
       });
       if (!response.ok) throw new Error("Erro ao carregar dados");
@@ -197,22 +282,27 @@ const Settings = () => {
       const next: FormState = {
         name: data.name,
         document: formatDocument(data.document),
+        email: data.email || "",
         address: { ...data.address, complement: data.address.complement || "" },
         accountType: data.accountType,
         homeService: data.homeService,
         businessType: data.businessType,
         aiStyle: data.aiStyle,
         customAiStyle: data.customAiStyle || "",
-        workStart: data.workSchedule.startTime,
-        workEnd: data.workSchedule.endTime,
-        workDays: data.workSchedule.daysOfWeek,
-        hasLunchBreak: Boolean(data.workSchedule.lunchStart && data.workSchedule.lunchEnd),
-        lunchStart: data.workSchedule.lunchStart || "",
-        lunchEnd: data.workSchedule.lunchEnd || "",
+        workStart: data.workSchedule.days[0]?.startTime || "",
+        workEnd: data.workSchedule.days[0]?.endTime || "",
+        workDays: data.workSchedule.days.map(d => d.dayOfWeek),
+        appointmentInterval: data.workSchedule.days[0]?.appointmentInterval || 30,
+        scheduleInterval: data.scheduleInterval ?? 15,
+        appointmentBuffer: data.appointmentBuffer ?? 0,
+        breakStart: data.breakStart || "",
+        breakEnd: data.breakEnd || "",
         privacyAccepted: data.privacyAccepted ?? true,
+        homeServiceMaxDistanceKm: data.homeServiceMaxDistanceKm != null ? String(data.homeServiceMaxDistanceKm) : "",
       };
 
       setForm(next);
+      setPublicSlug(data.publicSlug ?? null);
       initialSnapshot.current = JSON.stringify(next);
     } catch {
       setToast({ show: true, type: "error", message: "Erro ao carregar dados" });
@@ -339,12 +429,8 @@ const Settings = () => {
     const docNumbers = form.document.replace(/\D/g, "");
     if (docNumbers.length !== 11 && docNumbers.length !== 14)
       errors.push({ section: "personal", message: "Informe um CPF ou CNPJ válido" });
-
-    if (password || confirmPassword) {
-      const allValid = Object.values(passwordChecks).every(Boolean);
-      if (!allValid) errors.push({ section: "password", message: "A nova senha não atende aos requisitos" });
-      if (password !== confirmPassword) errors.push({ section: "password", message: "As senhas não conferem" });
-    }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
+      errors.push({ section: "personal", message: "Informe um email válido" });
 
     const { cep, street, number, neighborhood, city, state } = form.address;
     if (!cep || !street || !number || !neighborhood || !city || !state)
@@ -358,11 +444,13 @@ const Settings = () => {
       errors.push({ section: "ai", message: "Descreva o tom desejado para a IA" });
 
     if (!form.workStart || !form.workEnd) errors.push({ section: "schedule", message: "Informe o horário de trabalho" });
+    if (form.workStart && form.workEnd && form.workStart >= form.workEnd)
+      errors.push({ section: "schedule", message: "O horário de início deve ser antes do fim" });
     if (form.workDays.length === 0) errors.push({ section: "schedule", message: "Selecione ao menos um dia" });
-    if (form.hasLunchBreak && (!form.lunchStart || !form.lunchEnd))
-      errors.push({ section: "schedule", message: "Informe o intervalo de almoço ou desative-o" });
-
-    if (!form.privacyAccepted) errors.push({ section: "schedule", message: "Confirme a política de privacidade" });
+    if (!form.scheduleInterval || form.scheduleInterval <= 0) errors.push({ section: "schedule", message: "Informe o intervalo da agenda" });
+    if (!!form.breakStart !== !!form.breakEnd) errors.push({ section: "schedule", message: "Informe o início e o fim da pausa" });
+    if (form.breakStart && form.breakEnd && form.breakStart >= form.breakEnd)
+      errors.push({ section: "schedule", message: "O início da pausa deve ser antes do fim" });
 
     return errors;
   };
@@ -378,12 +466,20 @@ const Settings = () => {
     }
     setSectionErrors(new Set());
 
+    // Aceite de termos/privacidade: é geral do formulário, não pertence a nenhuma seção específica —
+    // por isso não entra em validate() nem acende erro em nenhum card
+    if (!form.privacyAccepted) {
+      setToast({ show: true, type: "error", message: "Confirme que aceita os Termos de Uso e a Política de Privacidade" });
+      return;
+    }
+
     setIsSaving(true);
     setToast({ show: false, type: "error", message: "" });
 
     const payload: Record<string, unknown> = {
       name: form.name,
       document: form.document.replace(/\D/g, ""),
+      email: form.email,
       address: {
         cep: form.address.cep.replace(/\D/g, ""),
         street: form.address.street,
@@ -399,18 +495,25 @@ const Settings = () => {
       aiStyle: form.aiStyle,
       customAiStyle: form.customAiStyle || undefined,
       workSchedule: {
-        startTime: form.workStart,
-        endTime: form.workEnd,
-        daysOfWeek: form.workDays,
-        lunchStart: form.hasLunchBreak ? form.lunchStart : null,
-        lunchEnd: form.hasLunchBreak ? form.lunchEnd : null,
+        name: "Jornada Padrão",
+        days: form.workDays.map(day => ({
+          dayOfWeek: day,
+          startTime: form.workStart,
+          endTime: form.workEnd,
+          appointmentInterval: form.scheduleInterval,
+          isActive: true,
+        })),
       },
+      scheduleInterval: form.scheduleInterval,
+      appointmentBuffer: form.appointmentBuffer,
+      breakStart: form.breakStart || null,
+      breakEnd: form.breakEnd || null,
       privacyAccepted: form.privacyAccepted,
+      homeServiceMaxDistanceKm: form.homeService && form.homeServiceMaxDistanceKm ? form.homeServiceMaxDistanceKm : undefined,
     };
-    if (password) payload.password = password;
 
     try {
-      const res = await fetch("http://localhost:3000/user/settings", {
+      const res = await fetch(`${API_URL}/user/settings`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -432,6 +535,49 @@ const Settings = () => {
     }
   };
 
+  const handleGeneratePublicLink = async () => {
+    setGeneratingLink(true);
+    try {
+      const res = await fetch(`${API_URL}/user/public-link`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      if (!res.ok) throw new Error("Erro ao gerar link");
+      const data = await res.json();
+      setPublicSlug(data.publicSlug);
+      setToast({ show: true, type: "success", message: "Link de divulgação gerado!" });
+    } catch {
+      setToast({ show: true, type: "error", message: "Erro ao gerar link de divulgação" });
+    } finally {
+      setGeneratingLink(false);
+    }
+  };
+
+  const publicUrl = publicSlug ? `${window.location.origin}/p/${publicSlug}` : null;
+  const bookingUrl = publicSlug ? `${window.location.origin}/p/${publicSlug}/agendar` : null;
+
+  const handleCopyPublicLink = async () => {
+    if (!publicUrl) return;
+    try {
+      await navigator.clipboard.writeText(publicUrl);
+      setLinkCopied(true);
+      setTimeout(() => setLinkCopied(false), 2500);
+    } catch {
+      setToast({ show: true, type: "error", message: "Não foi possível copiar o link" });
+    }
+  };
+
+  const handleCopyBookingLink = async () => {
+    if (!bookingUrl) return;
+    try {
+      await navigator.clipboard.writeText(bookingUrl);
+      setBookingLinkCopied(true);
+      setTimeout(() => setBookingLinkCopied(false), 2500);
+    } catch {
+      setToast({ show: true, type: "error", message: "Não foi possível copiar o link" });
+    }
+  };
+
   if (isLoading) {
     return (
       <div className="font-sans flex items-center justify-center min-h-[400px]">
@@ -444,7 +590,7 @@ const Settings = () => {
   }
 
   return (
-    <div className="font-sans pb-28">
+    <div className="font-sans pb-28 h-full overflow-y-auto scrollbar-hidden">
       <Toast
         show={toast.show}
         type={toast.type}
@@ -473,6 +619,7 @@ const Settings = () => {
               case "account": return form.accountType || form.businessType;
               case "ai": return form.aiStyle;
               case "schedule": return form.workStart || form.workEnd;
+              case "public": return Boolean(publicSlug);
               default: return false;
             }
           })();
@@ -569,70 +716,130 @@ const Settings = () => {
                           </p>
                         )}
                       </div>
+                      <div>
+                        <label className={labelClass}>Email</label>
+                        <input
+                          type="email"
+                          value={form.email}
+                          onChange={(e) => update("email", e.target.value)}
+                          placeholder="seu@email.com"
+                          className={inputClass}
+                        />
+                        <p className="text-xs text-gray-400 mt-1.5 ml-0.5">
+                          Usado para login (código de verificação), recuperação e troca de senha.
+                        </p>
+                      </div>
                     </div>
                   )}
 
                   {id === "password" && (
                     <div className="space-y-4 pt-4">
-                      <div>
-                        <label className={labelClass}>Nova senha</label>
-                        <div className="flex gap-2">
-                          <input
-                            type={showPassword ? "text" : "password"}
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Deixe em branco para manter a atual"
-                            className={inputClass}
-                            autoComplete="new-password"
-                          />
+                      {!passwordCodeSent ? (
+                        <>
+                          <p className="text-sm text-gray-500">
+                            Por segurança, para trocar sua senha enviamos um código de confirmação para o seu email cadastrado.
+                          </p>
                           <button
                             type="button"
-                            onClick={() => setShowPassword((p) => !p)}
-                            className="flex-shrink-0 px-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all text-gray-400 hover:text-gray-600"
+                            onClick={handleRequestPasswordCode}
+                            disabled={requestingPasswordCode}
+                            className="px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-all disabled:opacity-50"
                           >
-                            {showPassword ? <FiEyeOff size={17} /> : <FiEye size={17} />}
+                            {requestingPasswordCode ? "Enviando..." : "Enviar código de confirmação"}
                           </button>
-                        </div>
-                      </div>
-                      {password && (
+                        </>
+                      ) : (
                         <>
                           <div>
-                            <label className={labelClass}>Confirmar senha</label>
+                            <label className={labelClass}>Código recebido por email</label>
                             <input
-                              type={showPassword ? "text" : "password"}
-                              value={confirmPassword}
-                              onChange={(e) => setConfirmPassword(e.target.value)}
-                              placeholder="Repita a senha"
-                              className={inputClass}
-                              autoComplete="new-password"
+                              type="text"
+                              inputMode="numeric"
+                              value={passwordCode}
+                              onChange={(e) => setPasswordCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                              placeholder="000000"
+                              maxLength={6}
+                              className={`${inputClass} text-center tracking-[6px] text-lg`}
                             />
-                            {confirmPassword && password !== confirmPassword && (
-                              <p className="text-xs text-red-500 mt-1.5 ml-0.5 flex items-center gap-1">
-                                <FiAlertCircle size={12} />
-                                As senhas não conferem
-                              </p>
-                            )}
                           </div>
-                          <div className="bg-gray-50 rounded-lg p-4 space-y-2">
-                            {passwordRequirements.map((req) => (
-                              <p
-                                key={req.key}
-                                className={`text-xs flex items-center gap-2 ${
-                                  passwordChecks[req.key] ? "text-green-600" : "text-gray-400"
-                                }`}
+                          <div>
+                            <label className={labelClass}>Nova senha</label>
+                            <div className="flex gap-2">
+                              <input
+                                type={showPassword ? "text" : "password"}
+                                value={password}
+                                onChange={(e) => setPassword(e.target.value)}
+                                placeholder="Nova senha"
+                                className={inputClass}
+                                autoComplete="new-password"
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setShowPassword((p) => !p)}
+                                className="flex-shrink-0 px-4 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all text-gray-400 hover:text-gray-600"
                               >
-                                <span
-                                  className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
-                                    passwordChecks[req.key]
-                                      ? "bg-green-100 text-green-600"
-                                      : "bg-gray-200 text-gray-400"
-                                  }`}
-                                >
-                                  {passwordChecks[req.key] ? "✓" : ""}
-                                </span>
-                                {req.label}
-                              </p>
-                            ))}
+                                {showPassword ? <FiEyeOff size={17} /> : <FiEye size={17} />}
+                              </button>
+                            </div>
+                          </div>
+                          {password && (
+                            <>
+                              <div>
+                                <label className={labelClass}>Confirmar senha</label>
+                                <input
+                                  type={showPassword ? "text" : "password"}
+                                  value={confirmPassword}
+                                  onChange={(e) => setConfirmPassword(e.target.value)}
+                                  placeholder="Repita a senha"
+                                  className={inputClass}
+                                  autoComplete="new-password"
+                                />
+                                {confirmPassword && password !== confirmPassword && (
+                                  <p className="text-xs text-red-500 mt-1.5 ml-0.5 flex items-center gap-1">
+                                    <FiAlertCircle size={12} />
+                                    As senhas não conferem
+                                  </p>
+                                )}
+                              </div>
+                              <div className="bg-gray-50 rounded-lg p-4 space-y-2">
+                                {passwordRequirements.map((req) => (
+                                  <p
+                                    key={req.key}
+                                    className={`text-xs flex items-center gap-2 ${
+                                      passwordChecks[req.key] ? "text-green-600" : "text-gray-400"
+                                    }`}
+                                  >
+                                    <span
+                                      className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 ${
+                                        passwordChecks[req.key]
+                                          ? "bg-green-100 text-green-600"
+                                          : "bg-gray-200 text-gray-400"
+                                      }`}
+                                    >
+                                      {passwordChecks[req.key] ? "✓" : ""}
+                                    </span>
+                                    {req.label}
+                                  </p>
+                                ))}
+                              </div>
+                            </>
+                          )}
+                          <div className="flex gap-2.5">
+                            <button
+                              type="button"
+                              onClick={() => { setPasswordCodeSent(false); setPasswordCode(""); setPassword(""); setConfirmPassword(""); }}
+                              className="px-4 py-2.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-all"
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleConfirmPasswordChange}
+                              disabled={confirmingPasswordChange}
+                              className="px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-all disabled:opacity-50"
+                            >
+                              {confirmingPasswordChange ? "Confirmando..." : "Confirmar nova senha"}
+                            </button>
                           </div>
                         </>
                       )}
@@ -817,6 +1024,39 @@ const Settings = () => {
                         </div>
                         Atende também a domicílio
                       </label>
+
+                      {form.homeService && (
+                        <div className="space-y-4 pt-2 pl-1 border-l-2 border-gray-100 ml-1">
+                          <p className="text-xs text-gray-400 pl-3">
+                            O custo de deslocamento (ida e volta) é calculado automaticamente pela
+                            distância real da rota até o cliente, com uma taxa fixa por km — você só
+                            escolhe até onde atende.
+                          </p>
+
+                          <div className="pl-3">
+                            <label className={labelClass}>Zona de atendimento</label>
+                            <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                              {[5, 10, 15, 20, 30, 50].map((km) => (
+                                <button
+                                  key={km}
+                                  type="button"
+                                  onClick={() => update("homeServiceMaxDistanceKm", String(km))}
+                                  className={`px-3 py-2.5 rounded-lg text-xs font-medium border transition-all duration-200 ${
+                                    form.homeServiceMaxDistanceKm === String(km)
+                                      ? "bg-gray-900 text-white border-gray-900"
+                                      : "bg-white text-gray-600 border-gray-200 hover:border-gray-300"
+                                  }`}
+                                >
+                                  {km} km
+                                </button>
+                              ))}
+                            </div>
+                            <p className="text-[11px] text-gray-300 mt-1.5 ml-0.5">
+                              Agendamentos a domicílio fora desse raio são recusados automaticamente.
+                            </p>
+                          </div>
+                        </div>
+                      )}
                     </div>
                   )}
 
@@ -866,107 +1106,202 @@ const Settings = () => {
                   )}
 
                   {id === "schedule" && (
-                    <div className="space-y-5 pt-4">
-                      <div>
-                        <label className={labelClass}>Horário de trabalho</label>
-                        <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
-                          <input
-                            type="time"
-                            value={form.workStart}
-                            onChange={(e) => update("workStart", e.target.value)}
-                            className={inputClass}
-                          />
-                          <span className="text-xs text-gray-300 font-medium">até</span>
-                          <input
-                            type="time"
-                            value={form.workEnd}
-                            onChange={(e) => update("workEnd", e.target.value)}
-                            className={inputClass}
-                          />
-                        </div>
-                      </div>
+                    <div className="space-y-4 pt-4">
+                      {/* Grupo 1: jornada — quando o profissional trabalha */}
+                      <div className="bg-gray-50/70 rounded-xl p-4 space-y-4">
+                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Jornada</p>
 
-                      <div>
-                        <label className="flex items-center gap-3 text-sm text-gray-700 cursor-pointer mb-3">
-                          <div className="relative">
-                            <input
-                              type="checkbox"
-                              checked={form.hasLunchBreak}
-                              onChange={(e) => update("hasLunchBreak", e.target.checked)}
-                              className="sr-only peer"
-                            />
-                            <div className="w-9 h-5 bg-gray-200 rounded-full peer-checked:bg-gray-900 transition-colors duration-200"></div>
-                            <div className="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full shadow-sm peer-checked:translate-x-4 transition-transform duration-200"></div>
-                          </div>
-                          <FiCoffee size={15} className="text-gray-400" />
-                          Tenho intervalo de almoço
-                        </label>
-                        {form.hasLunchBreak && (
+                        <div>
+                          <label className={labelClass}>Horário de trabalho</label>
                           <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
                             <input
                               type="time"
-                              value={form.lunchStart}
-                              onChange={(e) => update("lunchStart", e.target.value)}
+                              value={form.workStart}
+                              onChange={(e) => update("workStart", e.target.value)}
                               className={inputClass}
                             />
                             <span className="text-xs text-gray-300 font-medium">até</span>
                             <input
                               type="time"
-                              value={form.lunchEnd}
-                              onChange={(e) => update("lunchEnd", e.target.value)}
+                              value={form.workEnd}
+                              onChange={(e) => update("workEnd", e.target.value)}
                               className={inputClass}
                             />
                           </div>
-                        )}
-                      </div>
-
-                      <div>
-                        <label className={labelClass}>Dias da semana</label>
-                        <div className="flex flex-wrap gap-2">
-                          {WEEKDAYS.map((d) => {
-                            const active = form.workDays.includes(d.v);
-                            return (
-                              <button
-                                type="button"
-                                key={d.v}
-                                onClick={() =>
-                                  update(
-                                    "workDays",
-                                    active
-                                      ? form.workDays.filter((x) => x !== d.v)
-                                      : [...form.workDays, d.v]
-                                  )
-                                }
-                                className={`flex-1 min-w-[46px] py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
-                                  active
-                                    ? "bg-gray-900 text-white shadow-sm"
-                                    : "border border-gray-200 text-gray-500 hover:border-gray-300 hover:bg-gray-50"
-                                }`}
-                              >
-                                {d.l}
-                              </button>
-                            );
-                          })}
+                          {form.workStart && form.workEnd && form.workStart >= form.workEnd && (
+                            <p className="text-xs text-red-500 mt-1.5 ml-0.5 flex items-center gap-1">
+                              <FiAlertCircle size={12} />
+                              O início deve ser antes do fim
+                            </p>
+                          )}
                         </div>
-                      </div>
 
-                      <label className="flex items-start gap-3 text-xs text-gray-500 cursor-pointer pt-3 border-t border-gray-100">
-                        <div className="relative mt-0.5">
-                          <input
-                            type="checkbox"
-                            checked={form.privacyAccepted}
-                            onChange={(e) => update("privacyAccepted", e.target.checked)}
-                            className="sr-only peer"
-                          />
-                          <div className="w-4 h-4 rounded border border-gray-300 bg-white peer-checked:bg-gray-900 peer-checked:border-gray-900 transition-colors duration-200 flex items-center justify-center">
-                            {form.privacyAccepted && <FiCheck size={10} className="text-white" />}
+                        <div>
+                          <label className={labelClass}>Dias da semana</label>
+                          <div className="flex flex-wrap gap-2">
+                            {WEEKDAYS.map((d) => {
+                              const active = form.workDays.includes(d.v);
+                              return (
+                                <button
+                                  type="button"
+                                  key={d.v}
+                                  onClick={() =>
+                                    update(
+                                      "workDays",
+                                      active
+                                        ? form.workDays.filter((x) => x !== d.v)
+                                        : [...form.workDays, d.v]
+                                    )
+                                  }
+                                  className={`flex-1 min-w-[46px] py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                                    active
+                                      ? "bg-gray-900 text-white shadow-sm"
+                                      : "bg-white border border-gray-200 text-gray-500 hover:border-gray-300"
+                                  }`}
+                                >
+                                  {d.l}
+                                </button>
+                              );
+                            })}
                           </div>
                         </div>
-                        <span className="flex items-center gap-1.5 flex-wrap">
-                          <FiShield size={13} className="text-gray-400 flex-shrink-0" />
-                          Confirmo que meus dados estão corretos e aceito os Termos de Uso e a Política de Privacidade.
-                        </span>
-                      </label>
+
+                        <div>
+                          <label className={labelClass}>Pausa fixa (opcional)</label>
+                          <p className="text-xs text-gray-400 mb-2">
+                            Bloqueia esse horário todo dia de trabalho, tipo o almoço.
+                          </p>
+                          <div className="grid grid-cols-[1fr_auto_1fr] gap-3 items-center">
+                            <input
+                              type="time"
+                              value={form.breakStart}
+                              onChange={(e) => update("breakStart", e.target.value)}
+                              className={inputClass}
+                            />
+                            <span className="text-xs text-gray-300 font-medium">até</span>
+                            <input
+                              type="time"
+                              value={form.breakEnd}
+                              onChange={(e) => update("breakEnd", e.target.value)}
+                              className={inputClass}
+                            />
+                          </div>
+                          {(form.breakStart || form.breakEnd) && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                update("breakStart", "");
+                                update("breakEnd", "");
+                              }}
+                              className="mt-2 text-xs font-semibold text-gray-400 hover:text-gray-600"
+                            >
+                              Remover pausa
+                            </button>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Grupo 2: agenda — descanso entre atendimentos (o intervalo virou só a régua interna
+                          dos horários oferecidos, não é mais algo que o usuário precisa configurar) */}
+                      <div className="bg-gray-50/70 rounded-xl p-4 space-y-4">
+                        <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">Agenda</p>
+
+                        <div>
+                          <label className={labelClass}>Delay entre atendimentos</label>
+                          <p className="text-xs text-gray-400 mb-2">
+                            Descanso após cada atendimento, antes do próximo poder começar.
+                          </p>
+                          <div className="flex flex-wrap gap-2">
+                            {[0, 5, 10, 15, 20, 30].map((min) => {
+                              const active = form.appointmentBuffer === min;
+                              return (
+                                <button
+                                  key={min}
+                                  type="button"
+                                  onClick={() => update("appointmentBuffer", min)}
+                                  className={`px-4 py-2.5 rounded-lg text-xs font-semibold transition-all duration-200 ${
+                                    active
+                                      ? "bg-gray-900 text-white shadow-sm"
+                                      : "bg-white border border-gray-200 text-gray-500 hover:border-gray-300"
+                                  }`}
+                                >
+                                  {min === 0 ? "Sem delay" : `${min} min`}
+                                </button>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
+                  {id === "public" && (
+                    <div className="space-y-4 pt-4">
+                      <p className="text-xs text-gray-400">
+                        Você tem dois links pra divulgar — ideal pra colocar na bio do Instagram
+                        ou enviar no WhatsApp. Escolha o que fizer mais sentido pro seu público,
+                        ou use os dois.
+                      </p>
+
+                      {publicUrl && bookingUrl ? (
+                        <div className="space-y-3">
+                          <div>
+                            <p className="text-[11px] font-semibold text-gray-500 mb-1.5">
+                              Chat com a IA — o cliente conversa e é atendido pela assistente
+                            </p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <code className="flex-1 min-w-0 truncate text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-gray-700">
+                                {publicUrl}
+                              </code>
+                              <button
+                                type="button"
+                                onClick={handleCopyPublicLink}
+                                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-all duration-200"
+                              >
+                                {linkCopied ? <FiCheck size={13} className="text-green-600" /> : <FiCopy size={13} />}
+                                {linkCopied ? "Copiado!" : "Copiar"}
+                              </button>
+                            </div>
+                          </div>
+
+                          <div>
+                            <p className="text-[11px] font-semibold text-gray-500 mb-1.5">
+                              Agendamento direto — o cliente escolhe serviço e horário pelos botões
+                            </p>
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <code className="flex-1 min-w-0 truncate text-xs bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 text-gray-700">
+                                {bookingUrl}
+                              </code>
+                              <button
+                                type="button"
+                                onClick={handleCopyBookingLink}
+                                className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-lg text-xs font-semibold border border-gray-200 text-gray-700 hover:bg-gray-50 transition-all duration-200"
+                              >
+                                {bookingLinkCopied ? <FiCheck size={13} className="text-green-600" /> : <FiCopy size={13} />}
+                                {bookingLinkCopied ? "Copiado!" : "Copiar"}
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={handleGeneratePublicLink}
+                          disabled={generatingLink}
+                          className="inline-flex items-center gap-2 bg-gray-900 text-white px-5 py-2.5 rounded-lg text-xs font-semibold hover:bg-gray-800 transition-all duration-200 disabled:opacity-40"
+                        >
+                          {generatingLink ? (
+                            <div className="h-3.5 w-3.5 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                          ) : (
+                            <FiLink size={13} />
+                          )}
+                          Gerar Links de Divulgação
+                        </button>
+                      )}
+
+                      <p className="text-[11px] text-gray-300">
+                        O link é único (mesmo identificador pros dois) e não muda depois de gerado.
+                      </p>
                     </div>
                   )}
                 </div>
@@ -976,9 +1311,28 @@ const Settings = () => {
         })}
       </div>
 
+      {/* Aceite de termos/privacidade: geral do formulário inteiro, por isso fica fora das seções */}
+      <label className="mt-8 flex items-start gap-3 text-xs text-gray-500 cursor-pointer">
+        <div className="relative mt-0.5">
+          <input
+            type="checkbox"
+            checked={form.privacyAccepted}
+            onChange={(e) => update("privacyAccepted", e.target.checked)}
+            className="sr-only peer"
+          />
+          <div className="w-4 h-4 rounded border border-gray-300 bg-white peer-checked:bg-gray-900 peer-checked:border-gray-900 transition-colors duration-200 flex items-center justify-center">
+            {form.privacyAccepted && <FiCheck size={10} className="text-white" />}
+          </div>
+        </div>
+        <span className="flex items-center gap-1.5 flex-wrap">
+          <FiShield size={13} className="text-gray-400 flex-shrink-0" />
+          Confirmo que meus dados estão corretos e aceito os Termos de Uso e a Política de Privacidade.
+        </span>
+      </label>
+
       {/* Sticky save bar */}
       <div
-        className="mt-20 bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200 z-10"
+        className="mt-6 bottom-0 left-0 right-0 bg-white/95 backdrop-blur border-t border-gray-200 z-10"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="px-4 py-10 flex items-center justify-end gap-10">

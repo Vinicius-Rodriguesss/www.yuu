@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { FiCalendar, FiClock, FiUser, FiDollarSign, FiCheckCircle, FiTrendingUp, FiChevronRight } from "react-icons/fi";
+import { apiFetch, tzOffsetMin } from "@/api/client";
 
 interface Atendimento {
   id: number;
@@ -48,66 +49,22 @@ const Dashboard = () => {
   }, []);
 
   const fetchDashboard = async () => {
-    // Simular delay de carregamento
-    setTimeout(() => {
-      // DADOS MOCKADOS
-      const mockData: DashboardData = {
-        nomeCliente: "João Silva Barbearia",
-        atendimentosHoje: {
-          total: 12,
-          realizados: 7,
-          pendentes: 5
-        },
-        atendimentosMes: 187,
-        receitaMes: 12580.00,
-        horariosLivres: [
-          "09:00 - 10:00",
-          "11:30 - 12:30",
-          "14:00 - 15:00",
-          "15:30 - 16:00",
-          "16:30 - 17:30",
-          "18:00 - 19:00"
-        ],
-        proximoAtendimento: {
-          id: 1,
-          cliente: "Maria Santos",
-          servico: "Corte Feminino + Hidratação",
-          horario: "10:00",
-          valor: 180.00,
-          status: "pendente",
-          telefone: "(11) 98765-4321"
-        },
-        ultimosAtendimentos: [
-          {
-            id: 100,
-            cliente: "Carlos Eduardo",
-            servico: "Barba Completa",
-            horario: "08:30",
-            valor: 45.00,
-            status: "realizado"
-          },
-          {
-            id: 99,
-            cliente: "Ana Beatriz",
-            servico: "Corte Feminino",
-            horario: "09:00",
-            valor: 120.00,
-            status: "realizado"
-          },
-          {
-            id: 98,
-            cliente: "Ricardo Oliveira",
-            servico: "Corte Masculino",
-            horario: "09:30",
-            valor: 60.00,
-            status: "realizado"
-          }
-        ]
-      };
+    setLoading(true);
+    try {
+      const [dashboard, profile] = await Promise.all([
+        apiFetch(`/dashboard?tz=${tzOffsetMin}`),
+        apiFetch("/user/profile").catch(() => null),
+      ]);
 
-      setDados(mockData);
+      setDados({
+        ...dashboard,
+        nomeCliente: profile?.name ?? "Profissional",
+      });
+    } catch (error) {
+      console.error("Erro ao carregar dashboard:", error);
+    } finally {
       setLoading(false);
-    }, 1000);
+    }
   };
 
   const horarioAtual = new Date();
