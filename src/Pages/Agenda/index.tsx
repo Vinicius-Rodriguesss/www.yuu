@@ -364,7 +364,7 @@ const Agenda = () => {
         target="_blank"
         rel="noopener noreferrer"
       >
-        <img src="https://yu-u.vercel.app/assets/FAICON.png" alt="YuU" />
+        <img src="/faicon.png" alt="YuU" />
         <span>YuU</span>
       </a>
       <div className="container-agenda">

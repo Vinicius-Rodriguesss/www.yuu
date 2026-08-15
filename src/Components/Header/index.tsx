@@ -40,7 +40,7 @@ export default function Header() {
     <header style={style.header}>
       <Link to={"/login"} style={style.logo}>
         <img
-          src="https://yu-u.vercel.app/assets/FAICON.png"
+          src="/faicon.png"
           alt="YuU"
           style={style.logoImage}
         />
