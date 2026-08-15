@@ -1,0 +1,85 @@
+.agenda-page {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100dvh;
+}
+
+.container-agenda {
+    overflow: hidden;
+    width: 1000px;
+    height: 500px;
+    border-radius: 10px;
+    border: 1px solid rgba(0, 0, 0, 0.119);
+    display: flex;
+}
+
+.side {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    height: 100%;
+    padding: 2rem;
+}
+
+.side-one {
+    border-right: 1px solid rgba(0, 0, 0, 0.119);
+}
+
+.header-side {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.header-side button {
+    cursor: pointer;
+    padding: 10px;
+    transition: all .5s;
+}
+
+.header-side button:hover {
+    transform: translateX(-5px);
+    transition: all .5s;
+}
+
+.header-side span {
+    color: rgba(0, 0, 0, 0.44);
+}
+
+.footer-side {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+}
+
+.container-cicle {
+    display: flex;
+    align-items: center;
+    gap: .3rem;
+}
+
+.cicle {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background-color: rgba(0, 0, 0, 0.137);
+    cursor: pointer;
+    transition: all .5s;
+
+}
+
+.cicle:hover {
+    background-color: rgba(0, 0, 0, 0.433);
+    transition: all .5s;
+}
+
+.cicle-active {
+    width: 12px;
+    height: 12px;
+    background-color: rgba(0, 0, 0, 0.433);
+}

@@ -12,7 +12,7 @@ import Customers from './Pages/Customers'
 import Products from './Pages/Products'
 import Caixa from './Pages/Caixa'
 import PublicChat from './Pages/PublicChat'
-import PublicBooking from './Pages/PublicBooking'
+import Agenda from './Pages/Agenda'
 
 const AppRoutes = () => {
   return (
@@ -21,7 +21,7 @@ const AppRoutes = () => {
       <Route path="/signup" element={<SignUp />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/p/:slug" element={<PublicChat />} />
-      <Route path="/p/:slug/agendar" element={<PublicBooking />} />
+      <Route path="/p/:slug/agenda" element={<Agenda />} />
 
       {/* Rota protegida */}
       {/* Tudo aqui dentro é protegido E usa o layout com Navbar */}
