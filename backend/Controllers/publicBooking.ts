@@ -5,6 +5,7 @@ import { guestBookingRateLimit } from "../Auth/Middleware/guestBookingRateLimit.
 import GetPublicAvailability from "../Services/PublicProfile/getPublicAvailability.js";
 import PublicBookAppointment from "../Services/PublicProfile/publicBookAppointment.js";
 import GetClientHistory from "../Services/PublicProfile/getClientHistory.js";
+import CancelClientAppointment from "../Services/PublicProfile/cancelClientAppointment.js";
 
 const router = Router();
 
@@ -22,6 +23,11 @@ router.post("/public/:slug/appointments", clientAuthOptional, guestBookingRateLi
 // Histórico do cliente com este profissional + serviços mais usados
 router.get("/public/:slug/history", clientAuthMiddleware, async (req, res) => {
   GetClientHistory(req as never, res);
+});
+
+// Cliente desiste de um agendamento futuro que ele mesmo marcou
+router.patch("/public/:slug/appointments/:id/cancel", clientAuthMiddleware, async (req, res) => {
+  CancelClientAppointment(req as never, res);
 });
 
 export default router;

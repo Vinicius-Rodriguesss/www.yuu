@@ -112,6 +112,7 @@ interface HistoryAppointment {
   travelCost: string;
   serviceId: number;
   serviceTitle: string;
+  products: { name: string; unitPrice: string; quantity: number }[];
 }
 
 interface DayAvailability {
@@ -232,6 +233,7 @@ const Agenda = () => {
 
   const [showHistory, setShowHistory] = useState(false);
   const [historyAppointments, setHistoryAppointments] = useState<HistoryAppointment[] | null>(null);
+  const [cancellingId, setCancellingId] = useState<number | null>(null);
 
   useEffect(() => {
     if (!showHistory || !slug) return;
@@ -240,6 +242,22 @@ const Agenda = () => {
       .then((data) => setHistoryAppointments(data.appointments ?? []))
       .catch(() => setHistoryAppointments([]));
   }, [showHistory, slug]);
+
+  const handleCancelAppointment = async (id: number) => {
+    if (!slug) return;
+    if (!window.confirm("Tem certeza que deseja desistir desse agendamento?")) return;
+    setCancellingId(id);
+    try {
+      await clientApiFetch(`/public/${slug}/appointments/${id}/cancel`, { method: "PATCH" });
+      setHistoryAppointments((prev) =>
+        prev ? prev.map((a) => (a.id === id ? { ...a, status: "cancelled" } : a)) : prev
+      );
+    } catch (err) {
+      alert(err instanceof Error ? err.message : "Erro ao cancelar agendamento");
+    } finally {
+      setCancellingId(null);
+    }
+  };
 
   const goBack = () => {
     if (showHistory) {
@@ -366,6 +384,9 @@ const Agenda = () => {
           isHomeService: homeService,
           addressId: homeService ? selectedAddressId : undefined,
           notes: notes.trim() || undefined,
+          products: selectedProducts.length
+            ? selectedProducts.map((p) => ({ productId: p.id, quantity: p.quantity }))
+            : undefined,
           ...(!session ? { guestName, guestEmail } : {}),
         }),
       });
@@ -447,13 +468,30 @@ const Agenda = () => {
                         </div>
                         <div className="agenda-history-row">
                           <strong>{a.serviceTitle}</strong>
-                          <span className="agenda-history-badge">{statusLabels[a.status] ?? a.status}</span>
+                          <span className={`agenda-history-badge agenda-history-badge-${a.status}`}>
+                            {statusLabels[a.status] ?? a.status}
+                          </span>
                         </div>
+                        {a.products.length > 0 && (
+                          <div className="agenda-history-row agenda-history-products">
+                            <span>+ {a.products.map((p) => `${p.name} (${p.quantity}x)`).join(", ")}</span>
+                          </div>
+                        )}
                         <div className="agenda-history-row">
                           <FiDollarSign size={11} />
                           <span>{formatMoney(Number(a.price) + Number(a.travelCost))}</span>
                           {a.isHomeService && <span>· domicílio</span>}
                         </div>
+                        {(a.status === "scheduled" || a.status === "confirmed") && (
+                          <button
+                            type="button"
+                            className="agenda-history-cancel"
+                            disabled={cancellingId === a.id}
+                            onClick={() => handleCancelAppointment(a.id)}
+                          >
+                            {cancellingId === a.id ? "Cancelando..." : "Desistir do agendamento"}
+                          </button>
+                        )}
                       </div>
                     ))}
                   </div>
@@ -761,9 +799,9 @@ const Agenda = () => {
                 <p>
                   Total: <strong>
                     {formatMoney(
-                      Number(createdAppointment?.price ?? selectedService?.price ?? 0) +
-                      productsTotal +
-                      Number(createdAppointment?.travelCost ?? 0)
+                      createdAppointment
+                        ? Number(createdAppointment.price) + Number(createdAppointment.travelCost ?? 0)
+                        : Number(selectedService?.price ?? 0) + productsTotal
                     )}
                   </strong>
                 </p>

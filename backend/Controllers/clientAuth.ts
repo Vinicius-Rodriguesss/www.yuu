@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { clientAuthMiddleware } from "../Auth/Middleware/clientAuth.js";
+import { authLimiter, signupLimiter } from "../Auth/Middleware/rateLimit.js";
 import RegisterClient from "../Services/ClientAuth/registerClient.js";
 import LoginClient from "../Services/ClientAuth/loginClient.js";
 import GetClientMe from "../Services/ClientAuth/getClientMe.js";
@@ -13,11 +14,11 @@ import {
 const router = Router();
 
 // Conta global do cliente final (páginas públicas /p/:slug)
-router.post("/client/register", async (req, res) => {
+router.post("/client/register", signupLimiter, async (req, res) => {
   RegisterClient(req, res);
 });
 
-router.post("/client/login", async (req, res) => {
+router.post("/client/login", authLimiter, async (req, res) => {
   LoginClient(req, res);
 });
 

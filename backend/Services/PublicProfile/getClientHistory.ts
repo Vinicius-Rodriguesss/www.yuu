@@ -9,12 +9,13 @@
  *   de sempre?" na hora de escolher o serviço.
  */
 import type { Request, Response } from "express";
-import { eq, and, desc, sql } from "drizzle-orm";
+import { eq, and, desc, sql, inArray } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { usersTable } from "../../db/schema/users.js";
 import { customersTable } from "../../db/schema/customers.js";
 import { appointmentsTable } from "../../db/schema/appointments.js";
 import { servicesTable } from "../../db/schema/services.js";
+import { appointmentProductsTable } from "../../db/schema/appointmentProducts.js";
 
 const MAX_RECOMMENDATIONS = 3;
 
@@ -61,6 +62,26 @@ const GetClientHistory = async (req: Request<{ slug: string }>, res: Response) =
       .where(eq(appointmentsTable.customerId, customer.id))
       .orderBy(desc(appointmentsTable.createdAt));
 
+    // Produtos vendidos junto de cada agendamento (já entram no price
+    // salvo, aqui só pra detalhar o que compõe o valor no histórico)
+    const appointmentIds = appointments.map((a) => a.id);
+    const products = appointmentIds.length
+      ? await db
+          .select({
+            appointmentId: appointmentProductsTable.appointmentId,
+            name: appointmentProductsTable.name,
+            unitPrice: appointmentProductsTable.unitPrice,
+            quantity: appointmentProductsTable.quantity,
+          })
+          .from(appointmentProductsTable)
+          .where(inArray(appointmentProductsTable.appointmentId, appointmentIds))
+      : [];
+
+    const appointmentsWithProducts = appointments.map((a) => ({
+      ...a,
+      products: products.filter((p) => p.appointmentId === a.id),
+    }));
+
     // Serviços mais usados: conta quantas vezes cada serviço (ainda ativo)
     // aparece nos agendamentos deste cliente, do mais pedido pro menos.
     const recommendedServices = await db
@@ -80,7 +101,7 @@ const GetClientHistory = async (req: Request<{ slug: string }>, res: Response) =
       .orderBy(desc(sql`count(${appointmentsTable.id})`))
       .limit(MAX_RECOMMENDATIONS);
 
-    return res.status(200).json({ appointments, recommendedServices });
+    return res.status(200).json({ appointments: appointmentsWithProducts, recommendedServices });
   } catch (error) {
     console.error("ERRO GET CLIENT HISTORY:", error);
     return res.status(500).json({ error: "Erro ao buscar histórico" });

@@ -26,6 +26,7 @@ import { clientAccountsTable } from "../../db/schema/clientAccounts.js";
 import { clientAddressesTable } from "../../db/schema/clientAddresses.js";
 import { resolveHomeServiceTravel } from "../Travel/estimateTravel.js";
 import { createAppointmentCore } from "../Appointments/createAppointmentCore.js";
+import { resolveAppointmentProducts } from "../Appointments/resolveAppointmentProducts.js";
 
 interface PublicBookingBody {
   serviceId?: number | string;
@@ -35,6 +36,8 @@ interface PublicBookingBody {
   isHomeService?: boolean;
   /** id de um endereço salvo na conta do cliente (GET /client/addresses) */
   addressId?: number | string;
+  /** produtos vendidos junto (ex: pomada, shampoo) — soma no preço total */
+  products?: { productId: number; quantity: number }[];
   /** obrigatórios quando não há login (agendamento como convidado) */
   guestName?: string;
   guestEmail?: string;
@@ -46,7 +49,7 @@ const PublicBookAppointment = async (req: Request<{ slug: string }, {}, PublicBo
   try {
     const { slug } = req.params;
     const clientAccountId = (req as any).clientAccountId as number | undefined;
-    const { serviceId, scheduledAt, tzOffsetMin, notes, isHomeService, addressId, guestName, guestEmail } = req.body;
+    const { serviceId, scheduledAt, tzOffsetMin, notes, isHomeService, addressId, products, guestName, guestEmail } = req.body;
 
     const [user] = await db
       .select({ id: usersTable.id })
@@ -251,13 +254,21 @@ const PublicBookAppointment = async (req: Request<{ slug: string }, {}, PublicBo
       travelCost = travel.travelCost;
     }
 
+    // Produtos vendidos junto (ex: pomada, shampoo) — nunca confia no preço
+    // vindo do cliente, busca o preço atual no banco e soma no total.
+    const productsResult = await resolveAppointmentProducts(user.id, products);
+    if ("error" in productsResult) {
+      return res.status(400).json({ error: productsResult.error });
+    }
+    const totalPrice = (Number(service.price) + productsResult.total).toFixed(2);
+
     const result = await createAppointmentCore({
       userId: user.id,
       customerId,
       serviceId: Number(serviceId),
       duration: service.duration,
-      price: service.price,
-      products: [],
+      price: totalPrice,
+      products: productsResult.resolved,
       scheduledAt: scheduledDate,
       tzOffsetMin: tzOffset,
       notes: notes?.trim() || null,

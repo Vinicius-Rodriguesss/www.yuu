@@ -398,10 +398,44 @@
 .agenda-history-badge {
     margin-left: auto;
     font-size: .7rem;
+    font-weight: 600;
     padding: .15rem .5rem;
     border-radius: 20px;
     background: rgba(0, 0, 0, 0.06);
     color: rgba(0, 0, 0, 0.6);
+    white-space: nowrap;
+}
+
+.agenda-history-badge-scheduled { background: #eef2ff; color: #4338ca; }
+.agenda-history-badge-confirmed { background: #eaf5ee; color: #16803c; }
+.agenda-history-badge-in_progress { background: #fff8e6; color: #92650a; }
+.agenda-history-badge-completed { background: #f1f1ef; color: #37352f; }
+.agenda-history-badge-cancelled { background: #faf1f1; color: #b91c1c; }
+.agenda-history-badge-no_show { background: #faf1f1; color: #b91c1c; }
+
+.agenda-history-products {
+    font-size: .75rem;
+    color: rgba(0, 0, 0, 0.45);
+}
+
+.agenda-history-cancel {
+    align-self: flex-start;
+    margin-top: .3rem;
+    padding: 0;
+    border: none;
+    background: transparent;
+    color: #b91c1c;
+    font-size: .75rem;
+    cursor: pointer;
+}
+
+.agenda-history-cancel:hover {
+    text-decoration: underline;
+}
+
+.agenda-history-cancel:disabled {
+    opacity: .5;
+    cursor: not-allowed;
 }
 
 .agenda-item {

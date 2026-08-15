@@ -21,6 +21,11 @@ import { startReminderJob } from "./Services/Appointments/reminderJob.js";
 
 const app = express();
 
+// Necessário pra rate limit (express-rate-limit) e req.ip funcionarem
+// corretamente atrás de um proxy reverso (Vercel, Render, etc). "1" confia
+// só no primeiro hop, evitando spoofing de X-Forwarded-For por terceiros.
+app.set("trust proxy", 1);
+
 const corsOrigin = process.env.CORS_ORIGIN || "http://localhost:5173";
 
 app.use(
