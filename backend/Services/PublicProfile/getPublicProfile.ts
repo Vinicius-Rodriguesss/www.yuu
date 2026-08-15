@@ -11,6 +11,7 @@ import { eq, and } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { usersTable } from "../../db/schema/users.js";
 import { servicesTable } from "../../db/schema/services.js";
+import { productsTable } from "../../db/schema/products.js";
 
 const GetPublicProfile = async (req: Request, res: Response) => {
   try {
@@ -43,11 +44,21 @@ const GetPublicProfile = async (req: Request, res: Response) => {
       .from(servicesTable)
       .where(and(eq(servicesTable.userId, user.id), eq(servicesTable.active, true)));
 
+    const products = await db
+      .select({
+        id: productsTable.id,
+        name: productsTable.name,
+        price: productsTable.price,
+      })
+      .from(productsTable)
+      .where(and(eq(productsTable.userId, user.id), eq(productsTable.active, true)));
+
     return res.status(200).json({
       name: user.name,
       businessType: user.businessType,
       homeService: user.homeService,
       services,
+      products,
     });
   } catch (error) {
     console.error("ERRO PUBLIC PROFILE:", error);

@@ -59,7 +59,7 @@ const GetClientHistory = async (req: Request<{ slug: string }>, res: Response) =
       .from(appointmentsTable)
       .innerJoin(servicesTable, eq(appointmentsTable.serviceId, servicesTable.id))
       .where(eq(appointmentsTable.customerId, customer.id))
-      .orderBy(desc(appointmentsTable.scheduledAt));
+      .orderBy(desc(appointmentsTable.createdAt));
 
     // Serviços mais usados: conta quantas vezes cada serviço (ainda ativo)
     // aparece nos agendamentos deste cliente, do mais pedido pro menos.
