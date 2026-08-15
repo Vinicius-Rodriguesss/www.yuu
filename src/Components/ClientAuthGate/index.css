@@ -107,6 +107,33 @@
   border-color: #9b9b9b;
 }
 
+.cgate-password-wrap {
+  position: relative;
+  display: flex;
+}
+
+.cgate-password-wrap input {
+  padding-right: 2.25rem;
+}
+
+.cgate-password-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.5rem;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: #9b9b9b;
+  cursor: pointer;
+  padding: 0.25rem;
+  display: flex;
+  align-items: center;
+}
+
+.cgate-password-toggle:hover {
+  color: #1a1a1a;
+}
+
 .cgate-lgpd {
   display: flex;
   align-items: flex-start;

@@ -3,6 +3,7 @@ import { useParams } from "react-router-dom";
 import {
   FiChevronLeft, FiUser, FiPhone, FiLock, FiCreditCard, FiMail,
   FiScissors, FiClock, FiCalendar, FiHome, FiDollarSign, FiList, FiLogOut, FiPlus, FiMinus,
+  FiEye, FiEyeOff, FiMapPin,
 } from "react-icons/fi";
 import {
   API_URL, apiFetch, clientApiFetch, tzOffsetMin,
@@ -46,6 +47,15 @@ interface PublicProfile {
   name: string;
   businessType: string;
   homeService: boolean;
+  phone: string | null;
+  address: {
+    street: string;
+    number: string;
+    complement: string | null;
+    neighborhood: string;
+    city: string;
+    state: string;
+  } | null;
   services: { id: number; title: string; description: string | null; duration: number; price: string; category: string | null }[];
   products: { id: number; name: string; price: string }[];
 }
@@ -88,6 +98,17 @@ const todayISO = () => {
 const formatMoney = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
+const AgendaPin = ({ className }: { className?: string }) => (
+  <svg className={className} viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <path
+      d="M12 1C5.925 1 1 5.925 1 12c0 8.25 11 19 11 19s11-10.75 11-19c0-6.075-4.925-11-11-11Z"
+      stroke="currentColor"
+      strokeWidth="1.5"
+    />
+    <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.5" />
+  </svg>
+);
+
 const Agenda = () => {
   const { slug } = useParams<{ slug: string }>();
   const [step, setStep] = useState(0);
@@ -115,7 +136,7 @@ const Agenda = () => {
   const [session, setSession] = useState<ClientSession | null>(() =>
     getClientToken() ? getClientSession() : null
   );
-  const [authMode, setAuthMode] = useState<"login" | "register">("register");
+  const [authMode, setAuthMode] = useState<"login" | "register" | "guest">("register");
   const [authSubmitting, setAuthSubmitting] = useState(false);
   const [authError, setAuthError] = useState("");
   const [name, setName] = useState("");
@@ -123,9 +144,42 @@ const Agenda = () => {
   const [phone, setPhone] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [lgpdAccepted, setLgpdAccepted] = useState(false);
   const [login, setLogin] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
+
+  // Agendamento como convidado (sem cadastro) — sem domicílio, exige nome e celular
+  const [guestName, setGuestName] = useState("");
+  const [guestPhone, setGuestPhone] = useState("");
+  const guestValid = guestName.trim().length > 1 && guestPhone.replace(/\D/g, "").length >= 10;
+  const handleGuestContinue = () => {
+    if (!guestValid) return;
+    advance(1);
+  };
+
+  // Oferta pós-agendamento: convidado vira conta de verdade (nome/celular já tem)
+  const [showConvertForm, setShowConvertForm] = useState(false);
+  const [convertCpf, setConvertCpf] = useState("");
+  const [convertPassword, setConvertPassword] = useState("");
+  const [showConvertPassword, setShowConvertPassword] = useState(false);
+  const [convertLgpd, setConvertLgpd] = useState(false);
+  const convertValid = convertCpf.replace(/\D/g, "").length === 11 && convertPassword.length >= 6 && convertLgpd;
+  const handleConvert = () => {
+    const cpfCheck = validateCPF(convertCpf);
+    if (!cpfCheck.valid) {
+      setAuthError(cpfCheck.message);
+      return;
+    }
+    submitAuth("/client/register", {
+      name: guestName,
+      cpf: convertCpf,
+      phone: guestPhone,
+      password: convertPassword,
+      lgpdAccepted: convertLgpd,
+    });
+  };
 
   const [showHistory, setShowHistory] = useState(false);
   const [historyAppointments, setHistoryAppointments] = useState<HistoryAppointment[] | null>(null);
@@ -159,7 +213,6 @@ const Agenda = () => {
       if (!response.ok) throw new Error(data?.error || "Erro na requisição");
       saveClientSession(data.token, data.client);
       setSession(data.client);
-      advance(1);
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : "Erro inesperado");
     } finally {
@@ -262,6 +315,7 @@ const Agenda = () => {
           isHomeService: homeService,
           addressId: homeService ? selectedAddressId : undefined,
           notes: notes.trim() || undefined,
+          ...(!session ? { guestName, guestPhone } : {}),
         }),
       });
       setCreatedAppointment(created);
@@ -289,7 +343,7 @@ const Agenda = () => {
     setMaxStep(1);
   };
 
-  const isWelcomeScreen = step === 0 && Boolean(session) && !showHistory;
+  const hideNav = (step === 0 && !showHistory) || step === 5;
 
   const dateLabel = (() => {
     const [y, m, d] = date.split("-").map(Number);
@@ -300,12 +354,25 @@ const Agenda = () => {
 
   return (
     <div className="agenda-page">
+      <AgendaPin className="agenda-bg-shape agenda-bg-shape-1" />
+      <AgendaPin className="agenda-bg-shape agenda-bg-shape-2" />
+      <AgendaPin className="agenda-bg-shape agenda-bg-shape-3" />
+      <AgendaPin className="agenda-bg-shape agenda-bg-shape-4" />
+      <a
+        className="agenda-brand"
+        href="https://yu-u.vercel.app"
+        target="_blank"
+        rel="noopener noreferrer"
+      >
+        <img src="https://yu-u.vercel.app/assets/FAICON.png" alt="YuU" />
+        <span>YuU</span>
+      </a>
       <div className="container-agenda">
 
         {/* Vai ter dois lados */}
         {/* Primeiro: lado, onde seleciona */}
         <div className="side side-one">
-          {!isWelcomeScreen && (
+          {!hideNav && (
             <div className="header-side">
               {/* Icone de voltar */}
               {/* Titulo do step */}
@@ -371,11 +438,29 @@ const Agenda = () => {
                 <div className="agenda-tabs">
                   <button type="button" className={authMode === "register" ? "active" : ""} onClick={() => { setAuthMode("register"); setAuthError(""); }}>Criar conta</button>
                   <button type="button" className={authMode === "login" ? "active" : ""} onClick={() => { setAuthMode("login"); setAuthError(""); }}>Já tenho conta</button>
+                  <button type="button" className={authMode === "guest" ? "active" : ""} onClick={() => { setAuthMode("guest"); setAuthError(""); }}>Sem cadastro</button>
                 </div>
 
                 {authError && <div className="agenda-error">{authError}</div>}
 
-                {authMode === "register" ? (
+                {authMode === "guest" ? (
+                  <>
+                    <p className="agenda-meta">
+                      Agende rápido, sem criar conta. Atendimento a domicílio exige cadastro.
+                    </p>
+                    <div className="agenda-field">
+                      <label><FiUser size={13} /> Nome completo</label>
+                      <input value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Seu nome" />
+                    </div>
+                    <div className="agenda-field">
+                      <label><FiPhone size={13} /> Celular</label>
+                      <input inputMode="numeric" value={guestPhone} onChange={(e) => setGuestPhone(formatPhone(e.target.value))} placeholder="(00) 00000-0000" />
+                    </div>
+                    <button type="button" className="agenda-btn-primary" disabled={!guestValid} onClick={handleGuestContinue}>
+                      Continuar sem cadastro
+                    </button>
+                  </>
+                ) : authMode === "register" ? (
                   <>
                     <div className="agenda-field">
                       <label><FiUser size={13} /> Nome completo</label>
@@ -395,7 +480,22 @@ const Agenda = () => {
                     </div>
                     <div className="agenda-field">
                       <label><FiLock size={13} /> Senha</label>
-                      <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Mínimo 6 caracteres" />
+                      <div className="agenda-password-wrap">
+                        <input
+                          type={showPassword ? "text" : "password"}
+                          value={password}
+                          onChange={(e) => setPassword(e.target.value)}
+                          placeholder="Mínimo 6 caracteres"
+                        />
+                        <button
+                          type="button"
+                          className="agenda-password-toggle"
+                          onClick={() => setShowPassword((v) => !v)}
+                          aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                        >
+                          {showPassword ? <FiEyeOff size={15} /> : <FiEye size={15} />}
+                        </button>
+                      </div>
                     </div>
                     <label className="agenda-check">
                       <input type="checkbox" checked={lgpdAccepted} onChange={(e) => setLgpdAccepted(e.target.checked)} />
@@ -413,7 +513,22 @@ const Agenda = () => {
                     </div>
                     <div className="agenda-field">
                       <label><FiLock size={13} /> Senha</label>
-                      <input type="password" value={loginPassword} onChange={(e) => setLoginPassword(e.target.value)} placeholder="Sua senha" />
+                      <div className="agenda-password-wrap">
+                        <input
+                          type={showLoginPassword ? "text" : "password"}
+                          value={loginPassword}
+                          onChange={(e) => setLoginPassword(e.target.value)}
+                          placeholder="Sua senha"
+                        />
+                        <button
+                          type="button"
+                          className="agenda-password-toggle"
+                          onClick={() => setShowLoginPassword((v) => !v)}
+                          aria-label={showLoginPassword ? "Ocultar senha" : "Mostrar senha"}
+                        >
+                          {showLoginPassword ? <FiEyeOff size={15} /> : <FiEye size={15} />}
+                        </button>
+                      </div>
                     </div>
                     <button type="button" className="agenda-btn-primary" disabled={!loginValid || authSubmitting} onClick={handleLogin}>
                       {authSubmitting ? "Entrando..." : "Entrar"}
@@ -481,6 +596,13 @@ const Agenda = () => {
                   <>
                     <p className="agenda-empty">Este profissional não oferece atendimento a domicílio.</p>
                     <button type="button" className="agenda-btn-primary" onClick={() => advance(4)}>Continuar</button>
+                  </>
+                ) : !session ? (
+                  <>
+                    <p className="agenda-empty">
+                      Atendimento a domicílio disponível apenas para clientes cadastrados.
+                    </p>
+                    <button type="button" className="agenda-btn-primary" onClick={() => advance(4)}>Continuar sem domicílio</button>
                   </>
                 ) : (
                   <>
@@ -554,7 +676,7 @@ const Agenda = () => {
                 </div>
                 <h3>Tudo certo!</h3>
                 <p>
-                  <strong>{session?.name}</strong>, seu horário com <strong>{profile?.name}</strong> foi agendado para{" "}
+                  <strong>{session?.name ?? guestName}</strong>, seu horário com <strong>{profile?.name}</strong> foi agendado para{" "}
                   <strong>{dateLabel}</strong> às <strong>{selectedSlot?.time}</strong>.
                 </p>
                 {selectedProducts.length > 0 && (
@@ -576,6 +698,53 @@ const Agenda = () => {
                     )}
                   </strong>
                 </p>
+                {!session && (
+                  <div className="agenda-convert">
+                    {!showConvertForm ? (
+                      <button type="button" className="agenda-btn-secondary" onClick={() => setShowConvertForm(true)}>
+                        Salvar meus dados e criar conta
+                      </button>
+                    ) : (
+                      <>
+                        {authError && <div className="agenda-error">{authError}</div>}
+                        <p className="agenda-meta">
+                          Só falta CPF e senha — nome e celular já estão salvos.
+                        </p>
+                        <div className="agenda-field">
+                          <label><FiCreditCard size={13} /> CPF</label>
+                          <input inputMode="numeric" value={convertCpf} onChange={(e) => setConvertCpf(formatCPF(e.target.value))} placeholder="000.000.000-00" />
+                        </div>
+                        <div className="agenda-field">
+                          <label><FiLock size={13} /> Senha</label>
+                          <div className="agenda-password-wrap">
+                            <input
+                              type={showConvertPassword ? "text" : "password"}
+                              value={convertPassword}
+                              onChange={(e) => setConvertPassword(e.target.value)}
+                              placeholder="Mínimo 6 caracteres"
+                            />
+                            <button
+                              type="button"
+                              className="agenda-password-toggle"
+                              onClick={() => setShowConvertPassword((v) => !v)}
+                              aria-label={showConvertPassword ? "Ocultar senha" : "Mostrar senha"}
+                            >
+                              {showConvertPassword ? <FiEyeOff size={15} /> : <FiEye size={15} />}
+                            </button>
+                          </div>
+                        </div>
+                        <label className="agenda-check">
+                          <input type="checkbox" checked={convertLgpd} onChange={(e) => setConvertLgpd(e.target.checked)} />
+                          <span>Autorizo o uso dos meus dados para agendamento e contato (LGPD).</span>
+                        </label>
+                        <button type="button" className="agenda-btn-primary" disabled={!convertValid || authSubmitting} onClick={handleConvert}>
+                          {authSubmitting ? "Criando conta..." : "Criar conta"}
+                        </button>
+                      </>
+                    )}
+                  </div>
+                )}
+
                 <button type="button" className="agenda-btn-primary" onClick={startNewBooking}>
                   Fazer outro agendamento
                 </button>
@@ -598,7 +767,7 @@ const Agenda = () => {
             ) : null}
           </form>
 
-          {!showHistory && !isWelcomeScreen && (
+          {!showHistory && !hideNav && (
             <div className="footer-side">
               <div className="container-cicle">
                 {stepTitles.map((title, index) => (
@@ -615,41 +784,85 @@ const Agenda = () => {
 
         {/* Segundo: onde ve os dados  */}
         <div className="side side-two">
-          <div className="agenda-summary">
-            <strong>{profile?.name ?? "Carregando..."}</strong>
-            {selectedService && (
-              <div className="agenda-summary-row">
-                <FiScissors size={13} />
-                <span>{selectedService.title} — {formatMoney(Number(selectedService.price))}</span>
-              </div>
+          <div className="agenda-profile">
+            <div className="agenda-profile-avatar">{profile?.name?.[0]?.toUpperCase() ?? "?"}</div>
+            <strong className="agenda-profile-name">{profile?.name ?? "Carregando..."}</strong>
+            {profile?.businessType && (
+              <span className="agenda-profile-type">{profile.businessType}</span>
             )}
-            {selectedProducts.map((p) => (
-              <div className="agenda-summary-row" key={p.id}>
-                <FiScissors size={13} />
-                <span>{p.name} ({p.quantity}x) — {formatMoney(Number(p.price) * p.quantity)}</span>
-              </div>
-            ))}
-            {homeService && selectedAddressId && (
-              <div className="agenda-summary-row">
-                <FiHome size={13} />
-                <span>Atendimento a domicílio</span>
-              </div>
-            )}
-            {selectedSlot && (
-              <div className="agenda-summary-row">
-                <FiCalendar size={13} />
-                <span style={{ textTransform: "capitalize" }}>{dateLabel} às {selectedSlot.time}</span>
-              </div>
-            )}
-            {selectedService && (
-              <div className="agenda-summary-row agenda-summary-total">
-                <FiDollarSign size={13} />
-                <span>
-                  Total: {formatMoney(Number(selectedService.price) + productsTotal + (homeService ? (availability?.travelCost ?? 0) : 0))}
-                </span>
+
+            {(profile?.address || profile?.phone || profile?.homeService) && (
+              <div className="agenda-info-list">
+                {profile?.address && (
+                  <div className="agenda-info-row">
+                    <span className="agenda-info-icon"><FiMapPin size={13} /></span>
+                    <span>
+                      {profile.address.street}, {profile.address.number}
+                      {profile.address.complement ? ` - ${profile.address.complement}` : ""}
+                      <br />
+                      {profile.address.neighborhood}, {profile.address.city}/{profile.address.state}
+                    </span>
+                  </div>
+                )}
+                {profile?.phone && (
+                  <div className="agenda-info-row">
+                    <span className="agenda-info-icon"><FiPhone size={13} /></span>
+                    <span>{formatPhone(profile.phone)}</span>
+                  </div>
+                )}
+                {profile?.homeService && (
+                  <div className="agenda-info-row">
+                    <span className="agenda-info-icon"><FiHome size={13} /></span>
+                    <span>Atende a domicílio</span>
+                  </div>
+                )}
               </div>
             )}
           </div>
+
+          {(selectedService || selectedProducts.length > 0 || selectedSlot) && (
+            <div className="agenda-summary-card">
+              <p className="agenda-summary-title">Seu agendamento</p>
+
+              {selectedService && (
+                <div className="agenda-summary-item">
+                  <span className="agenda-summary-item-icon"><FiScissors size={13} /></span>
+                  <span className="agenda-summary-item-label">{selectedService.title}</span>
+                  <span className="agenda-summary-item-value">{formatMoney(Number(selectedService.price))}</span>
+                </div>
+              )}
+              {selectedProducts.map((p) => (
+                <div className="agenda-summary-item" key={p.id}>
+                  <span className="agenda-summary-item-icon"><FiScissors size={13} /></span>
+                  <span className="agenda-summary-item-label">{p.name} <small>({p.quantity}x)</small></span>
+                  <span className="agenda-summary-item-value">{formatMoney(Number(p.price) * p.quantity)}</span>
+                </div>
+              ))}
+              {homeService && selectedAddressId && (
+                <div className="agenda-summary-item">
+                  <span className="agenda-summary-item-icon"><FiHome size={13} /></span>
+                  <span className="agenda-summary-item-label">Atendimento a domicílio</span>
+                </div>
+              )}
+              {selectedSlot && (
+                <div className="agenda-summary-item">
+                  <span className="agenda-summary-item-icon"><FiCalendar size={13} /></span>
+                  <span className="agenda-summary-item-label" style={{ textTransform: "capitalize" }}>
+                    {dateLabel} às {selectedSlot.time}
+                  </span>
+                </div>
+              )}
+
+              {selectedService && (
+                <div className="agenda-summary-total">
+                  <span>Total</span>
+                  <strong>
+                    {formatMoney(Number(selectedService.price) + productsTotal + (homeService ? (availability?.travelCost ?? 0) : 0))}
+                  </strong>
+                </div>
+              )}
+            </div>
+          )}
         </div>
 
       </div>

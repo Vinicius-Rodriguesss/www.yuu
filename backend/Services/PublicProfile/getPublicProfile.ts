@@ -12,6 +12,7 @@ import { db } from "../../db/index.js";
 import { usersTable } from "../../db/schema/users.js";
 import { servicesTable } from "../../db/schema/services.js";
 import { productsTable } from "../../db/schema/products.js";
+import { addressesTable } from "../../db/schema/addresses.js";
 
 const GetPublicProfile = async (req: Request, res: Response) => {
   try {
@@ -23,6 +24,7 @@ const GetPublicProfile = async (req: Request, res: Response) => {
         name: usersTable.name,
         businessType: usersTable.businessType,
         homeService: usersTable.homeService,
+        phone: usersTable.phone,
       })
       .from(usersTable)
       .where(eq(usersTable.publicSlug, String(slug)))
@@ -31,6 +33,19 @@ const GetPublicProfile = async (req: Request, res: Response) => {
     if (!user) {
       return res.status(404).json({ error: "Página não encontrada" });
     }
+
+    const [address] = await db
+      .select({
+        street: addressesTable.street,
+        number: addressesTable.number,
+        complement: addressesTable.complement,
+        neighborhood: addressesTable.neighborhood,
+        city: addressesTable.city,
+        state: addressesTable.state,
+      })
+      .from(addressesTable)
+      .where(eq(addressesTable.userId, user.id))
+      .limit(1);
 
     const services = await db
       .select({
@@ -57,6 +72,8 @@ const GetPublicProfile = async (req: Request, res: Response) => {
       name: user.name,
       businessType: user.businessType,
       homeService: user.homeService,
+      phone: user.phone,
+      address: address ?? null,
       services,
       products,
     });
