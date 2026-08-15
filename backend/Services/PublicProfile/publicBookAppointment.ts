@@ -10,8 +10,10 @@
  * profissional (linha em customers) é criado/reaproveitado automaticamente,
  * e o endereço de domicílio informado fica salvo na conta pra reaproveitar.
  *
- * Sem login (convidado): usa guestName/guestPhone do corpo pra criar (ou
- * reaproveitar, por telefone) um customer sem clientAccountId vinculado.
+ * Sem login (convidado): usa guestName/guestEmail do corpo pra criar (ou
+ * reaproveitar, por email) um customer sem clientAccountId vinculado. A
+ * confirmação do agendamento vai por email (customers.email alimenta
+ * sendAppointmentConfirmationEmails), já que não coletamos celular do convidado.
  */
 import type { Request, Response } from "express";
 import { eq, and, or, desc } from "drizzle-orm";
@@ -35,14 +37,16 @@ interface PublicBookingBody {
   addressId?: number | string;
   /** obrigatórios quando não há login (agendamento como convidado) */
   guestName?: string;
-  guestPhone?: string;
+  guestEmail?: string;
 }
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 const PublicBookAppointment = async (req: Request<{ slug: string }, {}, PublicBookingBody>, res: Response) => {
   try {
     const { slug } = req.params;
     const clientAccountId = (req as any).clientAccountId as number | undefined;
-    const { serviceId, scheduledAt, tzOffsetMin, notes, isHomeService, addressId, guestName, guestPhone } = req.body;
+    const { serviceId, scheduledAt, tzOffsetMin, notes, isHomeService, addressId, guestName, guestEmail } = req.body;
 
     const [user] = await db
       .select({ id: usersTable.id })
@@ -85,19 +89,19 @@ const PublicBookAppointment = async (req: Request<{ slug: string }, {}, PublicBo
     if (!clientAccountId) {
       // ===== Agendamento como convidado (sem login) =====
       const cleanGuestName = guestName?.trim() ?? "";
-      const cleanGuestPhone = guestPhone?.replace(/\D/g, "") ?? "";
+      const cleanGuestEmail = guestEmail?.trim().toLowerCase() ?? "";
 
       if (cleanGuestName.length < 2) {
         return res.status(400).json({ error: "Informe seu nome para agendar" });
       }
-      if (cleanGuestPhone.length < 10) {
-        return res.status(400).json({ error: "Informe um celular válido para agendar" });
+      if (!EMAIL_REGEX.test(cleanGuestEmail)) {
+        return res.status(400).json({ error: "Informe um email válido para agendar" });
       }
 
       const [existingGuestCustomer] = await db
         .select({ id: customersTable.id })
         .from(customersTable)
-        .where(and(eq(customersTable.userId, user.id), eq(customersTable.phone, cleanGuestPhone)))
+        .where(and(eq(customersTable.userId, user.id), eq(customersTable.email, cleanGuestEmail)))
         .limit(1);
 
       if (existingGuestCustomer) {
@@ -109,7 +113,7 @@ const PublicBookAppointment = async (req: Request<{ slug: string }, {}, PublicBo
             userId: user.id,
             clientAccountId: null,
             name: cleanGuestName,
-            phone: cleanGuestPhone,
+            email: cleanGuestEmail,
           })
           .returning();
         if (!createdGuestCustomer) {
@@ -145,17 +149,16 @@ const PublicBookAppointment = async (req: Request<{ slug: string }, {}, PublicBo
         // durante um agendamento anterior como convidado): procura por
         // telefone ou documento antes de criar um registro novo (customers
         // agora tem índice único por profissional nesses campos).
+        const matchConditions = [
+          eq(customersTable.phone, clientAccount.phone),
+          ...(clientAccount.cpf ? [eq(customersTable.document, clientAccount.cpf)] : []),
+          ...(clientAccount.email ? [eq(customersTable.email, clientAccount.email)] : []),
+        ];
+
         const [byPhoneOrDocument] = await db
           .select({ id: customersTable.id })
           .from(customersTable)
-          .where(
-            and(
-              eq(customersTable.userId, user.id),
-              clientAccount.cpf
-                ? or(eq(customersTable.phone, clientAccount.phone), eq(customersTable.document, clientAccount.cpf))
-                : eq(customersTable.phone, clientAccount.phone)
-            )
-          )
+          .where(and(eq(customersTable.userId, user.id), or(...matchConditions)))
           .limit(1);
 
         if (byPhoneOrDocument) {

@@ -36,6 +36,41 @@ const greeting = () => {
   return "Boa noite";
 };
 
+const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
+// Dados do convidado ficam salvos por profissional (slug), pra não misturar
+// entre negócios diferentes. Servem só pra pré-preencher o "continuar sem
+// cadastro" e oferecer criar conta na próxima visita — nada sensível.
+interface SavedGuest { name: string; email: string }
+
+const guestStorageKey = (slug: string) => `agendaGuest_${slug}`;
+
+const loadSavedGuest = (slug?: string): SavedGuest | null => {
+  if (!slug) return null;
+  try {
+    const raw = localStorage.getItem(guestStorageKey(slug));
+    return raw ? (JSON.parse(raw) as SavedGuest) : null;
+  } catch {
+    return null;
+  }
+};
+
+const saveGuestInfo = (slug: string, guest: SavedGuest) => {
+  try {
+    localStorage.setItem(guestStorageKey(slug), JSON.stringify(guest));
+  } catch {
+    // localStorage indisponível (modo privado etc) — segue sem salvar
+  }
+};
+
+const clearSavedGuest = (slug: string) => {
+  try {
+    localStorage.removeItem(guestStorageKey(slug));
+  } catch {
+    // ignora
+  }
+};
+
 // Essa é página onde o usuario se agenda
 // ele funcionará como um chekout de pagamento
 
@@ -98,17 +133,6 @@ const todayISO = () => {
 const formatMoney = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 
-const AgendaPin = ({ className }: { className?: string }) => (
-  <svg className={className} viewBox="0 0 24 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-    <path
-      d="M12 1C5.925 1 1 5.925 1 12c0 8.25 11 19 11 19s11-10.75 11-19c0-6.075-4.925-11-11-11Z"
-      stroke="currentColor"
-      strokeWidth="1.5"
-    />
-    <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="1.5" />
-  </svg>
-);
-
 const Agenda = () => {
   const { slug } = useParams<{ slug: string }>();
   const [step, setStep] = useState(0);
@@ -132,11 +156,17 @@ const Agenda = () => {
       .catch(() => setProfile(null));
   }, [slug]);
 
+  // Dados de convidado salvos neste navegador (visita anterior)
+  const [savedGuest, setSavedGuest] = useState<SavedGuest | null>(() => loadSavedGuest(slug));
+  const [guestFormOverride, setGuestFormOverride] = useState(false);
+
   // Step 0 — Cadastro / login do cliente
   const [session, setSession] = useState<ClientSession | null>(() =>
     getClientToken() ? getClientSession() : null
   );
-  const [authMode, setAuthMode] = useState<"login" | "register" | "guest">("register");
+  const [authMode, setAuthMode] = useState<"login" | "register" | "guest">(() =>
+    loadSavedGuest(slug) ? "guest" : "register"
+  );
   const [authSubmitting, setAuthSubmitting] = useState(false);
   const [authError, setAuthError] = useState("");
   const [name, setName] = useState("");
@@ -150,22 +180,40 @@ const Agenda = () => {
   const [loginPassword, setLoginPassword] = useState("");
   const [showLoginPassword, setShowLoginPassword] = useState(false);
 
-  // Agendamento como convidado (sem cadastro) — sem domicílio, exige nome e celular
+  // Agendamento como convidado (sem cadastro) — sem domicílio, exige nome e
+  // email (a confirmação do agendamento vai por email)
   const [guestName, setGuestName] = useState("");
-  const [guestPhone, setGuestPhone] = useState("");
-  const guestValid = guestName.trim().length > 1 && guestPhone.replace(/\D/g, "").length >= 10;
+  const [guestEmail, setGuestEmail] = useState("");
+  const guestValid = guestName.trim().length > 1 && isValidEmail(guestEmail);
   const handleGuestContinue = () => {
     if (!guestValid) return;
+    if (slug) saveGuestInfo(slug, { name: guestName.trim(), email: guestEmail.trim() });
     advance(1);
   };
+  const useSavedGuest = () => {
+    if (!savedGuest) return;
+    setGuestName(savedGuest.name);
+    setGuestEmail(savedGuest.email);
+    advance(1);
+  };
+  const forgetSavedGuest = () => {
+    if (slug) clearSavedGuest(slug);
+    setSavedGuest(null);
+    setGuestFormOverride(true);
+  };
 
-  // Oferta pós-agendamento: convidado vira conta de verdade (nome/celular já tem)
+  // Oferta pós-agendamento (ou na volta): convidado vira conta de verdade —
+  // nome/email já tem, falta CPF, celular e senha
   const [showConvertForm, setShowConvertForm] = useState(false);
   const [convertCpf, setConvertCpf] = useState("");
+  const [convertPhone, setConvertPhone] = useState("");
   const [convertPassword, setConvertPassword] = useState("");
   const [showConvertPassword, setShowConvertPassword] = useState(false);
   const [convertLgpd, setConvertLgpd] = useState(false);
-  const convertValid = convertCpf.replace(/\D/g, "").length === 11 && convertPassword.length >= 6 && convertLgpd;
+  const convertValid =
+    convertCpf.replace(/\D/g, "").length === 11 &&
+    convertPhone.replace(/\D/g, "").length >= 10 &&
+    convertPassword.length >= 6 && convertLgpd;
   const handleConvert = () => {
     const cpfCheck = validateCPF(convertCpf);
     if (!cpfCheck.valid) {
@@ -175,7 +223,8 @@ const Agenda = () => {
     submitAuth("/client/register", {
       name: guestName,
       cpf: convertCpf,
-      phone: guestPhone,
+      phone: convertPhone,
+      email: guestEmail,
       password: convertPassword,
       lgpdAccepted: convertLgpd,
     });
@@ -213,6 +262,8 @@ const Agenda = () => {
       if (!response.ok) throw new Error(data?.error || "Erro na requisição");
       saveClientSession(data.token, data.client);
       setSession(data.client);
+      if (slug) clearSavedGuest(slug);
+      setSavedGuest(null);
     } catch (err) {
       setAuthError(err instanceof Error ? err.message : "Erro inesperado");
     } finally {
@@ -315,7 +366,7 @@ const Agenda = () => {
           isHomeService: homeService,
           addressId: homeService ? selectedAddressId : undefined,
           notes: notes.trim() || undefined,
-          ...(!session ? { guestName, guestPhone } : {}),
+          ...(!session ? { guestName, guestEmail } : {}),
         }),
       });
       setCreatedAppointment(created);
@@ -354,10 +405,6 @@ const Agenda = () => {
 
   return (
     <div className="agenda-page">
-      <AgendaPin className="agenda-bg-shape agenda-bg-shape-1" />
-      <AgendaPin className="agenda-bg-shape agenda-bg-shape-2" />
-      <AgendaPin className="agenda-bg-shape agenda-bg-shape-3" />
-      <AgendaPin className="agenda-bg-shape agenda-bg-shape-4" />
       <a
         className="agenda-brand"
         href="https://yu-u.vercel.app"
@@ -444,22 +491,44 @@ const Agenda = () => {
                 {authError && <div className="agenda-error">{authError}</div>}
 
                 {authMode === "guest" ? (
-                  <>
-                    <p className="agenda-meta">
-                      Agende rápido, sem criar conta. Atendimento a domicílio exige cadastro.
-                    </p>
-                    <div className="agenda-field">
-                      <label><FiUser size={13} /> Nome completo</label>
-                      <input value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Seu nome" />
-                    </div>
-                    <div className="agenda-field">
-                      <label><FiPhone size={13} /> Celular</label>
-                      <input inputMode="numeric" value={guestPhone} onChange={(e) => setGuestPhone(formatPhone(e.target.value))} placeholder="(00) 00000-0000" />
-                    </div>
-                    <button type="button" className="agenda-btn-primary" disabled={!guestValid} onClick={handleGuestContinue}>
-                      Continuar sem cadastro
-                    </button>
-                  </>
+                  savedGuest && !guestFormOverride ? (
+                    <>
+                      <p className="agenda-meta">
+                        Bem-vindo de volta, <strong>{savedGuest.name.split(" ")[0]}</strong>! Encontramos seus dados salvos neste navegador.
+                      </p>
+                      <button type="button" className="agenda-btn-primary" onClick={useSavedGuest}>
+                        Continuar com meus dados
+                      </button>
+                      <button type="button" className="agenda-btn-secondary" onClick={() => {
+                        setName(savedGuest.name);
+                        setEmail(savedGuest.email);
+                        setAuthMode("register");
+                      }}>
+                        Criar conta agora
+                      </button>
+                      <button type="button" className="agenda-btn-logout" onClick={forgetSavedGuest}>
+                        Não é você? Usar outros dados
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="agenda-meta">
+                        Agende rápido, sem criar conta. Atendimento a domicílio exige cadastro.
+                      </p>
+                      <div className="agenda-field">
+                        <label><FiUser size={13} /> Nome completo</label>
+                        <input value={guestName} onChange={(e) => setGuestName(e.target.value)} placeholder="Seu nome" />
+                      </div>
+                      <div className="agenda-field">
+                        <label><FiMail size={13} /> Email</label>
+                        <input type="email" value={guestEmail} onChange={(e) => setGuestEmail(e.target.value)} placeholder="seu@email.com" />
+                      </div>
+                      <p className="agenda-meta">Enviamos a confirmação do agendamento pra esse email.</p>
+                      <button type="button" className="agenda-btn-primary" disabled={!guestValid} onClick={handleGuestContinue}>
+                        Continuar sem cadastro
+                      </button>
+                    </>
+                  )
                 ) : authMode === "register" ? (
                   <>
                     <div className="agenda-field">
@@ -708,11 +777,15 @@ const Agenda = () => {
                       <>
                         {authError && <div className="agenda-error">{authError}</div>}
                         <p className="agenda-meta">
-                          Só falta CPF e senha — nome e celular já estão salvos.
+                          Nome e email já estão salvos — falta CPF, celular e senha.
                         </p>
                         <div className="agenda-field">
                           <label><FiCreditCard size={13} /> CPF</label>
                           <input inputMode="numeric" value={convertCpf} onChange={(e) => setConvertCpf(formatCPF(e.target.value))} placeholder="000.000.000-00" />
+                        </div>
+                        <div className="agenda-field">
+                          <label><FiPhone size={13} /> Celular</label>
+                          <input inputMode="numeric" value={convertPhone} onChange={(e) => setConvertPhone(formatPhone(e.target.value))} placeholder="(00) 00000-0000" />
                         </div>
                         <div className="agenda-field">
                           <label><FiLock size={13} /> Senha</label>

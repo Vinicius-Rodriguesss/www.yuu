@@ -27,61 +27,6 @@
     border-radius: 5px;
 }
 
-.agenda-bg-shape {
-    position: absolute;
-    color: rgba(0, 0, 0, 0.08);
-    z-index: 0;
-    pointer-events: none;
-}
-
-.agenda-bg-shape-1 {
-    width: 46px;
-    height: auto;
-    top: 10%;
-    left: 7%;
-    transform: rotate(-12deg);
-    animation: agenda-float-a 12s ease-in-out infinite;
-}
-
-.agenda-bg-shape-2 {
-    width: 26px;
-    height: auto;
-    top: 18%;
-    right: 14%;
-    color: rgba(0, 0, 0, 0.05);
-    transform: rotate(10deg);
-    animation: agenda-float-b 9s ease-in-out infinite;
-}
-
-.agenda-bg-shape-3 {
-    width: 64px;
-    height: auto;
-    bottom: 8%;
-    right: 10%;
-    transform: rotate(8deg);
-    animation: agenda-float-a 15s ease-in-out infinite reverse;
-}
-
-.agenda-bg-shape-4 {
-    width: 20px;
-    height: auto;
-    bottom: 16%;
-    left: 12%;
-    color: rgba(0, 0, 0, 0.06);
-    transform: rotate(-16deg);
-    animation: agenda-float-b 7s ease-in-out infinite;
-}
-
-@keyframes agenda-float-a {
-    0%, 100% { translate: 0 0; }
-    50% { translate: 0 -16px; }
-}
-
-@keyframes agenda-float-b {
-    0%, 100% { translate: 0 0; }
-    50% { translate: 0 14px; }
-}
-
 .container-agenda {
     overflow: hidden;
     width: 1000px;
@@ -759,4 +704,90 @@
 .agenda-summary-total strong {
     font-size: 1.1rem;
     color: #000;
+}
+
+/* ===================== Mobile ===================== */
+
+@media (max-width: 720px) {
+    .agenda-page {
+        flex-direction: column;
+        height: auto;
+        min-height: 100dvh;
+        align-items: stretch;
+        justify-content: flex-start;
+        overflow-x: hidden;
+        overflow-y: auto;
+    }
+
+    .agenda-bg-shape {
+        display: none;
+    }
+
+    .container-agenda {
+        width: 100%;
+        height: auto;
+        border-radius: 0;
+        border: none;
+        box-shadow: none;
+        flex-direction: column;
+    }
+
+    .side {
+        width: 100%;
+        height: auto;
+        padding: 1.25rem;
+    }
+
+    .side-one {
+        border-right: none;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.119);
+        gap: 1.25rem;
+        order: 1;
+    }
+
+    .side-two {
+        order: 0;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.119);
+        padding-bottom: 1.5rem;
+    }
+
+    .agenda-welcome {
+        flex: none;
+        padding: 1rem 0;
+    }
+
+    .agenda-summary-card {
+        box-shadow: none;
+    }
+
+    .agenda-slot {
+        padding: .55rem .8rem;
+        font-size: .85rem;
+    }
+
+    .agenda-qty button {
+        width: 26px;
+        height: 26px;
+    }
+
+    .footer-side {
+        padding: 1.25rem 0 .5rem;
+    }
+
+    .agenda-brand {
+        position: static;
+        justify-content: center;
+        margin-top: 1.5rem;
+        order: 2;
+    }
+
+    .agenda-datebar {
+        flex-wrap: wrap;
+    }
+
+    .agenda-datebar span {
+        width: 100%;
+        order: 1;
+        font-size: .8rem;
+    }
 }
