@@ -63,7 +63,7 @@ const NavBar = () => {
 
     <nav className={menuDesktop.navDesktop} >
      <div className={menuDesktop.center}>
-      <img className={menuDesktop.hidden} src="https://yu-u.vercel.app/assets/FAICON.png" alt="YuU" />
+      <img className={menuDesktop.hidden} src="/faicon.png" alt="YuU" />
       <button style={{ cursor: "pointer"}} onClick={toggleMenu}><HiMenuAlt1 size={20}/></button>
      </div>
 
@@ -89,7 +89,7 @@ const NavBar = () => {
    {/* Mobile */}
    <div className="menuMobile">
     <header className="mobileHeader">
-     <img src="https://yu-u.vercel.app/assets/FAICON.png" alt="YuU" />
+     <img src="/faicon.png" alt="YuU" />
 
      <label className="hamburger">
       <input

@@ -16,6 +16,8 @@ interface Product {
   name: string;
   price: number;
   active: boolean;
+  trackStock: boolean;
+  stockQuantity: number;
   createdAt?: string;
   updatedAt?: string;
 }
@@ -31,6 +33,8 @@ const Products = () => {
 
   const [name, setName] = useState("");
   const [price, setPrice] = useState("");
+  const [trackStock, setTrackStock] = useState(false);
+  const [stockQuantity, setStockQuantity] = useState("");
 
   const [toast, setToast] = useState<{
     show: boolean;
@@ -89,12 +93,16 @@ const Products = () => {
   const resetForm = () => {
     setName("");
     setPrice("");
+    setTrackStock(false);
+    setStockQuantity("");
     setEditingId(null);
   };
 
   const handleEdit = (product: Product) => {
     setName(product.name);
     setPrice(formatCurrency(String(Number(product.price) * 100)));
+    setTrackStock(product.trackStock);
+    setStockQuantity(product.trackStock ? String(product.stockQuantity) : "");
     setEditingId(product.id);
     setShowForm(true);
   };
@@ -139,10 +147,17 @@ const Products = () => {
       return;
     }
 
+    if (trackStock && (stockQuantity.trim() === "" || Number(stockQuantity) < 0)) {
+      setToast({ show: true, type: "error", message: "Informe uma quantidade em estoque válida." });
+      return;
+    }
+
     const productData = {
       name: name.trim(),
       price: getPriceNumber(),
       active: true,
+      trackStock,
+      stockQuantity: trackStock ? Number(stockQuantity) : 0,
     };
 
     try {
@@ -374,6 +389,37 @@ const Products = () => {
                 />
               </div>
 
+              <div>
+                <label className="flex items-center gap-2 cursor-pointer select-none">
+                  <input
+                    type="checkbox"
+                    checked={trackStock}
+                    onChange={(e) => setTrackStock(e.target.checked)}
+                    className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900/20"
+                  />
+                  <span className="text-xs font-semibold text-gray-500 tracking-wide">
+                    Controlar estoque deste produto
+                  </span>
+                </label>
+              </div>
+
+              {trackStock && (
+                <div>
+                  <label className="text-xs font-semibold text-gray-500 mb-1.5 block tracking-wide">
+                    Quantidade em estoque <span className="text-red-400">*</span>
+                  </label>
+                  <input
+                    type="number"
+                    min={0}
+                    step={1}
+                    placeholder="0"
+                    value={stockQuantity}
+                    onChange={(e) => setStockQuantity(e.target.value.replace(/\D/g, ""))}
+                    className="w-full px-4 py-2.5 text-sm border border-gray-200 rounded-lg outline-none transition-all duration-200 hover:border-gray-300 focus:border-gray-900 focus:ring-1 focus:ring-gray-900/10 placeholder:text-gray-300"
+                  />
+                </div>
+              )}
+
               <div className="flex gap-2.5 justify-end pt-2">
                 <button
                   type="button"
@@ -459,6 +505,21 @@ const Products = () => {
                   Ativo
                 </button>
               </div>
+              {product.trackStock && (
+                <p
+                  className={`mt-2 text-[11px] font-medium ${
+                    product.stockQuantity <= 0
+                      ? "text-red-600"
+                      : product.stockQuantity <= 5
+                      ? "text-amber-600"
+                      : "text-gray-400"
+                  }`}
+                >
+                  {product.stockQuantity <= 0
+                    ? "Sem estoque"
+                    : `${product.stockQuantity} em estoque`}
+                </p>
+              )}
             </div>
           ))}
 
@@ -501,6 +562,11 @@ const Products = () => {
                   Inativo
                 </button>
               </div>
+              {product.trackStock && (
+                <p className="mt-2 text-[11px] font-medium text-gray-400">
+                  {product.stockQuantity <= 0 ? "Sem estoque" : `${product.stockQuantity} em estoque`}
+                </p>
+              )}
             </div>
           ))}
         </div>

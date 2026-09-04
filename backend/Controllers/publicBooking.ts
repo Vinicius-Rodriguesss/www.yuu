@@ -1,23 +1,33 @@
 import { Router } from "express";
 import { clientAuthMiddleware } from "../Auth/Middleware/clientAuth.js";
+import { clientAuthOptional } from "../Auth/Middleware/clientAuthOptional.js";
+import { guestBookingRateLimit } from "../Auth/Middleware/guestBookingRateLimit.js";
 import GetPublicAvailability from "../Services/PublicProfile/getPublicAvailability.js";
 import PublicBookAppointment from "../Services/PublicProfile/publicBookAppointment.js";
 import GetClientHistory from "../Services/PublicProfile/getClientHistory.js";
+import CancelClientAppointment from "../Services/PublicProfile/cancelClientAppointment.js";
 
 const router = Router();
 
-// Agendamento público por botões — exige login do cliente final
-router.get("/public/:slug/availability", clientAuthMiddleware, async (req, res) => {
+// Agendamento público por botões — login do cliente final é opcional aqui:
+// sem login também dá pra agendar (como convidado), mas atendimento a
+// domicílio continua exigindo conta (ver publicBookAppointment/getPublicAvailability).
+router.get("/public/:slug/availability", clientAuthOptional, async (req, res) => {
   GetPublicAvailability(req, res);
 });
 
-router.post("/public/:slug/appointments", clientAuthMiddleware, async (req, res) => {
+router.post("/public/:slug/appointments", clientAuthOptional, guestBookingRateLimit, async (req, res) => {
   PublicBookAppointment(req as never, res);
 });
 
 // Histórico do cliente com este profissional + serviços mais usados
 router.get("/public/:slug/history", clientAuthMiddleware, async (req, res) => {
   GetClientHistory(req as never, res);
+});
+
+// Cliente desiste de um agendamento futuro que ele mesmo marcou
+router.patch("/public/:slug/appointments/:id/cancel", clientAuthMiddleware, async (req, res) => {
+  CancelClientAppointment(req as never, res);
 });
 
 export default router;

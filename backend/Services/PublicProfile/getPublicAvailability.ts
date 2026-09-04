@@ -64,6 +64,9 @@ const GetPublicAvailability = async (req: Request, res: Response) => {
     let exceedsMaxDistance = false;
     let maxDistanceKm: number | null = null;
     if (homeService === "1") {
+      if (!clientAccountId) {
+        return res.status(401).json({ error: "Atendimento a domicílio exige login. Faça login ou crie uma conta." });
+      }
       let clientAddress;
       if (addressId) {
         [clientAddress] = await db

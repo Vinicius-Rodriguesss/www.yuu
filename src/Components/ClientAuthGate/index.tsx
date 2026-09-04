@@ -6,7 +6,7 @@
  * (nome, CPF, celular, senha + aceite LGPD) ou login (CPF/celular + senha).
  */
 import { useState, type ReactNode } from "react";
-import { FiUser, FiPhone, FiLock, FiCreditCard, FiLogIn, FiUserPlus, FiMail } from "react-icons/fi";
+import { FiUser, FiPhone, FiLock, FiCreditCard, FiLogIn, FiUserPlus, FiMail, FiEye, FiEyeOff } from "react-icons/fi";
 import {
   API_URL,
   getClientToken,
@@ -40,10 +40,12 @@ const ClientAuthGate = ({ businessName, children }: ClientAuthGateProps) => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [lgpdAccepted, setLgpdAccepted] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
 
   // Login
   const [login, setLogin] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
+  const [showLoginPassword, setShowLoginPassword] = useState(false);
 
   if (session) return <>{children}</>;
 
@@ -135,12 +137,22 @@ const ClientAuthGate = ({ businessName, children }: ClientAuthGateProps) => {
             </div>
             <div className="cgate-field">
               <label><FiLock size={13} /> Senha</label>
-              <input
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="Mínimo 6 caracteres"
-              />
+              <div className="cgate-password-wrap">
+                <input
+                  type={showPassword ? "text" : "password"}
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="Mínimo 6 caracteres"
+                />
+                <button
+                  type="button"
+                  className="cgate-password-toggle"
+                  onClick={() => setShowPassword((v) => !v)}
+                  aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
+                >
+                  {showPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+                </button>
+              </div>
             </div>
 
             <label className="cgate-lgpd">
@@ -171,13 +183,23 @@ const ClientAuthGate = ({ businessName, children }: ClientAuthGateProps) => {
             </div>
             <div className="cgate-field">
               <label><FiLock size={13} /> Senha</label>
-              <input
-                type="password"
-                value={loginPassword}
-                onChange={(e) => setLoginPassword(e.target.value)}
-                placeholder="Sua senha"
-                onKeyDown={(e) => { if (e.key === "Enter" && loginValid) handleLogin(); }}
-              />
+              <div className="cgate-password-wrap">
+                <input
+                  type={showLoginPassword ? "text" : "password"}
+                  value={loginPassword}
+                  onChange={(e) => setLoginPassword(e.target.value)}
+                  placeholder="Sua senha"
+                  onKeyDown={(e) => { if (e.key === "Enter" && loginValid) handleLogin(); }}
+                />
+                <button
+                  type="button"
+                  className="cgate-password-toggle"
+                  onClick={() => setShowLoginPassword((v) => !v)}
+                  aria-label={showLoginPassword ? "Ocultar senha" : "Mostrar senha"}
+                >
+                  {showLoginPassword ? <FiEyeOff size={16} /> : <FiEye size={16} />}
+                </button>
+              </div>
             </div>
             <button className="cgate-btn" disabled={!loginValid || submitting} onClick={handleLogin}>
               {submitting ? "Entrando..." : "Entrar"}

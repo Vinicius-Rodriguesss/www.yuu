@@ -6,10 +6,15 @@ import { productsTable } from "../../db/schema/products.js";
 const CreateProduct = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
-    const { name, price, active } = req.body;
+    const { name, price, active, trackStock, stockQuantity } = req.body;
 
     if (!name || !price) {
       return res.status(400).json({ error: "Campos obrigatórios ausentes" });
+    }
+
+    const stockEnabled = Boolean(trackStock);
+    if (stockEnabled && (isNaN(Number(stockQuantity)) || Number(stockQuantity) < 0)) {
+      return res.status(400).json({ error: "Quantidade em estoque inválida" });
     }
 
     const [newProduct] = await db
@@ -19,6 +24,8 @@ const CreateProduct = async (req: Request, res: Response) => {
         name,
         price: String(price),
         active: active ?? true,
+        trackStock: stockEnabled,
+        stockQuantity: stockEnabled ? Number(stockQuantity) : 0,
       })
       .returning();
 

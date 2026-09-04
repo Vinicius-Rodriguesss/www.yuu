@@ -10,6 +10,8 @@ export const productsTable = pgTable("products", {
   name: varchar({ length: 255 }).notNull(),
   price: numeric({ precision: 10, scale: 2 }).notNull(),
   active: boolean().notNull().default(true),
+  trackStock: boolean("track_stock").notNull().default(false), // false = estoque ilimitado, ignora stockQuantity
+  stockQuantity: integer("stock_quantity").notNull().default(0),
   createdAt: timestamp().defaultNow().notNull(),
   updatedAt: timestamp().defaultNow().notNull(),
 });

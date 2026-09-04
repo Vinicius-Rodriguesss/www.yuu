@@ -90,7 +90,10 @@ export const clientApiFetch = async (path: string, options: RequestInit = {}) =>
 
   const data = await response.json().catch(() => null);
 
-  if (response.status === 401) {
+  // Só é "sessão expirada" se havia um token sendo enviado. Sem token
+  // (agendamento como convidado), um 401 é um erro normal da API — recarregar
+  // a página aqui travaria o convidado num loop e perderia o que ele digitou.
+  if (response.status === 401 && token) {
     clearClientSession();
     window.location.reload();
     throw new Error(data?.error || "Sessão expirada");

@@ -1,5 +1,6 @@
 import { Router } from "express";
 import { authMiddleware } from "../Auth/Middleware/index.js";
+import { signupLimiter } from "../Auth/Middleware/rateLimit.js";
 
 import Signup from "../Services/signup.js";
 import UpdateSettings from "../Services/UpdateSettings.js";
@@ -12,7 +13,7 @@ import ConfirmPasswordChange from "../Services/Password/confirmPasswordChange.js
 const router = Router();
 
 // Signup não precisa de autenticação
-router.post("/signup", async (req, res) => {
+router.post("/signup", signupLimiter, async (req, res) => {
   Signup(req, res);
 });
 

@@ -19,6 +19,8 @@ import { customersTable } from "../../db/schema/customers.js";
 import { resolveHomeServiceTravel } from "../Travel/estimateTravel.js";
 import { validateSlot } from "../Availability/computeDaySlots.js";
 import { resolveAppointmentProducts } from "./resolveAppointmentProducts.js";
+import { sendAppointmentRescheduledClientEmail } from "../Email/appointmentEmails.js";
+import { decrementStock, restoreStock, InsufficientStockError } from "../Products/stock.js";
 
 const UpdateAppointment = async (req: Request, res: Response) => {
   try {
@@ -39,7 +41,7 @@ const UpdateAppointment = async (req: Request, res: Response) => {
     }
 
     const [existing] = await db
-      .select({ id: appointmentsTable.id, status: appointmentsTable.status })
+      .select({ id: appointmentsTable.id, status: appointmentsTable.status, scheduledAt: appointmentsTable.scheduledAt })
       .from(appointmentsTable)
       .where(and(eq(appointmentsTable.id, appointmentId), eq(appointmentsTable.userId, userId)))
       .limit(1);
@@ -104,7 +106,9 @@ const UpdateAppointment = async (req: Request, res: Response) => {
     }
     const totalPrice = (Number(service.price) + productsResult.total).toFixed(2);
 
-    const result = await db.transaction(async (tx) => {
+    let result;
+    try {
+      result = await db.transaction(async (tx) => {
       await tx.execute(sql`SELECT pg_advisory_xact_lock(${userId})`);
 
       const conflict = await validateSlot(
@@ -117,6 +121,20 @@ const UpdateAppointment = async (req: Request, res: Response) => {
       );
       if (conflict) {
         return { error: conflict } as const;
+      }
+
+      // Devolve ao estoque os produtos que estavam vendidos antes de editar,
+      // depois consome de novo pela lista atual — evita ficar com saldo preso
+      // quando o profissional troca os produtos do agendamento.
+      const oldProducts = await tx
+        .select({ productId: appointmentProductsTable.productId, quantity: appointmentProductsTable.quantity })
+        .from(appointmentProductsTable)
+        .where(eq(appointmentProductsTable.appointmentId, appointmentId));
+      if (oldProducts.length > 0) {
+        await restoreStock(tx, oldProducts);
+      }
+      if (productsResult.resolved.length > 0) {
+        await decrementStock(tx, userId, productsResult.resolved);
       }
 
       const [updated] = await tx
@@ -154,10 +172,20 @@ const UpdateAppointment = async (req: Request, res: Response) => {
       }
 
       return { appointment: updated } as const;
-    });
+      });
+    } catch (error) {
+      if (error instanceof InsufficientStockError) {
+        return res.status(409).json({ error: error.message });
+      }
+      throw error;
+    }
 
     if ("error" in result) {
       return res.status(409).json({ error: result.error });
+    }
+
+    if (existing.scheduledAt.getTime() !== scheduledDate.getTime()) {
+      void sendAppointmentRescheduledClientEmail(appointmentId);
     }
 
     return res.status(200).json(result.appointment);
