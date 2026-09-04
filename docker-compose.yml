@@ -65,11 +65,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
 
     healthcheck:
-<<<<<<< HEAD
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER}"]
-=======
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
->>>>>>> develop
       interval: 2s
       timeout: 5s
       retries: 20
