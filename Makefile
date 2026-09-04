@@ -3,7 +3,7 @@
 COMPOSE := docker compose
 
 .PHONY: help up dev down stop restart build logs ps sh-api sh-frontend sh-db \
-        install lint db-generate db-migrate db-push db-studio db-shell clean
+        install lint db-generate db-migrate db-push db-push-local db-studio db-shell clean
 
 help: ## Show this help
 	@grep -E '^[a-zA-Z_-]+:.*## ' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*## "}; {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}'
@@ -55,6 +55,9 @@ db-migrate: ## Apply pending Drizzle migrations
 
 db-push: ## Push schema changes directly to the database (no migration files)
 	$(COMPOSE) exec api npm run db:push
+
+db-push-local: ## Push schema changes directly to the database, running locally (no docker)
+	cd backend && npx drizzle-kit push
 
 db-studio: ## Open Drizzle Studio
 	$(COMPOSE) exec api npm run db:studio

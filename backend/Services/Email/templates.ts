@@ -89,6 +89,7 @@ export interface AppointmentEmailInfo {
   /** ex: "14:30" */
   timeLabel: string;
   isHomeService?: boolean;
+  cancellationReason?: string | null;
 }
 
 const appointmentDetails = (info: AppointmentEmailInfo) => `
@@ -156,6 +157,50 @@ export const contactMessageEmailTemplate = (info: ContactMessageInfo) => ({
      }
      <p style="margin:0 0 6px;font-size:13px;color:#6b6b6b;">Mensagem</p>
      <p style="margin:0;font-size:14px;color:#37352f;white-space:pre-wrap;">${info.message}</p>`
+  ),
+});
+
+export const appointmentScheduleChangedClientTemplate = (info: AppointmentEmailInfo) => ({
+  subject: `Atenção: horário de atendimento de ${info.professionalName} mudou — ai.yuu`,
+  html: layout(
+    "Seu agendamento pode precisar ser remarcado ⚠️",
+    `<p style="margin:0 0 8px;font-size:14px;color:#37352f;">Olá, <strong>${info.clientName}</strong>! <strong>${info.professionalName}</strong> alterou os horários de atendimento e o seu agendamento abaixo não está mais dentro da nova jornada:</p>
+     ${appointmentDetails(info)}
+     <p style="margin:0;font-size:13px;color:#6b6b6b;">Entre em contato com o profissional para confirmar ou remarcar esse horário.</p>`
+  ),
+});
+
+export const appointmentCancelledClientTemplate = (info: AppointmentEmailInfo) => ({
+  subject: `Agendamento cancelado — ${info.professionalName} — ai.yuu`,
+  html: layout(
+    "Seu agendamento foi cancelado ❌",
+    `<p style="margin:0 0 8px;font-size:14px;color:#37352f;">Olá, <strong>${info.clientName}</strong>! <strong>${info.professionalName}</strong> cancelou o horário abaixo:</p>
+     ${appointmentDetails(info)}
+     ${
+       info.cancellationReason
+         ? `<p style="margin:12px 0 0;font-size:13px;color:#6b6b6b;">Motivo: ${info.cancellationReason}</p>`
+         : ""
+     }
+     <p style="margin:12px 0 0;font-size:13px;color:#6b6b6b;">Entre em contato com o profissional para remarcar.</p>`
+  ),
+});
+
+export const appointmentCancelledProfessionalTemplate = (info: AppointmentEmailInfo) => ({
+  subject: `${info.clientName} cancelou o agendamento — ai.yuu`,
+  html: layout(
+    "Um agendamento foi cancelado",
+    `<p style="margin:0 0 8px;font-size:14px;color:#37352f;"><strong>${info.clientName}</strong> cancelou o horário abaixo:</p>
+     ${appointmentDetails(info)}`
+  ),
+});
+
+export const appointmentRescheduledClientTemplate = (info: AppointmentEmailInfo) => ({
+  subject: `Seu horário com ${info.professionalName} foi remarcado — ai.yuu`,
+  html: layout(
+    "Agendamento remarcado 🔄",
+    `<p style="margin:0 0 8px;font-size:14px;color:#37352f;">Olá, <strong>${info.clientName}</strong>! <strong>${info.professionalName}</strong> alterou seu horário. O novo agendamento é:</p>
+     ${appointmentDetails(info)}
+     <p style="margin:0;font-size:13px;color:#6b6b6b;">Se precisar remarcar ou cancelar, entre em contato com o profissional.</p>`
   ),
 });
 

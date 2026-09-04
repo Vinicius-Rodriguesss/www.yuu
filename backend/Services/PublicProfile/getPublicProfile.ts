@@ -7,7 +7,7 @@
  */
 
 import type { Request, Response } from "express";
-import { eq, and } from "drizzle-orm";
+import { eq, and, or, gt } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { usersTable } from "../../db/schema/users.js";
 import { servicesTable } from "../../db/schema/services.js";
@@ -66,7 +66,15 @@ const GetPublicProfile = async (req: Request, res: Response) => {
         price: productsTable.price,
       })
       .from(productsTable)
-      .where(and(eq(productsTable.userId, user.id), eq(productsTable.active, true)));
+      .where(
+        and(
+          eq(productsTable.userId, user.id),
+          eq(productsTable.active, true),
+          // Esconde da grade de agendamento produtos com controle de estoque
+          // zerado — sem estoque, não tem como vender.
+          or(eq(productsTable.trackStock, false), gt(productsTable.stockQuantity, 0))
+        )
+      );
 
     return res.status(200).json({
       name: user.name,

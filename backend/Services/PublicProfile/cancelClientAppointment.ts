@@ -14,6 +14,8 @@ import { db } from "../../db/index.js";
 import { usersTable } from "../../db/schema/users.js";
 import { customersTable } from "../../db/schema/customers.js";
 import { appointmentsTable } from "../../db/schema/appointments.js";
+import { sendAppointmentCancelledProfessionalEmail } from "../Email/appointmentEmails.js";
+import { restoreStockForAppointment } from "../Products/stock.js";
 
 const CANCELLABLE_STATUSES = ["scheduled", "confirmed"];
 
@@ -66,6 +68,9 @@ const CancelClientAppointment = async (req: Request<{ slug: string; id: string }
       })
       .where(eq(appointmentsTable.id, appointment.id))
       .returning();
+
+    void sendAppointmentCancelledProfessionalEmail(appointment.id);
+    void restoreStockForAppointment(appointment.id);
 
     return res.status(200).json(updated);
   } catch (error) {

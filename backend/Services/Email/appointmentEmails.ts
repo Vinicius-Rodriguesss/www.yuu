@@ -19,6 +19,10 @@ import {
   appointmentConfirmedProfessionalTemplate,
   appointmentReminderClientTemplate,
   appointmentReminderProfessionalTemplate,
+  appointmentScheduleChangedClientTemplate,
+  appointmentCancelledClientTemplate,
+  appointmentCancelledProfessionalTemplate,
+  appointmentRescheduledClientTemplate,
   type AppointmentEmailInfo,
 } from "./templates.js";
 
@@ -92,6 +96,66 @@ export const sendAppointmentConfirmationEmails = async (appointmentId: number) =
     ]);
   } catch (error) {
     console.warn("Falha nos emails de confirmação:", error instanceof Error ? error.message : error);
+  }
+};
+
+/** Aviso de que a jornada do profissional mudou e o agendamento não cabe mais nela. */
+export const sendAppointmentScheduleChangedEmail = async (appointmentId: number) => {
+  if (!isSmtpConfigured()) return;
+  try {
+    const data = await loadAppointmentEmailData(appointmentId);
+    if (!data) return;
+    await trySend(
+      data.clientEmail,
+      appointmentScheduleChangedClientTemplate(data.info),
+      "alteração de jornada"
+    );
+  } catch (error) {
+    console.warn("Falha no email de alteração de jornada:", error instanceof Error ? error.message : error);
+  }
+};
+
+/** Cancelamento pelo profissional — avisa o cliente. */
+export const sendAppointmentCancelledClientEmail = async (appointmentId: number, cancellationReason?: string | null) => {
+  if (!isSmtpConfigured()) return;
+  try {
+    const data = await loadAppointmentEmailData(appointmentId);
+    if (!data) return;
+    await trySend(
+      data.clientEmail,
+      appointmentCancelledClientTemplate({ ...data.info, cancellationReason: cancellationReason ?? null }),
+      "cancelamento cliente"
+    );
+  } catch (error) {
+    console.warn("Falha no email de cancelamento (cliente):", error instanceof Error ? error.message : error);
+  }
+};
+
+/** Cancelamento pelo cliente — avisa o profissional. */
+export const sendAppointmentCancelledProfessionalEmail = async (appointmentId: number) => {
+  if (!isSmtpConfigured()) return;
+  try {
+    const data = await loadAppointmentEmailData(appointmentId);
+    if (!data) return;
+    await trySend(
+      data.professionalEmail,
+      appointmentCancelledProfessionalTemplate(data.info),
+      "cancelamento profissional"
+    );
+  } catch (error) {
+    console.warn("Falha no email de cancelamento (profissional):", error instanceof Error ? error.message : error);
+  }
+};
+
+/** Reagendamento (data/hora alterada) — avisa o cliente do novo horário. */
+export const sendAppointmentRescheduledClientEmail = async (appointmentId: number) => {
+  if (!isSmtpConfigured()) return;
+  try {
+    const data = await loadAppointmentEmailData(appointmentId);
+    if (!data) return;
+    await trySend(data.clientEmail, appointmentRescheduledClientTemplate(data.info), "reagendamento cliente");
+  } catch (error) {
+    console.warn("Falha no email de reagendamento:", error instanceof Error ? error.message : error);
   }
 };
 

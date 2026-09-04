@@ -24,6 +24,7 @@ import type { Request, Response } from "express";
 import { eq } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { workScheduleDaysTable } from "../../db/schema/workScheduleDays.js";
+import { notifyAffectedAppointments } from "./notifyAffectedAppointments.js";
 
 const CreateWorkScheduleDays = async (req: Request, res: Response) => {
   try {
@@ -51,6 +52,8 @@ const CreateWorkScheduleDays = async (req: Request, res: Response) => {
         }))
       )
       .returning();
+
+    void notifyAffectedAppointments(Number(workScheduleId));
 
     return res.status(201).json(inserted);
   } catch (error) {

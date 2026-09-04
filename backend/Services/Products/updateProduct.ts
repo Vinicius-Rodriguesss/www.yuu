@@ -8,7 +8,15 @@ const UpdateProduct = async (req: Request, res: Response) => {
   try {
     const userId = (req as any).userId;
     const { id } = req.params;
-    const { name, price, active } = req.body;
+    const { name, price, active, trackStock, stockQuantity } = req.body;
+
+    if (
+      trackStock === true &&
+      stockQuantity !== undefined &&
+      (isNaN(Number(stockQuantity)) || Number(stockQuantity) < 0)
+    ) {
+      return res.status(400).json({ error: "Quantidade em estoque inválida" });
+    }
 
     const [updated] = await db
       .update(productsTable)
@@ -16,6 +24,8 @@ const UpdateProduct = async (req: Request, res: Response) => {
         name,
         price: price !== undefined ? String(price) : undefined,
         active,
+        trackStock,
+        stockQuantity: stockQuantity !== undefined ? Number(stockQuantity) : undefined,
       })
       .where(and(eq(productsTable.id, Number(id)), eq(productsTable.userId, userId)))
       .returning();

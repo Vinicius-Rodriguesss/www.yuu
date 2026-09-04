@@ -6,6 +6,7 @@ import { usersTable } from "../db/schema/users.js";
 import { addressesTable } from "../db/schema/addresses.js";
 import { workSchedulesTable } from "../db/schema/workSchedules.js";
 import { workScheduleDaysTable } from "../db/schema/workScheduleDays.js";
+import { notifyAffectedAppointments } from "./WorkScheduleDays/notifyAffectedAppointments.js";
 
 const UpdateSettings = async (req: Request, res: Response) => {
  try {
@@ -273,6 +274,10 @@ const UpdateSettings = async (req: Request, res: Response) => {
     workSchedule: updatedScheduleData,
    };
   });
+
+  if (result.workSchedule?.days?.length > 0) {
+   void notifyAffectedAppointments(result.workSchedule.id);
+  }
 
   return res.status(200).json(result);
  } catch (error: any) {

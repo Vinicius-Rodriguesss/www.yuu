@@ -14,6 +14,7 @@ export interface ResolvedAppointmentProduct {
   name: string;
   unitPrice: string;
   quantity: number;
+  trackStock: boolean;
 }
 
 export const resolveAppointmentProducts = async (
@@ -26,7 +27,13 @@ export const resolveAppointmentProducts = async (
 
   const productIds = input.map((p) => Number(p.productId));
   const products = await db
-    .select({ id: productsTable.id, name: productsTable.name, price: productsTable.price })
+    .select({
+      id: productsTable.id,
+      name: productsTable.name,
+      price: productsTable.price,
+      trackStock: productsTable.trackStock,
+      stockQuantity: productsTable.stockQuantity,
+    })
     .from(productsTable)
     .where(and(inArray(productsTable.id, productIds), eq(productsTable.userId, userId)));
 
@@ -42,11 +49,17 @@ export const resolveAppointmentProducts = async (
     if (!product) {
       return { error: "Produto não encontrado" };
     }
+    // Checagem "otimista" aqui pra dar um erro cedo e amigável; a garantia real
+    // contra concorrência é o decremento atômico em decrementStock (dentro da transação).
+    if (product.trackStock && product.stockQuantity < quantity) {
+      return { error: `Estoque insuficiente para "${product.name}" (disponível: ${product.stockQuantity})` };
+    }
     resolved.push({
       productId: product.id,
       name: product.name,
       unitPrice: product.price,
       quantity,
+      trackStock: product.trackStock,
     });
     total += Number(product.price) * quantity;
   }
