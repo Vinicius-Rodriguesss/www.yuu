@@ -11,6 +11,7 @@ import { db } from "../../db/index.js";
 import { appointmentsTable } from "../../db/schema/appointments.js";
 import { customersTable } from "../../db/schema/customers.js";
 import { servicesTable } from "../../db/schema/services.js";
+import { caixaEntriesTable } from "../../db/schema/caixaEntries.js";
 
 const GetDashboard = async (req: Request, res: Response) => {
   try {
@@ -53,7 +54,10 @@ const GetDashboard = async (req: Request, res: Response) => {
       );
 
     const atendimentosHoje = {
-      total: todayAppointments.length,
+      // cancelados e faltas não entram no total do dia (nem na barra de progresso)
+      total: todayAppointments.filter(
+        (a) => a.status !== "cancelled" && a.status !== "no_show"
+      ).length,
       realizados: todayAppointments.filter((a) => a.status === "completed").length,
       pendentes: todayAppointments.filter((a) =>
         ["scheduled", "confirmed"].includes(a.status)
@@ -76,10 +80,33 @@ const GetDashboard = async (req: Request, res: Response) => {
         )
       );
 
-    const atendimentosMes = monthAppointments.length;
-    const receitaMes = monthAppointments
+    // Vendas avulsas do mês (tela Caixa) — fonte de receita independente dos
+    // agendamentos: concluir um agendamento não gera lançamento no caixa, então
+    // as duas somas se complementam sem duplicar.
+    const monthCaixaEntries = await db
+      .select({ amount: caixaEntriesTable.amount })
+      .from(caixaEntriesTable)
+      .where(
+        and(
+          eq(caixaEntriesTable.userId, userId),
+          gte(caixaEntriesTable.soldAt, startOfMonth),
+          lt(caixaEntriesTable.soldAt, startOfNextMonth)
+        )
+      );
+
+    // Cancelados e faltas não são "atendimentos" — só contam agendamentos que
+    // aconteceram ou ainda vão acontecer.
+    const atendimentosMes = monthAppointments.filter(
+      (a) => a.status !== "cancelled" && a.status !== "no_show"
+    ).length;
+    const receitaAgendamentosMes = monthAppointments
       .filter((a) => a.status === "completed")
       .reduce((sum, a) => sum + Number(a.price), 0);
+    const receitaCaixaMes = monthCaixaEntries.reduce(
+      (sum, e) => sum + Number(e.amount),
+      0
+    );
+    const receitaMes = receitaAgendamentosMes + receitaCaixaMes;
 
     // Próximo agendamento (futuro, não cancelado)
     const [proximo] = await db

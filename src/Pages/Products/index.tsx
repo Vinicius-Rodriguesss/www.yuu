@@ -147,7 +147,9 @@ const Products = () => {
       return;
     }
 
-    if (trackStock && (stockQuantity.trim() === "" || Number(stockQuantity) < 0)) {
+    // Quantidade é opcional mesmo com o controle de estoque ligado: em branco = 0.
+    // Só rejeita valor negativo ou não numérico.
+    if (trackStock && stockQuantity.trim() !== "" && (isNaN(Number(stockQuantity)) || Number(stockQuantity) < 0)) {
       setToast({ show: true, type: "error", message: "Informe uma quantidade em estoque válida." });
       return;
     }
@@ -157,7 +159,7 @@ const Products = () => {
       price: getPriceNumber(),
       active: true,
       trackStock,
-      stockQuantity: trackStock ? Number(stockQuantity) : 0,
+      stockQuantity: trackStock && stockQuantity.trim() !== "" ? Number(stockQuantity) : 0,
     };
 
     try {
@@ -406,7 +408,7 @@ const Products = () => {
               {trackStock && (
                 <div>
                   <label className="text-xs font-semibold text-gray-500 mb-1.5 block tracking-wide">
-                    Quantidade em estoque <span className="text-red-400">*</span>
+                    Quantidade em estoque <span className="text-gray-300 font-normal">(opcional)</span>
                   </label>
                   <input
                     type="number"

@@ -13,7 +13,10 @@ const CreateProduct = async (req: Request, res: Response) => {
     }
 
     const stockEnabled = Boolean(trackStock);
-    if (stockEnabled && (isNaN(Number(stockQuantity)) || Number(stockQuantity) < 0)) {
+    // Quantidade é opcional mesmo com controle de estoque ligado: ausente/vazio = 0.
+    const hasStockQuantity =
+      stockQuantity !== undefined && stockQuantity !== null && String(stockQuantity).trim() !== "";
+    if (stockEnabled && hasStockQuantity && (isNaN(Number(stockQuantity)) || Number(stockQuantity) < 0)) {
       return res.status(400).json({ error: "Quantidade em estoque inválida" });
     }
 
@@ -25,7 +28,7 @@ const CreateProduct = async (req: Request, res: Response) => {
         price: String(price),
         active: active ?? true,
         trackStock: stockEnabled,
-        stockQuantity: stockEnabled ? Number(stockQuantity) : 0,
+        stockQuantity: stockEnabled && hasStockQuantity ? Number(stockQuantity) : 0,
       })
       .returning();
 

@@ -771,7 +771,10 @@ const Calendar = () => {
 
   const handleRangePointerDown = (e: React.PointerEvent<HTMLDivElement>) => {
     if (e.button !== 0 || !workHours?.isWorkDay) return;
-    setRangeMenu(null);
+    // Se o menu de "Agendamento/Bloqueio" está aberto, este pointerdown é o
+    // usuário mirando um dos botões dele — não iniciar uma nova seleção nem
+    // fechar o menu por baixo (o clique no botão cuida de fechar).
+    if (rangeMenu) return;
     const px = getPxFromClientY(e.clientY);
     const hour = Math.floor(offsetPxToMinutes(px) / 60);
     if (isHourInPast(hour) || !isHourWithinWorkHours(hour)) return;
@@ -791,6 +794,12 @@ const Calendar = () => {
   };
 
   const handleRangePointerUp = (e: React.PointerEvent<HTMLDivElement>) => {
+    // Solta a captura do ponteiro explicitamente — se ela vazar, o próximo
+    // clique (nos botões do menu) é redirecionado pra esta camada e o menu
+    // "só fecha" em vez de abrir o modal.
+    if (e.currentTarget.hasPointerCapture?.(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
     const drag = rangeSelectRef.current;
     rangeSelectRef.current = null;
     setRangeSelectPreview(null);
@@ -1038,10 +1047,34 @@ const Calendar = () => {
     return true;
   };
 
+  // Motivo específico pelo qual a etapa atual não pode avançar — evita cair sempre
+  // no genérico "preencha os campos" quando o real problema é o dia/horário.
+  const stepBlockReason = () => {
+    if (appointmentStep === 4) {
+      if (!appointmentDate || !appointmentTime) {
+        return "Preencha a data e o horário para continuar";
+      }
+      if (isHomeService && !selectedAddressId) {
+        return "Selecione ou cadastre o endereço para o atendimento a domicílio";
+      }
+      if (appointmentDate === dayKey(selectedDay) && workHours) {
+        if (!workHours.isWorkDay) {
+          return "Não há expediente neste dia — escolha outra data";
+        }
+        const chosenMinutes = parseTimeToMinutes(appointmentTime);
+        if (workStartMinutes !== null && workEndMinutes !== null &&
+          (chosenMinutes < workStartMinutes || chosenMinutes >= workEndMinutes)) {
+          return `Horário fora da jornada de trabalho (${workHours.workStart} - ${workHours.workEnd})`;
+        }
+      }
+    }
+    return "Preencha os campos desta etapa para continuar";
+  };
+
   const goToNextStep = () => {
     setAppointmentError("");
     if (!canGoToNextStep()) {
-      setAppointmentError("Preencha os campos desta etapa para continuar");
+      setAppointmentError(stepBlockReason());
       return;
     }
     setAppointmentStep((s) => (Math.min(s + 1, 5) as AppointmentStep));
@@ -1345,8 +1378,21 @@ const Calendar = () => {
 
                 {/* Ações do painel de filtros */}
                 <div className="highlight-appointments-actions">
-                  <button className="btn-clear-filters" onClick={handleClearFilters}>Limpar</button>
-                  <button className="btn-apply-filters">Aplicar</button>
+                  <button
+                    className="btn-clear-filters"
+                    onClick={() => {
+                      handleClearFilters();
+                      setIsNavCalendarOpen(false);
+                    }}
+                  >
+                    Limpar
+                  </button>
+                  <button
+                    className="btn-apply-filters"
+                    onClick={() => setIsNavCalendarOpen(false)}
+                  >
+                    Aplicar
+                  </button>
                 </div>
               </div>
             )}
@@ -1416,6 +1462,7 @@ const Calendar = () => {
               onPointerDown={handleRangePointerDown}
               onPointerMove={handleRangePointerMove}
               onPointerUp={handleRangePointerUp}
+              onPointerCancel={handleRangePointerUp}
               style={{ height: hourOffsets[24] ?? 0 }}
             />
           )}
@@ -1560,7 +1607,12 @@ const Calendar = () => {
           {rangeMenu && (
             <>
               <div className="range-select-menu-backdrop" onClick={() => setRangeMenu(null)} />
-              <div className="range-select-menu" style={{ top: rangeMenu.top }}>
+              <div
+                className="range-select-menu"
+                style={{ top: rangeMenu.top }}
+                onPointerDown={(e) => e.stopPropagation()}
+                onPointerUp={(e) => e.stopPropagation()}
+              >
                 <span className="range-select-menu-time">
                   {minutesToTimeLabel(rangeMenu.startMinutes)} – {minutesToTimeLabel(rangeMenu.endMinutes)}
                 </span>

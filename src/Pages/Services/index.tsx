@@ -376,9 +376,11 @@ const Services = () => {
         <div>
           <h1 className="text-2xl font-semibold text-gray-900 mb-1 tracking-tight">Serviços</h1>
           <p className="text-sm text-gray-400">
-            {services.length} serviço{services.length !== 1 ? "s" : ""} cadastrado
-            {services.length !== 1 ? "s" : ""} • {activeServices.length} ativo
-            {activeServices.length !== 1 ? "s" : ""}
+            {(searchTerm || selectedCategory !== "Todas") && filteredServices.length === 0
+              ? "Nenhum serviço encontrado para esta busca."
+              : `${services.length} serviço${services.length !== 1 ? "s" : ""} cadastrado${
+                  services.length !== 1 ? "s" : ""
+                } • ${activeServices.length} ativo${activeServices.length !== 1 ? "s" : ""}`}
           </p>
         </div>
 
