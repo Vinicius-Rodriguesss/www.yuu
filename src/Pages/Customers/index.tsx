@@ -53,6 +53,9 @@ const Customers = () => {
   const [notes, setNotes] = useState("");
 
   const [addresses, setAddresses] = useState<CustomerAddress[]>([]);
+  // Endereços preenchidos antes do cliente existir (fluxo "Novo cliente").
+  // São enviados junto quando o cliente é salvo.
+  const [pendingAddresses, setPendingAddresses] = useState<Array<typeof emptyAddress>>([]);
   const [showAddressForm, setShowAddressForm] = useState(false);
   const [addressForm, setAddressForm] = useState({ ...emptyAddress });
   const [savingAddress, setSavingAddress] = useState(false);
@@ -122,10 +125,17 @@ const Customers = () => {
   }, [addressForm.cep, showAddressForm]);
 
   const handleCreateAddress = async () => {
-    if (!editingId) return;
     const a = addressForm;
     if (!a.cep || !a.street || !a.number || !a.neighborhood || !a.city || !a.state) {
       setToast({ show: true, type: "error", message: "Preencha o endereço completo." });
+      return;
+    }
+    // Cliente novo (ainda sem id): guarda o endereço pra enviar junto no submit.
+    if (!editingId) {
+      setPendingAddresses((prev) => [...prev, { ...a }]);
+      setShowAddressForm(false);
+      setAddressForm({ ...emptyAddress });
+      setCepStatus(null);
       return;
     }
     setSavingAddress(true);
@@ -170,9 +180,14 @@ const Customers = () => {
     setNotes("");
     setEditingId(null);
     setAddresses([]);
+    setPendingAddresses([]);
     setShowAddressForm(false);
     setAddressForm({ ...emptyAddress });
     setCepStatus(null);
+  };
+
+  const removePendingAddress = (index: number) => {
+    setPendingAddresses((prev) => prev.filter((_, i) => i !== index));
   };
 
   const handleEdit = (customer: Customer) => {
@@ -247,10 +262,27 @@ const Customers = () => {
           method: "POST",
           body: JSON.stringify(customerData),
         });
+        // Envia os endereços preenchidos antes do cliente existir
+        let addressError = false;
+        for (let i = 0; i < pendingAddresses.length; i++) {
+          try {
+            await apiFetch(`/customers/${created.id}/addresses`, {
+              method: "POST",
+              body: JSON.stringify({ customerId: created.id, ...pendingAddresses[i], isPrimary: i === 0 }),
+            });
+          } catch {
+            addressError = true; // cliente já foi criado; segue e avisa no fim
+          }
+        }
         await fetchCustomers();
-        // Mantém o modal aberto, agora em modo de edição, pra permitir cadastrar o endereço na sequência
-        setEditingId(created.id);
-        setToast({ show: true, type: "success", message: "Cliente criado! Agora você pode cadastrar o endereço dele." });
+        closeModal();
+        setToast({
+          show: true,
+          type: addressError ? "warning" : "success",
+          message: addressError
+            ? "Cliente criado, mas houve erro ao salvar algum endereço. Edite o cliente pra revisar."
+            : "Cliente criado com sucesso!",
+        });
       }
     } catch (error) {
       setToast({
@@ -476,11 +508,45 @@ const Customers = () => {
                 />
               </div>
 
-              {editingId && (
+              {(
                 <div className="pt-1 border-t border-gray-100">
                   <label className="text-xs font-semibold text-gray-500 mb-2 mt-4 block tracking-wide">
                     Endereços
                   </label>
+
+                  {pendingAddresses.length > 0 && (
+                    <div className="space-y-2 mb-3">
+                      {pendingAddresses.map((a, i) => (
+                        <div
+                          key={`pending-${i}`}
+                          className="flex items-start gap-2.5 px-3.5 py-2.5 border border-gray-200 rounded-lg"
+                        >
+                          <FiMapPin size={14} className="text-gray-400 mt-0.5 flex-shrink-0" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm text-gray-900 truncate">
+                              {a.street}, {a.number}
+                              {i === 0 && (
+                                <span className="ml-2 text-[10px] font-semibold text-gray-500 uppercase tracking-wide">
+                                  Principal
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-xs text-gray-400 truncate">
+                              {a.neighborhood} · {a.city}/{a.state} · {a.cep}
+                            </p>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removePendingAddress(i)}
+                            className="w-7 h-7 rounded-full hover:bg-red-50 flex items-center justify-center transition-colors text-gray-400 hover:text-red-600 flex-shrink-0"
+                            title="Remover endereço"
+                          >
+                            <FiTrash2 size={13} />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
 
                   {addresses.length > 0 && (
                     <div className="space-y-2 mb-3">
