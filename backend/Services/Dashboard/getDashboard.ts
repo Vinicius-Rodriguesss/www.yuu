@@ -6,11 +6,12 @@
  */
 
 import type { Request, Response } from "express";
-import { eq, and, gte, lt, ne, asc, desc } from "drizzle-orm";
+import { eq, and, gte, lt, ne, asc, desc, inArray } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { appointmentsTable } from "../../db/schema/appointments.js";
 import { customersTable } from "../../db/schema/customers.js";
 import { servicesTable } from "../../db/schema/services.js";
+import { caixaSalesTable } from "../../db/schema/caixaSales.js";
 import { caixaEntriesTable } from "../../db/schema/caixaEntries.js";
 
 const GetDashboard = async (req: Request, res: Response) => {
@@ -80,19 +81,32 @@ const GetDashboard = async (req: Request, res: Response) => {
         )
       );
 
-    // Vendas avulsas do mês (tela Caixa) — fonte de receita independente dos
-    // agendamentos: concluir um agendamento não gera lançamento no caixa, então
-    // as duas somas se complementam sem duplicar.
-    const monthCaixaEntries = await db
-      .select({ amount: caixaEntriesTable.amount })
-      .from(caixaEntriesTable)
+    // Vendas do mês (tela Caixa) — fonte de receita independente dos agendamentos:
+    // concluir um agendamento não gera venda no caixa, então as duas somas se
+    // complementam sem duplicar. Total de cada venda = SUM(itens) - desconto.
+    const monthSales = await db
+      .select({ id: caixaSalesTable.id, discount: caixaSalesTable.discount })
+      .from(caixaSalesTable)
       .where(
         and(
-          eq(caixaEntriesTable.userId, userId),
-          gte(caixaEntriesTable.soldAt, startOfMonth),
-          lt(caixaEntriesTable.soldAt, startOfNextMonth)
+          eq(caixaSalesTable.userId, userId),
+          gte(caixaSalesTable.soldAt, startOfMonth),
+          lt(caixaSalesTable.soldAt, startOfNextMonth)
         )
       );
+
+    const monthSaleIds = monthSales.map((s) => s.id);
+    const monthSaleItems = monthSaleIds.length
+      ? await db
+          .select({ saleId: caixaEntriesTable.saleId, amount: caixaEntriesTable.amount })
+          .from(caixaEntriesTable)
+          .where(inArray(caixaEntriesTable.saleId, monthSaleIds))
+      : [];
+
+    const subtotalBySale = new Map<number, number>();
+    for (const it of monthSaleItems) {
+      subtotalBySale.set(it.saleId, (subtotalBySale.get(it.saleId) ?? 0) + Number(it.amount));
+    }
 
     // Cancelados e faltas não são "atendimentos" — só contam agendamentos que
     // aconteceram ou ainda vão acontecer.
@@ -102,8 +116,8 @@ const GetDashboard = async (req: Request, res: Response) => {
     const receitaAgendamentosMes = monthAppointments
       .filter((a) => a.status === "completed")
       .reduce((sum, a) => sum + Number(a.price), 0);
-    const receitaCaixaMes = monthCaixaEntries.reduce(
-      (sum, e) => sum + Number(e.amount),
+    const receitaCaixaMes = monthSales.reduce(
+      (sum, s) => sum + Math.max(0, (subtotalBySale.get(s.id) ?? 0) - Number(s.discount)),
       0
     );
     const receitaMes = receitaAgendamentosMes + receitaCaixaMes;
