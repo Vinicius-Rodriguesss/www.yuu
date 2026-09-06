@@ -640,7 +640,7 @@ const Calendar = () => {
     setDragPreviewTop(newTop);
   };
 
-  const handleAppointmentPointerUp = async (e: React.PointerEvent<HTMLDivElement>, appt: Appointment) => {
+  const handleAppointmentPointerUp = async (_e: React.PointerEvent<HTMLDivElement>, appt: Appointment) => {
     const drag = appointmentDragRef.current;
     appointmentDragRef.current = null;
     setDraggingAppointmentId(null);
@@ -715,7 +715,7 @@ const Calendar = () => {
     setBlockDragPreviewTop(newTop);
   };
 
-  const handleBlockPointerUp = async (e: React.PointerEvent<HTMLDivElement>, block: BlockedSlot) => {
+  const handleBlockPointerUp = async (_e: React.PointerEvent<HTMLDivElement>, block: BlockedSlot) => {
     const drag = blockDragRef.current;
     blockDragRef.current = null;
     setDraggingBlockId(null);
