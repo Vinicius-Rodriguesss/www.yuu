@@ -4,6 +4,12 @@
  * GET /caixa?date=YYYY-MM-DD
  * Lista as vendas do dia (cada uma com seus itens), o total geral do dia e o
  * total por forma de pagamento. Total de cada venda = SUM(itens) - desconto.
+ *
+ * Além das vendas manuais, os atendimentos já feitos e pagos (appointments com
+ * status = "completed" e paymentStatus = "paid") do mesmo dia entram no total
+ * do dia — pelo `price` (snapshot do serviço). Eles vêm separados em
+ * `appointments`/`appointmentsTotal` e não afetam `totalByMethod`, já que
+ * agendamento não guarda forma de pagamento.
  */
 
 import type { Request, Response } from "express";
@@ -11,6 +17,9 @@ import { eq, and, gte, lt, asc, inArray } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { caixaSalesTable } from "../../db/schema/caixaSales.js";
 import { caixaEntriesTable } from "../../db/schema/caixaEntries.js";
+import { appointmentsTable } from "../../db/schema/appointments.js";
+import { customersTable } from "../../db/schema/customers.js";
+import { servicesTable } from "../../db/schema/services.js";
 
 const ListCaixaSales = async (req: Request, res: Response) => {
   try {
@@ -55,7 +64,43 @@ const ListCaixaSales = async (req: Request, res: Response) => {
       itemsBySale.set(item.saleId, list);
     }
 
-    let total = 0;
+    // Atendimentos já feitos e pagos do dia — receita que não passou pela venda manual.
+    const completedAppointments = await db
+      .select({
+        id: appointmentsTable.id,
+        customerName: customersTable.name,
+        serviceTitle: servicesTable.title,
+        scheduledAt: appointmentsTable.scheduledAt,
+        price: appointmentsTable.price,
+        paymentStatus: appointmentsTable.paymentStatus,
+      })
+      .from(appointmentsTable)
+      .leftJoin(customersTable, eq(appointmentsTable.customerId, customersTable.id))
+      .leftJoin(servicesTable, eq(appointmentsTable.serviceId, servicesTable.id))
+      .where(
+        and(
+          eq(appointmentsTable.userId, userId),
+          eq(appointmentsTable.status, "completed"),
+          eq(appointmentsTable.paymentStatus, "paid"),
+          gte(appointmentsTable.scheduledAt, dayStart),
+          lt(appointmentsTable.scheduledAt, dayEnd)
+        )
+      )
+      .orderBy(asc(appointmentsTable.scheduledAt));
+
+    const appointments = completedAppointments.map((a) => ({
+      id: a.id,
+      customerName: a.customerName ?? "Cliente",
+      serviceTitle: a.serviceTitle ?? "Serviço",
+      scheduledAt: a.scheduledAt,
+      price: a.price,
+      paymentStatus: a.paymentStatus,
+    }));
+    const appointmentsTotal = Number(
+      appointments.reduce((sum, a) => sum + Number(a.price), 0).toFixed(2)
+    );
+
+    let total = appointmentsTotal;
     const totalByMethod: Record<string, number> = {};
 
     const result = sales.map((sale) => {
@@ -80,6 +125,9 @@ const ListCaixaSales = async (req: Request, res: Response) => {
       sales: result,
       total: Number(total.toFixed(2)),
       totalByMethod,
+      appointments,
+      appointmentsTotal,
+      appointmentsCount: appointments.length,
     });
   } catch (error) {
     console.error("ERRO AO LISTAR CAIXA:", error);

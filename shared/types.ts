@@ -270,12 +270,27 @@ export interface CaixaEntry {
   notes: string | null;
 }
 
+/** Atendimento concluído do dia, exibido junto das vendas do caixa (somente leitura). */
+export interface CaixaAppointment {
+  id: number;
+  customerName: string;
+  serviceTitle: string;
+  scheduledAt: string;
+  price: string;
+  paymentStatus: string;
+}
+
 /** GET /caixa?date=YYYY-MM-DD */
 export interface CaixaDay {
   date: string;
   entries: CaixaEntry[];
+  /** Total do dia = vendas manuais + atendimentos concluídos. */
   total: number;
   totalByMethod: Record<string, number>;
+  /** Soma do `price` dos atendimentos com status `completed` no dia. */
+  appointmentsTotal: number;
+  appointmentsCount: number;
+  appointments: CaixaAppointment[];
 }
 
 // ===================== Dashboard =====================

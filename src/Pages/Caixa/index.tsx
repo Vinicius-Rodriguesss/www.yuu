@@ -62,6 +62,15 @@ interface CaixaSale {
   total: number;
 }
 
+interface CaixaAppointment {
+  id: number;
+  customerName: string;
+  serviceTitle: string;
+  scheduledAt: string;
+  price: string;
+  paymentStatus: string;
+}
+
 // Item do carrinho antes de salvar (ainda não tem id do banco)
 interface CartItem {
   key: string;
@@ -104,6 +113,8 @@ const Caixa = () => {
   const [sales, setSales] = useState<CaixaSale[]>([]);
   const [total, setTotal] = useState(0);
   const [totalByMethod, setTotalByMethod] = useState<Record<string, number>>({});
+  const [appointments, setAppointments] = useState<CaixaAppointment[]>([]);
+  const [appointmentsTotal, setAppointmentsTotal] = useState(0);
   const [loading, setLoading] = useState(true);
 
   const [services, setServices] = useState<Service[]>([]);
@@ -151,11 +162,15 @@ const Caixa = () => {
         setSales(data.sales ?? []);
         setTotal(data.total ?? 0);
         setTotalByMethod(data.totalByMethod ?? {});
+        setAppointments(data.appointments ?? []);
+        setAppointmentsTotal(data.appointmentsTotal ?? 0);
       })
       .catch(() => {
         setSales([]);
         setTotal(0);
         setTotalByMethod({});
+        setAppointments([]);
+        setAppointmentsTotal(0);
       })
       .finally(() => setLoading(false));
   };
@@ -384,7 +399,7 @@ const Caixa = () => {
       </div>
 
       {/* Totais do dia */}
-      <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 mb-6">
         <div className="col-span-2 sm:col-span-1 bg-gray-900 rounded-lg p-4">
           <p className="text-[11px] font-semibold text-white/50 uppercase tracking-wider mb-1">Total do dia</p>
           <p className="text-xl font-semibold text-white">{formatCurrencyDisplay(total)}</p>
@@ -399,6 +414,14 @@ const Caixa = () => {
             </p>
           </div>
         ))}
+        <div className="bg-white border border-gray-200 rounded-lg p-4">
+          <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider mb-1 flex items-center gap-1">
+            <FiScissors size={13} /> Atendimentos
+          </p>
+          <p className="text-base font-semibold text-gray-900">
+            {formatCurrencyDisplay(appointmentsTotal)}
+          </p>
+        </div>
       </div>
 
       {/* Modal de nova venda */}
@@ -657,7 +680,7 @@ const Caixa = () => {
         <div className="flex items-center justify-center py-16">
           <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
         </div>
-      ) : sales.length === 0 ? (
+      ) : sales.length === 0 && appointments.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
           <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-5">
             <FiDollarSign size={28} className="text-gray-400" />
@@ -719,6 +742,43 @@ const Caixa = () => {
                     >
                       <FiTrash2 size={13} />
                     </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+
+          {appointments.map((appt) => {
+            const time = new Date(appt.scheduledAt).toLocaleTimeString("pt-BR", {
+              hour: "2-digit",
+              minute: "2-digit",
+              timeZone: "UTC",
+            });
+            return (
+              <div key={`appt-${appt.id}`} className="px-5 py-3.5 hover:bg-gray-50/50 transition-colors">
+                <div className="flex items-start justify-between gap-4">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-sm text-gray-500">{time}</span>
+                      <span className="text-[11px] text-gray-400">•</span>
+                      <span className="text-[10px] font-semibold text-gray-500 uppercase tracking-wider bg-gray-100 rounded px-1.5 py-0.5">
+                        Atendimento
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 text-sm text-gray-900 min-w-0">
+                      <span className="text-gray-400 flex-shrink-0">
+                        <FiScissors size={13} />
+                      </span>
+                      <span className="truncate">{appt.serviceTitle}</span>
+                      <span className="text-xs text-gray-400 flex-shrink-0 truncate">
+                        {appt.customerName}
+                      </span>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 flex-shrink-0">
+                    <span className="text-sm font-semibold text-gray-900">
+                      {formatCurrencyDisplay(Number(appt.price))}
+                    </span>
                   </div>
                 </div>
               </div>

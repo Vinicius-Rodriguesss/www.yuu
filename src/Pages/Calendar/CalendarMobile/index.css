@@ -1,0 +1,597 @@
+/* ------------------------------------------------------------------ *
+ * Estilos da versão MOBILE do /calendar (lista de cards).
+ * Prefixo .cal-mob-* para não colidir com Calendar/index.css (desktop).
+ * Paleta = mesma do sistema: preto/branco/cinza.
+ *   texto forte #1a1a1a · texto #333 · secundário #767676 · apagado #a0a0a0
+ *   borda #ececec / #d9d9d9 · superfície #fff · tint #00000008
+ *   ação primária #1a1a1a (FAB #000) · erro #e0263f sobre #fdecef
+ * As cores de status dos agendamentos vêm de statusColors (inline) — são
+ * semânticas e iguais às do desktop, não fazem parte do "tema".
+ * ------------------------------------------------------------------ */
+
+.cal-mob {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  min-height: 100%;
+  position: relative;
+  color: #333;
+  font-family: inherit;
+}
+
+/* ---------- Cabeçalho de dia ---------- */
+.cal-mob-header {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.25rem 0 0.75rem;
+}
+
+.cal-mob-nav {
+  flex: 0 0 auto;
+  width: 2.5rem;
+  height: 2.5rem;
+  display: grid;
+  place-items: center;
+  border: 1px solid #ececec;
+  border-radius: 0.75rem;
+  background: #fff;
+  font-size: 1.1rem;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+.cal-mob-nav:active {
+  background: #00000010;
+}
+
+.cal-mob-date {
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  height: 2.5rem;
+  border: 1px solid #ececec;
+  border-radius: 0.75rem;
+  background: #fff;
+  font-size: 0.95rem;
+  font-weight: 600;
+  text-transform: capitalize;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+
+.cal-mob-today {
+  align-self: center;
+  margin-bottom: 0.75rem;
+  padding: 0.35rem 0.9rem;
+  border: 1px solid #ececec;
+  border-radius: 999px;
+  background: #00000008;
+  color: #1a1a1a;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* ---------- Lista de cards ---------- */
+.cal-mob-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding-bottom: 6rem;
+}
+
+.cal-mob-empty {
+  text-align: center;
+  color: #a0a0a0;
+  font-size: 0.9rem;
+  padding: 3rem 1rem;
+}
+
+.cal-mob-card {
+  display: flex;
+  align-items: stretch;
+  gap: 0.75rem;
+  width: 100%;
+  padding: 0.75rem;
+  border: 1px solid #ececec;
+  border-radius: 0.9rem;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+.cal-mob-card:active {
+  background: #00000008;
+}
+
+.cal-mob-card-time {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  justify-content: center;
+  min-width: 3rem;
+}
+.cal-mob-card-time strong {
+  font-size: 0.95rem;
+  color: #1a1a1a;
+}
+.cal-mob-card-time span {
+  font-size: 0.75rem;
+  color: #a0a0a0;
+}
+
+.cal-mob-card-bar {
+  flex: 0 0 4px;
+  border-radius: 2px;
+}
+
+.cal-mob-card-body {
+  flex: 1 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.cal-mob-card-name {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.cal-mob-home {
+  color: #767676;
+  font-size: 0.85rem;
+}
+
+.cal-mob-card-sub {
+  font-size: 0.82rem;
+  color: #767676;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.cal-mob-status {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+/* ---------- FAB ---------- */
+.cal-mob-fab {
+  position: fixed;
+  right: 1.1rem;
+  bottom: 1.1rem;
+  width: 3.4rem;
+  height: 3.4rem;
+  border: none;
+  border-radius: 999px;
+  background: #000;
+  color: #fff;
+  font-size: 1.5rem;
+  display: grid;
+  place-items: center;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.28);
+  cursor: pointer;
+  z-index: 40;
+}
+.cal-mob-fab:active {
+  background: #1a1a1a;
+}
+
+/* ---------- Backdrop + sheet ---------- */
+.cal-mob-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(26, 26, 26, 0.45);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  z-index: 60;
+}
+
+.cal-mob-sheet {
+  width: 100%;
+  max-width: 640px;
+  max-height: 90dvh;
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: 1.1rem 1.1rem 0 0;
+  overflow: hidden;
+  animation: cal-mob-up 0.18s ease-out;
+}
+@keyframes cal-mob-up {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.cal-mob-sheet-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.1rem;
+  border-bottom: 1px solid #ececec;
+  font-size: 1rem;
+  color: #1a1a1a;
+}
+.cal-mob-sheet-head button {
+  border: none;
+  background: none;
+  font-size: 1.2rem;
+  color: #767676;
+  cursor: pointer;
+}
+
+.cal-mob-sheet-body {
+  padding: 1rem 1.1rem;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.cal-mob-sheet-actions {
+  padding: 0.85rem 1.1rem calc(0.85rem + env(safe-area-inset-bottom));
+  border-top: 1px solid #ececec;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+.cal-mob-sheet-actions button {
+  flex: 1 1 45%;
+  padding: 0.7rem 0.9rem;
+  border: 1px solid #d9d9d9;
+  border-radius: 0.7rem;
+  background: #fff;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+.cal-mob-sheet-actions button:active {
+  background: #00000008;
+}
+.cal-mob-sheet-actions button.is-danger {
+  color: #e0263f;
+  border-color: #f2c2c9;
+}
+.cal-mob-sheet-actions button:disabled {
+  opacity: 0.5;
+}
+.cal-mob-sheet-actions .cal-mob-primary {
+  flex: 1 1 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+  background: #1a1a1a;
+  border-color: #1a1a1a;
+  color: #fff;
+}
+
+/* ---------- Linhas do detalhe ---------- */
+.cal-mob-status-pill {
+  align-self: flex-start;
+  padding: 0.25rem 0.7rem;
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.cal-mob-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 1rem;
+  font-size: 0.88rem;
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid #ececec;
+}
+.cal-mob-row > span {
+  color: #767676;
+  flex: 0 0 auto;
+}
+.cal-mob-row > strong {
+  text-align: right;
+  color: #1a1a1a;
+  font-weight: 600;
+}
+.cal-mob-row-col {
+  flex-direction: column;
+  gap: 0.25rem;
+}
+.cal-mob-row-col > span {
+  font-size: 0.78rem;
+}
+.cal-mob-row-col p {
+  color: #333;
+  font-size: 0.85rem;
+}
+.cal-mob-prod-line {
+  font-size: 0.82rem;
+  color: #333;
+  display: flex;
+  justify-content: space-between;
+}
+
+/* ---------- Mini-calendário ---------- */
+.cal-mob-month {
+  max-width: 420px;
+}
+.cal-mob-month-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.1rem 0.5rem;
+  font-size: 0.95rem;
+  color: #1a1a1a;
+}
+.cal-mob-month-head button {
+  border: none;
+  background: none;
+  font-size: 1.1rem;
+  color: #767676;
+  cursor: pointer;
+}
+.cal-mob-month-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 0.15rem;
+  padding: 0.5rem 0.9rem 1.4rem;
+}
+.cal-mob-month-wd {
+  text-align: center;
+  font-size: 0.7rem;
+  color: #a0a0a0;
+  padding: 0.35rem 0;
+}
+.cal-mob-month-day {
+  aspect-ratio: 1;
+  border: none;
+  background: none;
+  border-radius: 0.6rem;
+  font-size: 0.85rem;
+  color: #333;
+  cursor: pointer;
+}
+.cal-mob-month-day.is-muted {
+  color: #c9c9c9;
+}
+.cal-mob-month-day.is-today {
+  font-weight: 700;
+  color: #1a1a1a;
+  box-shadow: inset 0 0 0 1px #d9d9d9;
+}
+.cal-mob-month-day.is-selected {
+  background: #1a1a1a;
+  color: #fff;
+}
+
+/* ---------- Formulário de criar ---------- */
+.cal-mob-create {
+  max-height: 92dvh;
+}
+.cal-mob-label {
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #767676;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  margin-top: 0.3rem;
+}
+.cal-mob-sheet-body input[type="text"],
+.cal-mob-sheet-body input[type="number"],
+.cal-mob-sheet-body input[type="date"],
+.cal-mob-sheet-body input[type="time"],
+.cal-mob-sheet-body select,
+.cal-mob-sheet-body textarea {
+  width: 100%;
+  padding: 0.6rem 0.7rem;
+  border: 1px solid #d9d9d9;
+  border-radius: 0.6rem;
+  font-size: 0.9rem;
+  font-family: inherit;
+  background: #fff;
+  color: #1a1a1a;
+}
+.cal-mob-sheet-body input:focus,
+.cal-mob-sheet-body select:focus,
+.cal-mob-sheet-body textarea:focus {
+  outline: none;
+  border-color: #1a1a1a;
+}
+.cal-mob-2col {
+  display: flex;
+  gap: 0.6rem;
+}
+.cal-mob-2col > div {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.cal-mob-search {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0 0.6rem;
+  border: 1px solid #d9d9d9;
+  border-radius: 0.6rem;
+  color: #a0a0a0;
+}
+.cal-mob-search input {
+  border: none !important;
+  padding: 0.55rem 0 !important;
+  flex: 1;
+}
+.cal-mob-cust-list {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  max-height: 11rem;
+  overflow-y: auto;
+  border: 1px solid #ececec;
+  border-radius: 0.6rem;
+}
+.cal-mob-cust-list:empty {
+  display: none;
+}
+.cal-mob-cust-list button {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 0.7rem;
+  border: none;
+  border-bottom: 1px solid #ececec;
+  background: #fff;
+  font-size: 0.88rem;
+  text-align: left;
+  color: #333;
+  cursor: pointer;
+}
+.cal-mob-cust-list button:last-child {
+  border-bottom: none;
+}
+.cal-mob-cust-list button:active {
+  background: #00000008;
+}
+.cal-mob-cust-list button span {
+  color: #a0a0a0;
+  font-size: 0.8rem;
+}
+
+.cal-mob-picked {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid #d9d9d9;
+  background: #00000008;
+  border-radius: 0.6rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #1a1a1a;
+}
+.cal-mob-picked button {
+  border: none;
+  background: none;
+  color: #1a1a1a;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.cal-mob-link {
+  align-self: flex-start;
+  border: none;
+  background: none;
+  color: #1a1a1a;
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-decoration: underline;
+  padding: 0.2rem 0;
+  cursor: pointer;
+}
+.cal-mob-newcust {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding: 0.7rem;
+  border: 1px dashed #d9d9d9;
+  border-radius: 0.6rem;
+}
+.cal-mob-newcust button {
+  padding: 0.55rem;
+  border: none;
+  border-radius: 0.5rem;
+  background: #1a1a1a;
+  color: #fff;
+  font-weight: 600;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.cal-mob-check {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.9rem;
+  color: #333;
+  margin-top: 0.3rem;
+}
+.cal-mob-check input {
+  width: 1.1rem;
+  height: 1.1rem;
+  accent-color: #1a1a1a;
+}
+.cal-mob-hint {
+  font-size: 0.8rem;
+  color: #767676;
+  background: #f2f2f2;
+  border-radius: 0.5rem;
+  padding: 0.5rem 0.6rem;
+}
+
+.cal-mob-prods {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+.cal-mob-prod {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.87rem;
+  color: #333;
+}
+.cal-mob-prod span {
+  display: flex;
+  flex-direction: column;
+}
+.cal-mob-prod em {
+  font-style: normal;
+  color: #a0a0a0;
+  font-size: 0.78rem;
+}
+.cal-mob-stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+.cal-mob-stepper button {
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid #d9d9d9;
+  border-radius: 0.5rem;
+  background: #fff;
+  font-size: 1rem;
+  color: #1a1a1a;
+  cursor: pointer;
+}
+.cal-mob-stepper button:disabled {
+  opacity: 0.4;
+}
+.cal-mob-stepper span {
+  min-width: 1.2rem;
+  text-align: center;
+}
+
+.cal-mob-error {
+  color: #e0263f;
+  font-size: 0.83rem;
+}
