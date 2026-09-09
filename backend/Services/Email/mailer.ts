@@ -66,7 +66,7 @@ export const sendMail = async (
 
   const from = process.env.SMTP_FROM || process.env.SMTP_USER;
 
-  await getTransporter().sendMail({
+  const info = await getTransporter().sendMail({
     from,
     replyTo: replyTo || from,
     to,
@@ -74,4 +74,6 @@ export const sendMail = async (
     html,
     text: text || htmlToText(html),
   });
+
+  console.log("[mailer] enviado para", to, "-", info.response, "messageId:", info.messageId);
 };
