@@ -9,18 +9,20 @@ import {
   FiMessageSquare,
   FiClock,
   FiChevronDown,
-  FiShield,
   FiAlertCircle,
   FiCheck,
   FiNavigation,
   FiLink,
   FiCopy,
+  FiMail,
 } from "react-icons/fi";
 import {
   validatePassword,
   passwordRequirements,
   validateFullName,
   validateCPF,
+  validateCNPJ,
+  validateDocument,
   formatCEP,
   type ViaCEPResponse,
 } from "../../SignUp/passwordValidation";
@@ -58,7 +60,6 @@ interface FormState {
   appointmentBuffer: number;
   breakStart: string;
   breakEnd: string;
-  privacyAccepted: boolean;
   homeServiceMaxDistanceKm: string;
 }
 
@@ -66,6 +67,7 @@ interface ProfileResponse {
   name: string;
   document: string;
   email?: string | null;
+  pendingEmail?: string | null;
   address: AddressState;
   accountType: "establishment" | "professional";
   homeService: boolean;
@@ -82,7 +84,6 @@ interface ProfileResponse {
       isActive: boolean;
     }[];
   };
-  privacyAccepted?: boolean;
   scheduleInterval?: number;
   appointmentBuffer?: number;
   breakStart?: string | null;
@@ -109,7 +110,6 @@ const emptyForm: FormState = {
   appointmentBuffer: 0,
   breakStart: "",
   breakEnd: "",
-  privacyAccepted: true,
   homeServiceMaxDistanceKm: "",
 };
 
@@ -152,7 +152,7 @@ const formatDocument = (value: string) => {
 type SectionId = "personal" | "password" | "address" | "account" | "ai" | "schedule" | "public";
 
 const SECTIONS: { id: SectionId; icon: typeof FiUser; label: string; subtitle: string }[] = [
-  { id: "personal", icon: FiUser, label: "Dados pessoais", subtitle: "Nome e documento" },
+  { id: "personal", icon: FiUser, label: "Dados pessoais", subtitle: "Nome, documento e email" },
   { id: "password", icon: FiEye, label: "Senha", subtitle: "Trocar com confirmação por email" },
   { id: "address", icon: FiMapPin, label: "Endereço", subtitle: "Onde você atende" },
   { id: "account", icon: FiBriefcase, label: "Tipo de conta", subtitle: "Estabelecimento ou profissional" },
@@ -184,6 +184,16 @@ const Settings = () => {
   const [requestingPasswordCode, setRequestingPasswordCode] = useState(false);
   const [confirmingPasswordChange, setConfirmingPasswordChange] = useState(false);
 
+  // Troca de email (fluxo separado, com código enviado para o NOVO endereço).
+  // O email só muda depois de confirmar o código; enquanto isso o atual vale.
+  const [pendingEmail, setPendingEmail] = useState<string | null>(null);
+  const [emailChangeOpen, setEmailChangeOpen] = useState(false);
+  const [newEmail, setNewEmail] = useState("");
+  const [emailCode, setEmailCode] = useState("");
+  const [emailCodeSent, setEmailCodeSent] = useState(false);
+  const [requestingEmailCode, setRequestingEmailCode] = useState(false);
+  const [confirmingEmailChange, setConfirmingEmailChange] = useState(false);
+
   const [cpfCnpjStatus, setCpfCnpjStatus] = useState<{ type: "success" | "error" | "loading"; message: string } | null>(
     null
   );
@@ -198,6 +208,10 @@ const Settings = () => {
   const nameValidation = validateFullName(form.name);
   const passwordChecks = validatePassword(password);
   const isDirty = JSON.stringify(form) !== initialSnapshot.current;
+
+  const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  const newEmailValid = EMAIL_REGEX.test(newEmail.trim());
+  const documentValidation = validateDocument(form.document);
 
   const handleRequestPasswordCode = async () => {
     setRequestingPasswordCode(true);
@@ -253,6 +267,64 @@ const Settings = () => {
     }
   };
 
+  // -- Troca de email (fluxo com código enviado ao novo endereço) -----------
+  const handleRequestEmailCode = async () => {
+    if (!newEmailValid) {
+      setToast({ show: true, type: "error", message: "Informe um email válido" });
+      return;
+    }
+    setRequestingEmailCode(true);
+    try {
+      const res = await fetch(`${API_URL}/user/email/request-code`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+        body: JSON.stringify({ newEmail: newEmail.trim().toLowerCase() }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Erro ao enviar código");
+      setPendingEmail(newEmail.trim().toLowerCase());
+      setEmailCodeSent(true);
+      setToast({ show: true, type: "success", message: "Código enviado para o novo email" });
+    } catch (error) {
+      setToast({ show: true, type: "error", message: error instanceof Error ? error.message : "Erro ao enviar código" });
+    } finally {
+      setRequestingEmailCode(false);
+    }
+  };
+
+  const handleConfirmEmailChange = async () => {
+    if (emailCode.trim().length !== 6) {
+      setToast({ show: true, type: "error", message: "Informe o código de 6 dígitos" });
+      return;
+    }
+    setConfirmingEmailChange(true);
+    try {
+      const res = await fetch(`${API_URL}/user/email/confirm`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+        body: JSON.stringify({ code: emailCode.trim() }),
+      });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Erro ao alterar email");
+      setToast({ show: true, type: "success", message: "Email alterado com sucesso!" });
+      resetEmailChange();
+      // Recarrega o perfil pra refletir o novo email e realinhar o snapshot.
+      fetchProfile();
+    } catch (error) {
+      setToast({ show: true, type: "error", message: error instanceof Error ? error.message : "Erro ao alterar email" });
+    } finally {
+      setConfirmingEmailChange(false);
+    }
+  };
+
+  const resetEmailChange = () => {
+    setEmailChangeOpen(false);
+    setEmailCodeSent(false);
+    setNewEmail("");
+    setEmailCode("");
+    setPendingEmail(null);
+  };
+
   const update = <K extends keyof FormState>(key: K, value: FormState[K]) =>
     setForm((prev) => ({ ...prev, [key]: value }));
 
@@ -297,13 +369,22 @@ const Settings = () => {
         appointmentBuffer: data.appointmentBuffer ?? 0,
         breakStart: data.breakStart || "",
         breakEnd: data.breakEnd || "",
-        privacyAccepted: data.privacyAccepted ?? true,
         homeServiceMaxDistanceKm: data.homeServiceMaxDistanceKm != null ? String(data.homeServiceMaxDistanceKm) : "",
       };
 
       setForm(next);
       setPublicSlug(data.publicSlug ?? null);
       initialSnapshot.current = JSON.stringify(next);
+
+      // Retoma uma troca de email que ficou pendente (código já enviado antes).
+      if (data.pendingEmail) {
+        setPendingEmail(data.pendingEmail);
+        setNewEmail(data.pendingEmail);
+        setEmailChangeOpen(true);
+        setEmailCodeSent(true);
+      } else {
+        setPendingEmail(null);
+      }
     } catch {
       setToast({ show: true, type: "error", message: "Erro ao carregar dados" });
     } finally {
@@ -390,10 +471,18 @@ const Settings = () => {
   }, [form.address.cep, skipCepAutoFill]);
 
   // -- CPF/CNPJ validation --------------------------------------------------
+  // Enquanto o documento está incompleto o status fica neutro (não acende erro
+  // vermelho a cada dígito). Só CPF/CNPJ completo é validado de fato; a consulta
+  // externa de CNPJ é só enriquecimento — se falhar/offline, o documento com
+  // dígito verificador correto continua válido.
   useEffect(() => {
     const numbers = form.document.replace(/\D/g, "");
     if (!numbers) {
       setCpfCnpjStatus(null);
+      return;
+    }
+    if (numbers.length < 11 || (numbers.length > 11 && numbers.length < 14)) {
+      setCpfCnpjStatus({ type: "loading", message: "Digite o CPF ou CNPJ completo" });
       return;
     }
     if (numbers.length === 11) {
@@ -401,36 +490,47 @@ const Settings = () => {
       setCpfCnpjStatus({ type: result.valid ? "success" : "error", message: result.message });
       return;
     }
-    if (numbers.length === 14) {
-      setCpfCnpjStatus({ type: "loading", message: "Consultando CNPJ..." });
-      const timer = setTimeout(async () => {
-        try {
-          const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${numbers}`);
-          if (!res.ok) {
-            setCpfCnpjStatus({ type: "error", message: "CNPJ não encontrado" });
-            return;
-          }
-          const data = await res.json();
-          setCpfCnpjStatus({ type: "success", message: `CNPJ: ${data.razao_social || "Válido"}` });
-        } catch {
-          setCpfCnpjStatus({ type: "error", message: "Erro ao consultar" });
-        }
-      }, 2000);
-      return () => clearTimeout(timer);
+    // 14 dígitos
+    const cnpjCheck = validateCNPJ(numbers);
+    if (!cnpjCheck.valid) {
+      setCpfCnpjStatus({ type: "error", message: cnpjCheck.message });
+      return;
     }
-    setCpfCnpjStatus({ type: "error", message: "Documento incompleto" });
+    setCpfCnpjStatus({ type: "loading", message: "Consultando CNPJ..." });
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`https://brasilapi.com.br/api/cnpj/v1/${numbers}`);
+        if (!res.ok) {
+          setCpfCnpjStatus({ type: "success", message: "CNPJ válido" });
+          return;
+        }
+        const data = await res.json();
+        setCpfCnpjStatus({ type: "success", message: `CNPJ: ${data.razao_social || "válido"}` });
+      } catch {
+        setCpfCnpjStatus({ type: "success", message: "CNPJ válido" });
+      }
+    }, 800);
+    return () => clearTimeout(timer);
   }, [form.document]);
+
+  // Se o usuário sair do campo de documento com um valor inválido/incompleto,
+  // volta para o último documento salvo — o dado nunca fica vazio/inválido.
+  const handleDocumentBlur = () => {
+    if (!validateDocument(form.document).valid) {
+      const prev = (JSON.parse(initialSnapshot.current) as FormState).document;
+      update("document", prev);
+    }
+  };
 
   // -- Validation ------------------------------------------------------------
   const validate = (): { section: SectionId; message: string }[] => {
     const errors: { section: SectionId; message: string }[] = [];
 
     if (!nameValidation.valid) errors.push({ section: "personal", message: nameValidation.message });
-    const docNumbers = form.document.replace(/\D/g, "");
-    if (docNumbers.length !== 11 && docNumbers.length !== 14)
+    if (!documentValidation.valid)
       errors.push({ section: "personal", message: "Informe um CPF ou CNPJ válido" });
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email))
-      errors.push({ section: "personal", message: "Informe um email válido" });
+    if (!form.email)
+      errors.push({ section: "personal", message: "Adicione um email à sua conta antes de salvar" });
 
     const { cep, street, number, neighborhood, city, state } = form.address;
     if (!cep || !street || !number || !neighborhood || !city || !state)
@@ -466,20 +566,13 @@ const Settings = () => {
     }
     setSectionErrors(new Set());
 
-    // Aceite de termos/privacidade: é geral do formulário, não pertence a nenhuma seção específica —
-    // por isso não entra em validate() nem acende erro em nenhum card
-    if (!form.privacyAccepted) {
-      setToast({ show: true, type: "error", message: "Confirme que aceita os Termos de Uso e a Política de Privacidade" });
-      return;
-    }
-
     setIsSaving(true);
     setToast({ show: false, type: "error", message: "" });
 
+    // email não vai no payload: a troca passa pelo fluxo com código de verificação
     const payload: Record<string, unknown> = {
       name: form.name,
       document: form.document.replace(/\D/g, ""),
-      email: form.email,
       address: {
         cep: form.address.cep.replace(/\D/g, ""),
         street: form.address.street,
@@ -508,7 +601,6 @@ const Settings = () => {
       appointmentBuffer: form.appointmentBuffer,
       breakStart: form.breakStart || null,
       breakEnd: form.breakEnd || null,
-      privacyAccepted: form.privacyAccepted,
       homeServiceMaxDistanceKm: form.homeService && form.homeServiceMaxDistanceKm ? form.homeServiceMaxDistanceKm : undefined,
     };
 
@@ -694,9 +786,11 @@ const Settings = () => {
                           type="text"
                           value={form.document}
                           onChange={(e) => update("document", formatDocument(e.target.value))}
+                          onBlur={handleDocumentBlur}
                           placeholder="000.000.000-00"
                           className={inputClass}
                           inputMode="numeric"
+                          maxLength={18}
                         />
                         {cpfCnpjStatus && (
                           <p
@@ -718,16 +812,125 @@ const Settings = () => {
                       </div>
                       <div>
                         <label className={labelClass}>Email</label>
-                        <input
-                          type="email"
-                          value={form.email}
-                          onChange={(e) => update("email", e.target.value)}
-                          placeholder="seu@email.com"
-                          className={inputClass}
-                        />
-                        <p className="text-xs text-gray-400 mt-1.5 ml-0.5">
-                          Usado para login (código de verificação), recuperação e troca de senha.
-                        </p>
+
+                        {/* Email atual (somente leitura) — trocar exige código no novo endereço */}
+                        <div className="flex items-center gap-2">
+                          <div className={`${inputClass} flex items-center gap-2 bg-gray-50 text-gray-700 cursor-not-allowed`}>
+                            <FiMail size={14} className="text-gray-400 flex-shrink-0" />
+                            <span className="truncate">{form.email || "Nenhum email cadastrado"}</span>
+                          </div>
+                          {!emailChangeOpen && (
+                            <button
+                              type="button"
+                              onClick={() => { setEmailChangeOpen(true); setNewEmail(""); setEmailCode(""); setEmailCodeSent(false); }}
+                              className="flex-shrink-0 px-4 py-2.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 hover:border-gray-300 transition-all"
+                            >
+                              {form.email ? "Alterar" : "Adicionar"}
+                            </button>
+                          )}
+                        </div>
+
+                        {!form.email && !emailChangeOpen && (
+                          <p className="text-xs text-red-500 mt-1.5 ml-0.5 flex items-center gap-1">
+                            <FiAlertCircle size={12} />
+                            Sua conta precisa de um email para login e recuperação de senha.
+                          </p>
+                        )}
+
+                        {!emailChangeOpen && (
+                          <p className="text-xs text-gray-400 mt-1.5 ml-0.5">
+                            Usado para login (código de verificação), recuperação e troca de senha.
+                          </p>
+                        )}
+
+                        {emailChangeOpen && (
+                          <div className="mt-3 space-y-3 border-l-2 border-gray-100 pl-4">
+                            {!emailCodeSent ? (
+                              <>
+                                <div>
+                                  <label className={labelClass}>Novo email</label>
+                                  <input
+                                    type="email"
+                                    value={newEmail}
+                                    onChange={(e) => setNewEmail(e.target.value)}
+                                    placeholder="novo@email.com"
+                                    className={inputClass}
+                                    autoComplete="email"
+                                  />
+                                  {newEmail && !newEmailValid && (
+                                    <p className="text-xs text-red-500 mt-1.5 ml-0.5 flex items-center gap-1">
+                                      <FiAlertCircle size={12} />
+                                      Informe um email válido
+                                    </p>
+                                  )}
+                                  <p className="text-xs text-gray-400 mt-1.5 ml-0.5">
+                                    Enviaremos um código para este endereço. O email atual só muda depois que você confirmar.
+                                  </p>
+                                </div>
+                                <div className="flex gap-2.5">
+                                  <button
+                                    type="button"
+                                    onClick={resetEmailChange}
+                                    className="px-4 py-2.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-all"
+                                  >
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleRequestEmailCode}
+                                    disabled={requestingEmailCode || !newEmailValid}
+                                    className="px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-all disabled:opacity-50"
+                                  >
+                                    {requestingEmailCode ? "Enviando..." : "Enviar código"}
+                                  </button>
+                                </div>
+                              </>
+                            ) : (
+                              <>
+                                <p className="text-sm text-gray-500">
+                                  Enviamos um código para <strong className="text-gray-700">{pendingEmail || newEmail}</strong>. O código expira em 10 minutos.
+                                </p>
+                                <div>
+                                  <label className={labelClass}>Código recebido por email</label>
+                                  <input
+                                    type="text"
+                                    inputMode="numeric"
+                                    value={emailCode}
+                                    onChange={(e) => setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+                                    placeholder="000000"
+                                    maxLength={6}
+                                    className={`${inputClass} text-center tracking-[6px] text-lg`}
+                                  />
+                                </div>
+                                <div className="flex gap-2.5">
+                                  <button
+                                    type="button"
+                                    onClick={resetEmailChange}
+                                    className="px-4 py-2.5 text-sm font-medium text-gray-700 border border-gray-200 rounded-lg hover:bg-gray-50 transition-all"
+                                  >
+                                    Cancelar
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleConfirmEmailChange}
+                                    disabled={confirmingEmailChange || emailCode.length !== 6}
+                                    className="px-4 py-2.5 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-800 transition-all disabled:opacity-50"
+                                  >
+                                    {confirmingEmailChange ? "Confirmando..." : "Confirmar novo email"}
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={handleRequestEmailCode}
+                                    disabled={requestingEmailCode}
+                                    className="px-4 py-2.5 text-sm font-medium text-gray-500 hover:text-gray-800 transition-all disabled:opacity-50"
+                                  >
+                                    Reenviar
+                                  </button>
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
                   )}
@@ -1311,24 +1514,8 @@ const Settings = () => {
         })}
       </div>
 
-      {/* Aceite de termos/privacidade: geral do formulário inteiro, por isso fica fora das seções */}
-      <label className="mt-8 flex items-start gap-3 text-xs text-gray-500 cursor-pointer">
-        <div className="relative mt-0.5">
-          <input
-            type="checkbox"
-            checked={form.privacyAccepted}
-            onChange={(e) => update("privacyAccepted", e.target.checked)}
-            className="sr-only peer"
-          />
-          <div className="w-4 h-4 rounded border border-gray-300 bg-white peer-checked:bg-gray-900 peer-checked:border-gray-900 transition-colors duration-200 flex items-center justify-center">
-            {form.privacyAccepted && <FiCheck size={10} className="text-white" />}
-          </div>
-        </div>
-        <span className="flex items-center gap-1.5 flex-wrap">
-          <FiShield size={13} className="text-gray-400 flex-shrink-0" />
-          Confirmo que meus dados estão corretos e aceito os Termos de Uso e a Política de Privacidade.
-        </span>
-      </label>
+      {/* O aceite de Termos de Uso / Política de Privacidade é feito no cadastro
+          e não é reexibido aqui. */}
 
       {/* Sticky save bar */}
       <div

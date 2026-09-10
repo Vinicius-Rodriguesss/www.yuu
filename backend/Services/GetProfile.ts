@@ -16,6 +16,7 @@ const GetProfile = async (req: Request, res: Response) => {
     name: usersTable.name,
     document: usersTable.document,
     email: usersTable.email,
+    pendingEmail: usersTable.pendingEmail,
     accountType: usersTable.accountType,
     homeService: usersTable.homeService,
     businessType: usersTable.businessType,

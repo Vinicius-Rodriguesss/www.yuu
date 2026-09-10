@@ -7,6 +7,7 @@ import { addressesTable } from "../db/schema/addresses.js";
 import { workSchedulesTable } from "../db/schema/workSchedules.js";
 import { workScheduleDaysTable } from "../db/schema/workScheduleDays.js";
 import { notifyAffectedAppointments } from "./WorkScheduleDays/notifyAffectedAppointments.js";
+import { isValidDocument } from "./validation/document.js";
 
 const UpdateSettings = async (req: Request, res: Response) => {
  try {
@@ -14,7 +15,6 @@ const UpdateSettings = async (req: Request, res: Response) => {
   const {
    name,
    document,
-   email,
    address,
    phone,
    accountType,
@@ -89,10 +89,10 @@ const UpdateSettings = async (req: Request, res: Response) => {
   if (!name || !document || !address || !accountType || !businessType || !aiStyle) {
    return res.status(400).json({ error: "Campos obrigatórios ausentes" });
   }
-  if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-   return res.status(400).json({ error: "Email inválido" });
-  }
-  const cleanEmail = email ? String(email).trim().toLowerCase() : null;
+  // O email NÃO é alterado por aqui — a troca passa pelo fluxo com código
+  // (/user/email/request-code + /user/email/confirm). Qualquer `email` no body
+  // é ignorado de propósito, pra não deixar a conta sem email nem trocar sem
+  // confirmação.
   if (
    !address.cep ||
    !address.street ||
@@ -111,6 +111,12 @@ const UpdateSettings = async (req: Request, res: Response) => {
 
   const documentDigits = String(document).replace(/\D/g, "");
 
+  // O documento nunca pode ficar vazio nem inválido: exige CPF (11) ou CNPJ (14)
+  // com dígitos verificadores corretos.
+  if (!isValidDocument(documentDigits)) {
+   return res.status(400).json({ error: "Informe um CPF ou CNPJ válido" });
+  }
+
   // Garante que o CPF/CNPJ não pertence a outro usuário
   const [documentOwner] = await db
    .select({ id: usersTable.id })
@@ -122,36 +128,28 @@ const UpdateSettings = async (req: Request, res: Response) => {
    return res.status(409).json({ error: "Este CPF/CNPJ já está em uso por outra conta" });
   }
 
-  // Garante que o email não pertence a outro usuário
-  if (cleanEmail) {
-   const [emailOwner] = await db
-    .select({ id: usersTable.id })
-    .from(usersTable)
-    .where(and(eq(usersTable.email, cleanEmail), ne(usersTable.id, userId)))
-    .limit(1);
-
-   if (emailOwner) {
-    return res.status(409).json({ error: "Este email já está em uso por outra conta" });
-   }
-  }
-
   const result = await db.transaction(async (tx) => {
    const userUpdate: Record<string, unknown> = {
     name,
     document: documentDigits,
-    email: cleanEmail,
     accountType,
     homeService: homeService ?? false,
     businessType,
     aiStyle,
     customAiStyle: customAiStyle || null,
-    privacyAccepted: privacyAccepted ?? false,
     phone: phone || null,
     homeServiceTransport: homeServiceTransport || "car",
     homeServiceFuelConsumption: homeServiceFuelConsumption ? String(homeServiceFuelConsumption) : null,
     homeServiceFuelPrice: homeServiceFuelPrice ? String(homeServiceFuelPrice) : null,
     homeServiceMaxDistanceKm: homeServiceMaxDistanceKm ? Number(homeServiceMaxDistanceKm) : null,
    };
+
+   // O aceite de LGPD é feito no cadastro e não é mais exibido em Configurações.
+   // Só atualiza se vier explicitamente no body — assim um save comum não
+   // sobrescreve o aceite já registrado.
+   if (privacyAccepted !== undefined) {
+    userUpdate.privacyAccepted = Boolean(privacyAccepted);
+   }
 
    if (scheduleInterval !== undefined) {
     userUpdate.scheduleInterval = Number(scheduleInterval);

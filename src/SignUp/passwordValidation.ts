@@ -107,6 +107,53 @@ export const validateCPF = (cpf: string): CPFValidation => {
   return { valid: true, message: "CPF válido." };
 };
 
+/**
+ * Valida um CNPJ pelos dígitos verificadores (não consulta a Receita).
+ * Aceita com ou sem formatação.
+ */
+export const validateCNPJ = (cnpj: string): CPFValidation => {
+  const numbers = cnpj.replace(/\D/g, "");
+
+  if (numbers.length !== 14) {
+    return { valid: false, message: "CNPJ deve conter 14 dígitos." };
+  }
+  if (/^(\d)\1{13}$/.test(numbers)) {
+    return { valid: false, message: "CNPJ inválido." };
+  }
+
+  const calcDigit = (base: string) => {
+    const weights =
+      base.length === 12
+        ? [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]
+        : [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2];
+    const sum = base
+      .split("")
+      .reduce((acc, digit, i) => acc + parseInt(digit) * weights[i], 0);
+    const remainder = sum % 11;
+    return remainder < 2 ? 0 : 11 - remainder;
+  };
+
+  if (calcDigit(numbers.slice(0, 12)) !== parseInt(numbers[12])) {
+    return { valid: false, message: "CNPJ inválido." };
+  }
+  if (calcDigit(numbers.slice(0, 13)) !== parseInt(numbers[13])) {
+    return { valid: false, message: "CNPJ inválido." };
+  }
+
+  return { valid: true, message: "CNPJ válido." };
+};
+
+/**
+ * Valida CPF (11 dígitos) ou CNPJ (14 dígitos) pelos dígitos verificadores.
+ * Usado para bloquear salvamento com documento estruturalmente inválido.
+ */
+export const validateDocument = (document: string): CPFValidation => {
+  const numbers = document.replace(/\D/g, "");
+  if (numbers.length === 11) return validateCPF(numbers);
+  if (numbers.length === 14) return validateCNPJ(numbers);
+  return { valid: false, message: "Informe um CPF (11 dígitos) ou CNPJ (14 dígitos)." };
+};
+
 // ===================== Validações de Endereço =====================
 
 export interface AddressValidation {

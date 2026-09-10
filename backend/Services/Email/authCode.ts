@@ -7,9 +7,10 @@ import {
   loginCodeEmailTemplate,
   passwordResetCodeEmailTemplate,
   passwordChangeCodeEmailTemplate,
+  emailChangeCodeEmailTemplate,
 } from "./templates.js";
 
-export type AuthCodeType = "login" | "password_reset" | "password_change";
+export type AuthCodeType = "login" | "password_reset" | "password_change" | "email_change";
 
 const CODE_TTL_MINUTES = 10;
 
@@ -19,6 +20,7 @@ const templateByType: Record<AuthCodeType, (name: string, code: string) => { sub
   login: loginCodeEmailTemplate,
   password_reset: passwordResetCodeEmailTemplate,
   password_change: passwordChangeCodeEmailTemplate,
+  email_change: emailChangeCodeEmailTemplate,
 };
 
 /**

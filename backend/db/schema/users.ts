@@ -7,6 +7,9 @@ export const usersTable = pgTable("users", {
   document: varchar({ length: 20 }).notNull().unique(),
   password: varchar({ length: 255 }).notNull(),
   email: varchar({ length: 255 }).unique(), // usado para login (2FA), boas-vindas, recuperação e troca de senha
+  // Novo email pendente de confirmação por código. Só vira `email` depois que o
+  // usuário confirma o código enviado para este endereço. Null = sem troca em andamento.
+  pendingEmail: varchar("pending_email", { length: 255 }),
   phone: varchar({ length: 20 }),
   accountType: varchar({ length: 50 }).notNull(),
   homeService: boolean().notNull(),

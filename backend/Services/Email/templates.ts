@@ -78,6 +78,16 @@ export const passwordChangeCodeEmailTemplate = (name: string, code: string) => (
   ),
 });
 
+export const emailChangeCodeEmailTemplate = (name: string, code: string) => ({
+  subject: "Código para confirmar seu novo email — ai.yuu",
+  html: layout(
+    "Confirmar troca de email",
+    `<p style="margin:0 0 8px;font-size:14px;color:#37352f;">Olá, <strong>${name}</strong>! Recebemos um pedido para usar este endereço como o novo email da sua conta. Confirme com o código abaixo:</p>
+     ${codeBlock(code)}
+     <p style="margin:12px 0 0;font-size:13px;color:#6b6b6b;">Enquanto você não confirmar, o email atual da conta continua valendo.</p>`
+  ),
+});
+
 // ===================== Agendamentos =====================
 
 export interface AppointmentEmailInfo {
