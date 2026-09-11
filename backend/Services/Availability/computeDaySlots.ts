@@ -23,6 +23,7 @@ import { appointmentsTable } from "../../db/schema/appointments.js";
 import { blockedSlotsTable } from "../../db/schema/blockedSlots.js";
 import { workSchedulesTable } from "../../db/schema/workSchedules.js";
 import { workScheduleDaysTable } from "../../db/schema/workScheduleDays.js";
+import { advanceOffersTable } from "../../db/schema/advanceOffers.js";
 
 export type SlotStatus = "available" | "occupied" | "blocked" | "past" | "unavailable";
 
@@ -185,12 +186,24 @@ const getDayContext = async (
       scheduledAt: appointmentsTable.scheduledAt,
       duration: appointmentsTable.duration,
       travelMinutes: appointmentsTable.travelMinutes,
+      status: appointmentsTable.status,
+      endedAt: appointmentsTable.endedAt,
     })
     .from(appointmentsTable)
     .where(and(...appointmentConditions));
 
   const occupied: Occupied[] = dayAppointments.map((a) => {
     const start = new Date(a.scheduledAt);
+    // Atendimento já finalizado: ocupa só até o término real + delay. É isso que
+    // libera a agenda quando o profissional termina antes do horário previsto
+    // (e também estende o bloco se ele terminou depois).
+    if (a.status === "completed" && a.endedAt) {
+      return {
+        start,
+        end: new Date(new Date(a.endedAt).getTime() + buffer * 60000),
+        appointmentId: a.id,
+      };
+    }
     // ocupa: serviço + deslocamento (ida E volta até o cliente) + delay de descanso.
     // travelMinutes salvo no agendamento é só a ida (usado pra exibir "chegada em
     // X min"), mas o profissional também precisa de tempo pra voltar antes do
@@ -230,6 +243,37 @@ const getDayContext = async (
       start: timeOnDate(dayStart, breakStart),
       end: timeOnDate(dayStart, breakEnd),
       title: "Pausa",
+    });
+  }
+
+  // Ofertas de antecipação pendentes: a janela oferecida a um cliente fica
+  // reservada (fora da grade e do anti-conflito) durante os 10 min da oferta,
+  // pra não ser tomada por um encaixe manual ou agendamento público no meio.
+  const pendingOffers = await db
+    .select({
+      appointmentId: advanceOffersTable.appointmentId,
+      offeredStartAt: advanceOffersTable.offeredStartAt,
+      holdMinutes: advanceOffersTable.holdMinutes,
+    })
+    .from(advanceOffersTable)
+    .where(
+      and(
+        eq(advanceOffersTable.userId, userId),
+        eq(advanceOffersTable.status, "pending"),
+        gte(advanceOffersTable.offeredStartAt, dayStart),
+        lt(advanceOffersTable.offeredStartAt, dayEnd)
+      )
+    );
+
+  for (const o of pendingOffers) {
+    // Ao revalidar o aceite de uma oferta (excludeAppointmentId = agendamento
+    // ofertado), a própria reserva dele não pode travá-lo.
+    if (excludeAppointmentId && o.appointmentId === excludeAppointmentId) continue;
+    const start = new Date(o.offeredStartAt);
+    blocked.push({
+      start,
+      end: new Date(start.getTime() + o.holdMinutes * 60000),
+      title: "Reservado",
     });
   }
 
