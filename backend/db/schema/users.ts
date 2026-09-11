@@ -6,6 +6,13 @@ export const usersTable = pgTable("users", {
   name: varchar({ length: 255 }).notNull(),
   document: varchar({ length: 20 }).notNull().unique(),
   password: varchar({ length: 255 }).notNull(),
+  // Papel do usuário na plataforma. "owner" = dono de negócio (padrão, todo
+  // signup). "super_admin" = operador da plataforma (equipe YuU): não tem
+  // agenda própria, enxerga e administra todos os negócios. O PRIMEIRO super
+  // admin é criado pelo assistente de setup inicial (GET/POST /setup/*),
+  // liberado só enquanto nenhum super admin existir; qualquer promoção depois
+  // dessa é manual (UPDATE no banco).
+  role: varchar({ length: 20 }).notNull().default("owner"), // "owner" | "super_admin"
   email: varchar({ length: 255 }).unique(), // usado para login (2FA), boas-vindas, recuperação e troca de senha
   phone: varchar({ length: 20 }),
   accountType: varchar({ length: 50 }).notNull(),

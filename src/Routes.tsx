@@ -2,7 +2,10 @@ import { Routes, Route, Navigate, Outlet } from 'react-router-dom'
 import Login from '@/Login'
 import SignUp from './SignUp'
 import ForgotPassword from './ForgotPassword'
+import Setup from './Setup'
 import { ProtectedRoute } from './ProtectedRoute'
+import { SuperAdminRoute } from './SuperAdminRoute'
+import Admin from './Pages/Admin'
 import { DashboardLayout } from './DashboardLayout'
 import Dashboard from '@/Pages/Dashboard'
 import Services from './Pages/Services'
@@ -18,10 +21,21 @@ const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/" element={<Login />} />
+      <Route path="/setup" element={<Setup />} />
       <Route path="/signup" element={<SignUp />} />
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/p/:slug" element={<PublicChat />} />
       <Route path="/p/:slug/agenda" element={<Agenda />} />
+
+      {/* Área do super admin (operador da plataforma) — layout próprio, fora do dashboard */}
+      <Route
+        path="/admin"
+        element={
+          <SuperAdminRoute>
+            <Admin />
+          </SuperAdminRoute>
+        }
+      />
 
       {/* Rota protegida */}
       {/* Tudo aqui dentro é protegido E usa o layout com Navbar */}

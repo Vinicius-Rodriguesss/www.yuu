@@ -51,6 +51,7 @@ const NavBar = () => {
 
  const handleLogout = () => {
   localStorage.removeItem("token");
+  localStorage.removeItem("role");
   navigate("/");
  };
 
@@ -82,8 +83,6 @@ const NavBar = () => {
       <span className={menuDesktop.hidden}>Sair</span>
      </button>
     </nav>
-
-
 
 
    {/* Mobile */}

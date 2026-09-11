@@ -7,6 +7,24 @@ export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
  */
 export const tzOffsetMin = -new Date().getTimezoneOffset();
 
+// ===================== Sessão do DONO / SUPER ADMIN =====================
+
+/** Papel do usuário logado na plataforma. "owner" = dono de negócio. */
+export const getRole = (): "owner" | "super_admin" =>
+  localStorage.getItem("role") === "super_admin" ? "super_admin" : "owner";
+
+/** Guarda token + papel após o login. */
+export const saveOwnerSession = (token: string, role?: string) => {
+  localStorage.setItem("token", token);
+  localStorage.setItem("role", role === "super_admin" ? "super_admin" : "owner");
+};
+
+/** Limpa a sessão do dono/super admin (logout). */
+export const clearOwnerSession = () => {
+  localStorage.removeItem("token");
+  localStorage.removeItem("role");
+};
+
 export const apiFetch = async (path: string, options: RequestInit = {}) => {
   const token = localStorage.getItem("token");
 

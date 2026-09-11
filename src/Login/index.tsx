@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { FiEye, FiEyeOff } from "react-icons/fi";
 import Toast from "../Components/Toast";
 import Header from "@/Components/Header";
@@ -17,6 +17,16 @@ const Login = () => {
   const [code, setCode] = useState("");
 
   const navigate = useNavigate();
+
+  // Sistema "zerado" (sem super admin): manda pro assistente de setup em vez do login normal.
+  useEffect(() => {
+    fetch(`${API_URL}/setup/status`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.needsSetup) navigate("/setup", { replace: true });
+      })
+      .catch(() => {});
+  }, [navigate]);
 
   const [toast, setToast] = useState<{ show: boolean; type: "error" | "success"; message: string }>({
     show: false,

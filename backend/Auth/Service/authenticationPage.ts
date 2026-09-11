@@ -20,7 +20,8 @@ const AuthenticationPage = (req: Request, res: Response) => {
 
     return res.status(200).json({
       valid: true,
-      message: 'Token válido'
+      message: 'Token válido',
+      role: (decoded && typeof decoded === 'object' && (decoded as any).role) || 'owner',
     });
 
   } catch (error) {

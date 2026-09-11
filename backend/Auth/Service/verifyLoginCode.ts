@@ -43,7 +43,7 @@ const VerifyLoginCode = async (req: Request, res: Response) => {
     await db.update(usersTable).set({ lastVerifiedAt: new Date() }).where(eq(usersTable.id, user.id));
 
     const token = jwt.sign(
-      { id: user.id, name: user.name, document: user.document, accountType: user.accountType },
+      { id: user.id, name: user.name, document: user.document, accountType: user.accountType, role: user.role },
       process.env.JWT_SECRET || "default_secret_key",
       { expiresIn: "1d" }
     );
@@ -56,6 +56,7 @@ const VerifyLoginCode = async (req: Request, res: Response) => {
         name: user.name,
         document: user.document,
         accountType: user.accountType,
+        role: user.role,
         homeService: user.homeService,
         businessType: user.businessType,
         aiStyle: user.aiStyle,

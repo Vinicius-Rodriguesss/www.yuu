@@ -17,6 +17,8 @@ import ChatController from "./Controllers/chat.js";
 import PublicBookingController from "./Controllers/publicBooking.js";
 import ClientAuthController from "./Controllers/clientAuth.js";
 import ContactController from "./Controllers/contact.js";
+import AdminController from "./Controllers/admin.js";
+import SetupController from "./Controllers/setup.js";
 import { startReminderJob } from "./Services/Appointments/reminderJob.js";
 
 const app = express();
@@ -56,6 +58,8 @@ app.use(ChatController);
 app.use(PublicBookingController);
 app.use(ClientAuthController);
 app.use(ContactController);
+app.use(AdminController);
+app.use(SetupController);
 
 const port = Number(process.env.PORT) || 3000;
 
