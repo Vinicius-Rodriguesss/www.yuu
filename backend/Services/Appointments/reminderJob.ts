@@ -8,11 +8,13 @@
  * Como o produto é Brasil, usa APP_TZ_OFFSET_MIN (padrão -180 = Brasília,
  * sem horário de verão desde 2019). Configurável no .env se necessário.
  */
-import { and, lte, gte, isNull, inArray } from "drizzle-orm";
+import { and, lte, gte, isNull, inArray, lt } from "drizzle-orm";
 import { eq } from "drizzle-orm";
 import { db } from "../../db/index.js";
 import { appointmentsTable } from "../../db/schema/appointments.js";
+import { advanceOffersTable } from "../../db/schema/advanceOffers.js";
 import { sendAppointmentReminderEmails } from "../Email/appointmentEmails.js";
+import { advanceAfterOffer } from "../AdvanceOffers/cascade.js";
 import { isSmtpConfigured } from "../Email/mailer.js";
 
 const REMINDER_MINUTES = 20;
@@ -56,6 +58,29 @@ const tick = async () => {
         .where(eq(appointmentsTable.id, appt.id));
 
       await sendAppointmentReminderEmails(appt.id);
+    }
+
+    // -- Ofertas de antecipação vencidas: trata como recusa e segue a cadeia ---
+    // O prazo de resposta é uma duração real (10 min), então compara com now() real.
+    const staleOffers = await db
+      .select({
+        id: advanceOffersTable.id,
+        userId: advanceOffersTable.userId,
+        appointmentId: advanceOffersTable.appointmentId,
+        originAppointmentId: advanceOffersTable.originAppointmentId,
+        offeredStartAt: advanceOffersTable.offeredStartAt,
+        previousStartAt: advanceOffersTable.previousStartAt,
+      })
+      .from(advanceOffersTable)
+      .where(and(eq(advanceOffersTable.status, "pending"), lt(advanceOffersTable.expiresAt, new Date())));
+
+    for (const offer of staleOffers) {
+      const [row] = await db
+        .update(advanceOffersTable)
+        .set({ status: "expired", respondedAt: new Date() })
+        .where(and(eq(advanceOffersTable.id, offer.id), eq(advanceOffersTable.status, "pending")))
+        .returning({ id: advanceOffersTable.id });
+      if (row) await advanceAfterOffer(offer, false);
     }
   } catch (error) {
     console.error("ERRO REMINDER JOB:", error);

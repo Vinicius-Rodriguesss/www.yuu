@@ -78,6 +78,115 @@ export const passwordChangeCodeEmailTemplate = (name: string, code: string) => (
   ),
 });
 
+// ===================== Antecipação de horário =====================
+
+export interface AdvanceOfferEmailInfo {
+  clientName: string;
+  professionalName: string;
+  serviceTitle: string;
+  currentLabel: string; // "sexta-feira, 24 de julho às 15:00"
+  newLabel: string; // "sexta-feira, 24 de julho às 14:35"
+  respondUrl: string; // página com os botões Aceitar / Manter (GET, seguro contra pré-carregamento)
+  unsubscribeUrl: string;
+}
+
+export const advanceOfferEmailTemplate = (info: AdvanceOfferEmailInfo) => ({
+  subject: `Dá pra adiantar seu horário com ${info.professionalName}?`,
+  html: layout(
+    "Seu horário pode ser adiantado",
+    `<p style="margin:0 0 8px;font-size:14px;color:#37352f;">Olá, <strong>${info.clientName}</strong>! ${info.professionalName} terminou um atendimento mais cedo e o seu horário pode ser adiantado:</p>
+     <table cellpadding="0" cellspacing="0" style="margin:16px 0;background:#fafafa;border-radius:8px;width:100%;">
+       <tr><td style="padding:14px 18px;">
+         <p style="margin:0 0 6px;font-size:13px;color:#6b6b6b;">Serviço</p>
+         <p style="margin:0 0 12px;font-size:15px;color:#1a1a1a;font-weight:700;">${info.serviceTitle}</p>
+         <p style="margin:0 0 6px;font-size:13px;color:#6b6b6b;">Horário atual</p>
+         <p style="margin:0 0 12px;font-size:15px;color:#1a1a1a;text-transform:capitalize;">${info.currentLabel}</p>
+         <p style="margin:0 0 6px;font-size:13px;color:#6b6b6b;">Novo horário proposto</p>
+         <p style="margin:0;font-size:15px;color:#1a1a1a;font-weight:700;text-transform:capitalize;">${info.newLabel}</p>
+       </td></tr>
+     </table>
+     <p style="margin:0 0 16px;font-size:13px;color:#6b6b6b;">Seu horário atual continua garantido — só muda se você confirmar. <strong>Responda em até 10 minutos.</strong></p>
+     <table cellpadding="0" cellspacing="0" style="margin:0 auto;"><tr>
+       <td style="padding:0 6px;"><a href="${info.respondUrl}" style="display:inline-block;padding:12px 26px;background:#000000;color:#ffffff;border-radius:8px;font-size:14px;font-weight:700;text-decoration:none;">Ver e responder</a></td>
+     </tr></table>
+     <p style="margin:20px 0 0;font-size:11px;color:#9b9b9b;">Não quer mais receber ofertas para antecipar seus horários? <a href="${info.unsubscribeUrl}" style="color:#9b9b9b;">Desativar</a>.</p>`
+  ),
+});
+
+/** Página (GET) com os botões que fazem POST de aceite/recusa — evita que scanners de e-mail "cliquem" sozinhos. */
+export const advanceOfferDecisionPage = (info: {
+  title: string;
+  clientName: string;
+  serviceTitle: string;
+  currentLabel: string;
+  newLabel: string;
+  acceptAction: string;
+  declineAction: string;
+}) => `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${info.title}</title></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:48px 16px;"><tr><td align="center">
+    <table width="460" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;border:1px solid #ececec;">
+      <tr><td style="background:#000000;padding:20px 32px;"><span style="color:#ffffff;font-size:18px;font-weight:700;">ai.yuu</span></td></tr>
+      <tr><td style="padding:32px;">
+        <h1 style="margin:0 0 16px;font-size:18px;color:#1a1a1a;">Adiantar seu horário</h1>
+        <p style="margin:0 0 4px;font-size:13px;color:#6b6b6b;">Serviço</p>
+        <p style="margin:0 0 12px;font-size:15px;color:#1a1a1a;font-weight:700;">${info.serviceTitle}</p>
+        <p style="margin:0 0 4px;font-size:13px;color:#6b6b6b;">Horário atual</p>
+        <p style="margin:0 0 12px;font-size:15px;color:#1a1a1a;text-transform:capitalize;">${info.currentLabel}</p>
+        <p style="margin:0 0 4px;font-size:13px;color:#6b6b6b;">Novo horário proposto</p>
+        <p style="margin:0 0 24px;font-size:15px;color:#1a1a1a;font-weight:700;text-transform:capitalize;">${info.newLabel}</p>
+        <form method="POST" action="${info.acceptAction}" style="display:inline-block;margin-right:8px;">
+          <button type="submit" style="padding:12px 22px;background:#000000;color:#ffffff;border:none;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Quero adiantar</button>
+        </form>
+        <form method="POST" action="${info.declineAction}" style="display:inline-block;">
+          <button type="submit" style="padding:12px 22px;background:#ffffff;color:#1a1a1a;border:1px solid #d0d0d0;border-radius:8px;font-size:14px;font-weight:700;cursor:pointer;">Manter meu horário</button>
+        </form>
+      </td></tr>
+    </table>
+  </td></tr></table>
+</body></html>`;
+
+export const advanceOfferAcceptedProfessionalTemplate = (info: {
+  clientName: string;
+  serviceTitle: string;
+  newLabel: string;
+}) => ({
+  subject: `${info.clientName} aceitou adiantar o horário`,
+  html: layout(
+    "Horário adiantado",
+    `<p style="margin:0 0 8px;font-size:14px;color:#37352f;"><strong>${info.clientName}</strong> aceitou adiantar o atendimento:</p>
+     <table cellpadding="0" cellspacing="0" style="margin:16px 0;background:#fafafa;border-radius:8px;width:100%;">
+       <tr><td style="padding:14px 18px;">
+         <p style="margin:0 0 6px;font-size:13px;color:#6b6b6b;">Serviço</p>
+         <p style="margin:0 0 12px;font-size:15px;color:#1a1a1a;font-weight:700;">${info.serviceTitle}</p>
+         <p style="margin:0 0 6px;font-size:13px;color:#6b6b6b;">Novo horário</p>
+         <p style="margin:0;font-size:15px;color:#1a1a1a;font-weight:700;text-transform:capitalize;">${info.newLabel}</p>
+       </td></tr>
+     </table>`
+  ),
+});
+
+/** Página HTML simples de resultado (aceite / recusa / opt-out) para abrir no navegador. */
+export const advanceOfferResultPage = (title: string, message: string, tone: "ok" | "info" | "error" = "info") => {
+  const color = tone === "ok" ? "#0f7b3f" : tone === "error" ? "#b3261e" : "#1a1a1a";
+  return `<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${title}</title></head>
+<body style="margin:0;padding:0;background:#f5f5f5;font-family:Arial,Helvetica,sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="padding:48px 16px;"><tr><td align="center">
+    <table width="440" cellpadding="0" cellspacing="0" style="background:#ffffff;border-radius:12px;border:1px solid #ececec;">
+      <tr><td style="background:#000000;padding:20px 32px;"><span style="color:#ffffff;font-size:18px;font-weight:700;">ai.yuu</span></td></tr>
+      <tr><td style="padding:32px;">
+        <h1 style="margin:0 0 12px;font-size:18px;color:${color};">${title}</h1>
+        <p style="margin:0;font-size:14px;color:#37352f;line-height:1.5;">${message}</p>
+      </td></tr>
+    </table>
+  </td></tr></table>
+</body></html>`;
+};
+
 // ===================== Agendamentos =====================
 
 export interface AppointmentEmailInfo {

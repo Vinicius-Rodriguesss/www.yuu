@@ -18,6 +18,12 @@ import { db } from "../../db/index.js";
 import { appointmentsTable } from "../../db/schema/appointments.js";
 import { sendAppointmentCancelledClientEmail } from "../Email/appointmentEmails.js";
 import { restoreStockForAppointment } from "../Products/stock.js";
+import {
+  startAdvanceCascade,
+  abortPendingOffersForAppointment,
+  abortCascadeForOrigin,
+} from "../AdvanceOffers/cascade.js";
+import { wallNow } from "../AdvanceOffers/config.js";
 
 const UpdateAppointmentStatus = async (req: Request, res: Response) => {
   try {
@@ -46,6 +52,12 @@ const UpdateAppointmentStatus = async (req: Request, res: Response) => {
       update.cancelledAt = new Date();
       if (cancellationReason) update.cancellationReason = cancellationReason;
     }
+    // Término real: marca ao concluir; limpa se o "Serviço feito" for desfeito.
+    if (status === "completed" && existing.status !== "completed") {
+      update.endedAt = wallNow();
+    } else if (status !== "completed" && existing.status === "completed") {
+      update.endedAt = null;
+    }
 
     const [updated] = await db
       .update(appointmentsTable)
@@ -60,6 +72,19 @@ const UpdateAppointmentStatus = async (req: Request, res: Response) => {
     if (status === "cancelled" && existing.status !== "cancelled") {
       void sendAppointmentCancelledClientEmail(updated.id, updated.cancellationReason);
       void restoreStockForAppointment(updated.id);
+    }
+
+    // -- Antecipação de horário -------------------------------------------------
+    if (status === "completed" && existing.status !== "completed") {
+      // terminou um atendimento: se foi cedo, oferece antecipar pro próximo da fila
+      void startAdvanceCascade(updated.id);
+    } else if (status !== "completed" && existing.status === "completed") {
+      // "Serviço feito" desfeito: derruba a cadeia iniciada por ele
+      void abortCascadeForOrigin(updated.id);
+    }
+    if (status === "in_progress" || status === "cancelled" || status === "no_show") {
+      // este agendamento não pode mais ser adiantado
+      void abortPendingOffersForAppointment(updated.id);
     }
 
     return res.status(200).json(updated);

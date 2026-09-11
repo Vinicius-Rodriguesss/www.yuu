@@ -1,5 +1,5 @@
 // db/schema/customers.ts
-import { pgTable, integer, varchar, text, timestamp, date, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, integer, varchar, text, timestamp, date, boolean, uniqueIndex } from "drizzle-orm/pg-core";
 import { usersTable } from "./users.js";
 import { clientAccountsTable } from "./clientAccounts.js";
 
@@ -20,6 +20,9 @@ export const customersTable = pgTable(
     email: varchar({ length: 255 }),
     birthDate: date("birth_date"),
     notes: text(),
+    // Cliente optou por não receber e-mails oferecendo antecipar o horário dele
+    // quando o profissional termina um atendimento mais cedo.
+    advanceOffersOptOut: boolean("advance_offers_opt_out").default(false).notNull(),
     createdAt: timestamp().defaultNow().notNull(),
     updatedAt: timestamp().defaultNow().notNull(),
   },
