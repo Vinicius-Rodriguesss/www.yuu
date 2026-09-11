@@ -31,7 +31,7 @@ const buttonStyle: React.CSSProperties = {
 
 const ForgotPassword = () => {
   const [step, setStep] = useState<1 | 2>(1);
-  const [document, setDocument] = useState("");
+  const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
   const [newPassword, setNewPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -45,27 +45,10 @@ const ForgotPassword = () => {
     message: "",
   });
 
-  const formatDocument = (value: string) => {
-    const numbers = value.replace(/\D/g, "");
-    if (numbers.length <= 11) {
-      return numbers
-        .replace(/(\d{3})(\d)/, "$1.$2")
-        .replace(/(\d{3})(\d)/, "$1.$2")
-        .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-    }
-    return numbers
-      .slice(0, 14)
-      .replace(/^(\d{2})(\d)/, "$1.$2")
-      .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
-      .replace(/\.(\d{3})(\d)/, ".$1/$2")
-      .replace(/(\d{4})(\d)/, "$1-$2");
-  };
-
   const handleRequestCode = async (e: React.FormEvent) => {
     e.preventDefault();
-    const numbers = document.replace(/\D/g, "");
-    if (numbers.length < 11 || numbers.length > 14) {
-      setToast({ show: true, type: "error", message: "CPF ou CNPJ inválido." });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setToast({ show: true, type: "error", message: "Informe um email válido." });
       return;
     }
 
@@ -74,7 +57,7 @@ const ForgotPassword = () => {
       const response = await fetch(`${API_URL}/forgot-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ document: numbers }),
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Erro ao solicitar código");
@@ -108,7 +91,7 @@ const ForgotPassword = () => {
       const response = await fetch(`${API_URL}/reset-password`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ document: document.replace(/\D/g, ""), code: code.trim(), newPassword }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), code: code.trim(), newPassword }),
       });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Erro ao redefinir senha");
@@ -155,16 +138,16 @@ const ForgotPassword = () => {
           {step === 1 ? (
             <>
               <p style={{ fontSize: "13px", color: "#999", margin: "0 0 24px" }}>
-                Informe seu CPF/CNPJ para receber um código por email
+                Informe seu email para receber um código de redefinição
               </p>
 
               <form onSubmit={handleRequestCode} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                 <input
-                  type="text"
-                  placeholder="CPF ou CNPJ"
-                  value={document}
-                  onChange={(e) => setDocument(formatDocument(e.target.value))}
-                  maxLength={18}
+                  type="email"
+                  placeholder="Email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
                   style={inputStyle}
                   onFocus={(e) => e.currentTarget.style.borderColor = "#1a1a1a"}
                   onBlur={(e) => e.currentTarget.style.borderColor = "#e8e8e8"}

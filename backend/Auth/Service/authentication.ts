@@ -10,7 +10,7 @@ import { config } from "dotenv";
 config({ path: "../.env" });
 
 interface LoginBody {
-  document: string;
+  email: string;
   password: string;
 }
 
@@ -20,26 +20,26 @@ const SESSION_TTL_MS = 24 * 60 * 60 * 1000;
 
 const Authentication = async (req: Request<{}, {}, LoginBody>, res: Response) => {
   try {
-    const { document, password } = req.body;
+    const { email, password } = req.body;
 
-    if (!document || !password) {
+    if (!email || !password) {
       return res.status(400).json({
-        message: "Documento e senha são obrigatórios",
+        message: "Email e senha são obrigatórios",
       });
     }
 
-    const cleanDocument = document.replace(/\D/g, "");
+    const cleanEmail = email.trim().toLowerCase();
 
     const users = await db
       .select()
       .from(usersTable)
-      .where(eq(usersTable.document, cleanDocument))
+      .where(eq(usersTable.email, cleanEmail))
       .limit(1);
 
 
     if (!users || users.length === 0 || !users[0]) {
       return res.status(401).json({
-        message: "Documento ou senha inválidos",
+        message: "Email ou senha inválidos",
       });
     }
 
@@ -49,13 +49,13 @@ const Authentication = async (req: Request<{}, {}, LoginBody>, res: Response) =>
 
     if (!isPasswordValid) {
       return res.status(401).json({
-        message: "Documento ou senha inválidos",
+        message: "Email ou senha inválidos",
       });
     }
 
     const issueDirectLogin = () => {
       const token = jwt.sign(
-        { id: user.id, name: user.name, document: user.document, accountType: user.accountType },
+        { id: user.id, name: user.name, document: user.document, accountType: user.accountType, role: user.role },
         process.env.JWT_SECRET || "default_secret_key",
         { expiresIn: "1d" }
       );
@@ -67,6 +67,7 @@ const Authentication = async (req: Request<{}, {}, LoginBody>, res: Response) =>
           name: user.name,
           document: user.document,
           accountType: user.accountType,
+          role: user.role,
           homeService: user.homeService,
           businessType: user.businessType,
           aiStyle: user.aiStyle,
@@ -77,11 +78,8 @@ const Authentication = async (req: Request<{}, {}, LoginBody>, res: Response) =>
       });
     };
 
-    // Sem email cadastrado (contas antigas), não dá pra mandar código —
-    // segue o login direto em vez de travar o acesso.
-    if (!user.email) {
-      return issueDirectLogin();
-    }
+    // O login agora é sempre por email (achamos o usuário pelo email acima),
+    // então user.email está sempre preenchido aqui.
 
     // Já confirmou o código recentemente (dentro da validade do JWT da
     // última vez) — não pede de novo, só quando esse período expirar.
@@ -94,7 +92,7 @@ const Authentication = async (req: Request<{}, {}, LoginBody>, res: Response) =>
     // Se o envio falhar (SMTP não configurado, fora do ar etc.), não trava
     // o acesso — cai para login direto, já que o código nunca chegaria mesmo.
     try {
-      await generateAndSendCode(user.id, "login", user.email, user.name);
+      await generateAndSendCode(user.id, "login", cleanEmail, user.name);
     } catch (emailError) {
       console.warn("Falha ao enviar código de login, seguindo sem 2FA:", emailError);
       return issueDirectLogin();

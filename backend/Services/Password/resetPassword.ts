@@ -10,25 +10,25 @@ const SALT_ROUNDS = 10;
 
 const ResetPassword = async (req: Request, res: Response) => {
   try {
-    const { document, code, newPassword } = req.body as {
-      document?: string;
+    const { email, code, newPassword } = req.body as {
+      email?: string;
       code?: string;
       newPassword?: string;
     };
 
-    if (!document || !code || !newPassword) {
-      return res.status(400).json({ error: "Documento, código e nova senha são obrigatórios" });
+    if (!email || !code || !newPassword) {
+      return res.status(400).json({ error: "Email, código e nova senha são obrigatórios" });
     }
     if (newPassword.length < 8) {
       return res.status(400).json({ error: "A senha deve ter pelo menos 8 caracteres" });
     }
 
-    const cleanDocument = document.replace(/\D/g, "");
+    const cleanEmail = email.trim().toLowerCase();
 
     const [user] = await db
       .select({ id: usersTable.id })
       .from(usersTable)
-      .where(eq(usersTable.document, cleanDocument))
+      .where(eq(usersTable.email, cleanEmail))
       .limit(1);
 
     if (!user) {
