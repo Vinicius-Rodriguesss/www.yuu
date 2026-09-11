@@ -4,10 +4,10 @@ import Toast from "../Components/Toast";
 import Header from "@/Components/Header";
 import { Link } from "react-router";
 import { useNavigate } from "react-router";
-import { API_URL } from "@/api/client";
+import { API_URL, saveOwnerSession } from "@/api/client";
 
 const Login = () => {
-  const [document, setDocument] = useState("");
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -24,34 +24,12 @@ const Login = () => {
     message: ""
   });
 
-  // Formata CPF ou CNPJ
-  const formatDocument = (value: string) => {
-    const numbers = value.replace(/\D/g, "");
-
-    if (numbers.length <= 11) {
-      // CPF
-      return numbers
-        .replace(/(\d{3})(\d)/, "$1.$2")
-        .replace(/(\d{3})(\d)/, "$1.$2")
-        .replace(/(\d{3})(\d{1,2})$/, "$1-$2");
-    }
-
-    // CNPJ
-    return numbers
-      .slice(0, 14)
-      .replace(/^(\d{2})(\d)/, "$1.$2")
-      .replace(/^(\d{2})\.(\d{3})(\d)/, "$1.$2.$3")
-      .replace(/\.(\d{3})(\d)/, ".$1/$2")
-      .replace(/(\d{4})(\d)/, "$1-$2");
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
     // Validação básica
-    const numbers = document.replace(/\D/g, "");
-    if (numbers.length < 11 || numbers.length > 14) {
-      setToast({ show: true, type: "error", message: "CPF ou CNPJ inválido." });
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      setToast({ show: true, type: "error", message: "Informe um email válido." });
       return;
     }
 
@@ -67,7 +45,7 @@ const Login = () => {
       const response = await fetch(`${API_URL}/authentication`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ document: numbers, password }),
+        body: JSON.stringify({ email: email.trim().toLowerCase(), password }),
       });
 
       const data = await response.json();
@@ -85,9 +63,10 @@ const Login = () => {
 
       setToast({ show: true, type: "success", message: "Login realizado!" });
 
-      localStorage.setItem("token", data.token)
+      saveOwnerSession(data.token, data.user?.role);
+      const destino = data.user?.role === "super_admin" ? "/admin" : "/dashboard";
       setTimeout(() => {
-        navigate("/dashboard");
+        navigate(destino);
         setIsLoading(false);
       }, 1500);
 
@@ -127,9 +106,10 @@ const Login = () => {
       }
 
       setToast({ show: true, type: "success", message: "Login realizado!" });
-      localStorage.setItem("token", data.token);
+      saveOwnerSession(data.token, data.user?.role);
+      const destino = data.user?.role === "super_admin" ? "/admin" : "/dashboard";
       setTimeout(() => {
-        navigate("/dashboard");
+        navigate(destino);
         setIsLoading(false);
       }, 1000);
     } catch (error) {
@@ -185,11 +165,11 @@ const Login = () => {
 
               <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                 <input
-                  type="text"
-                  placeholder="CPF ou CNPJ"
-                  value={document}
-                  onChange={(e) => setDocument(formatDocument(e.target.value))}
-                  maxLength={18}
+                  type="email"
+                  placeholder="Email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  autoComplete="email"
                   style={{
                     width: "100%",
                     padding: "10px 12px",
