@@ -1,75 +1,84 @@
-# React + TypeScript + Vite
+# www.yuu
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+SaaS de agendamentos (dono de negócio + cliente final) com dashboard, IA de
+atendimento e painel de administrador da plataforma.
 
-Currently, two official plugins are available:
+## Pré-requisitos
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+- Docker + Docker Compose
+- `make` (no Windows, use Git Bash/WSL — o `make` não existe no PowerShell puro)
 
-## React Compiler
+## Primeira vez rodando o projeto
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+1. Copie o `.env` (peça pra quem já tem um configurado, ou preencha as
+   variáveis descritas nos comentários do próprio arquivo — SMTP, JWT_SECRET,
+   Stripe etc).
 
-## Expanding the ESLint configuration
+2. Suba os containers:
+   ```
+   make up
+   ```
 
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
+3. Crie as tabelas no banco (schema vem de `backend/db/schema/*.ts`):
+   ```
+   docker compose exec api npx drizzle-kit push --force
+   ```
 
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
+4. Crie sua conta de super admin (acesso ao painel `/admin`):
+   ```
+   make create-admin
+   ```
+   Vai perguntar email, senha e nome passo a passo. Depois é só fazer login
+   normal em `/` com esse email/senha.
 
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
+5. Acesse:
+   - Frontend: http://localhost:5173
+   - API: http://localhost:3000
 
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Se você zerou o banco (`docker compose down -v` ou `make clean`)
 
-```
+O volume do Postgres também é apagado — o banco volta vazio. Repita os passos
+3 e 4 acima (`drizzle-kit push --force` + `make create-admin`) pra reconstruir
+o schema e recriar sua conta de admin.
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+## Comandos úteis (`make help` lista todos)
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+| Comando | O que faz |
+|---|---|
+| `make up` / `make down` | Sobe/derruba os containers |
+| `make dev` | Sobe com logs no terminal (foreground) |
+| `make logs` | Acompanha os logs de todos os serviços |
+| `make sh-api` / `make sh-db` | Abre um shell no container da API / psql no banco |
+| `make db-generate` | Gera migration a partir de mudanças no schema |
+| `make db-push` | Aplica o schema atual direto no banco (sem gerar migration) |
+| `make db-apply-migration FILE=...` | Aplica um `migration.sql` escrito à mão |
+| `make create-admin` | Cria (ou promove) uma conta de super_admin — pergunta email/senha/nome |
+| `make promote-admin EMAIL=...` | Promove uma conta já existente a super_admin |
+| `make demote-admin EMAIL=...` | Reverte uma conta de super_admin pra owner normal |
+| `make clean` | Derruba containers **e apaga os dados do banco** |
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+## Estrutura
 
-```
+- `src/` — frontend (React + Vite), dono de negócio e páginas públicas
+- `mobile/` — app mobile do cliente final (Expo/React Native)
+- `backend/` — API (Express + Drizzle ORM + Postgres). Documentação das
+  rotas em [`backend/README.md`](backend/README.md).
+- `backend/db/schema/` — fonte da verdade do schema do banco
+- `backend/drizzle/` — migrations (algumas geradas, outras escritas à mão —
+  veja `make db-apply-migration`)
+
+## Autenticação e permissões
+
+- Login (dono do negócio) é feito por **email + senha**, com 2FA por código
+  enviado por email.
+- `users.role` distingue `owner` (dono de negócio, padrão) de `super_admin`
+  (operador da plataforma, acessa `/admin`). Promoção é sempre manual —
+  não existe fluxo de auto-promoção na aplicação (ver `make create-admin`
+  acima).
+
+## Pagamentos (mensalidade)
+
+Integração com Stripe (assinatura recorrente) em `backend/Services/Stripe/`.
+Sem as chaves `STRIPE_SECRET_KEY` / `STRIPE_PRICE_ID` / `STRIPE_WEBHOOK_SECRET`
+no `.env`, os botões de assinatura respondem "Pagamentos ainda não
+configurados" — o resto do sistema funciona normalmente sem elas.
