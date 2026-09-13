@@ -60,6 +60,13 @@ const ForgotPassword = () => {
         body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
       const data = await response.json();
+
+      if (response.status === 404 && data.notFound) {
+        setToast({ show: true, type: "error", message: "Email não cadastrado. Redirecionando para o cadastro..." });
+        setTimeout(() => navigate("/signup"), 1500);
+        return;
+      }
+
       if (!response.ok) throw new Error(data.error || "Erro ao solicitar código");
 
       setToast({ show: true, type: "success", message: data.message });
