@@ -3,6 +3,9 @@
 import jwt, { type JwtPayload } from "jsonwebtoken";
 import type { Request, Response, NextFunction } from "express";
 import { config } from "dotenv";
+import { eq } from "drizzle-orm";
+import { db } from "../../db/index.js";
+import { usersTable } from "../../db/schema/users.js";
 
 config({ path: "../.env" });
 
@@ -64,3 +67,26 @@ export const authMiddleware = (
     });
   }
 }
+
+// Roda depois de authMiddleware. Reconsulta o banco (não confia só no JWT,
+// que dura 1 dia) pra revogar acesso de admin na hora caso o role mude.
+export const requireSuperAdmin = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+): Promise<void> => {
+  const userId = (req as any).userId;
+
+  const [user] = await db
+    .select({ role: usersTable.role })
+    .from(usersTable)
+    .where(eq(usersTable.id, userId))
+    .limit(1);
+
+  if (!user || user.role !== "super_admin") {
+    res.status(403).json({ error: "Acesso restrito ao administrador da plataforma" });
+    return;
+  }
+
+  next();
+};

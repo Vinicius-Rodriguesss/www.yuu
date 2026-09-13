@@ -195,6 +195,53 @@ const Settings = () => {
     { show: false, type: "error", message: "" }
   );
 
+  const [billingLoading, setBillingLoading] = useState<"checkout" | "portal" | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const assinatura = params.get("assinatura");
+    if (assinatura === "sucesso") {
+      setToast({ show: true, type: "success", message: "Assinatura confirmada! Pode levar alguns segundos para atualizar." });
+    } else if (assinatura === "cancelado") {
+      setToast({ show: true, type: "info", message: "Pagamento cancelado." });
+    }
+    if (assinatura) {
+      window.history.replaceState({}, "", window.location.pathname);
+    }
+  }, []);
+
+  const handleStartCheckout = async () => {
+    setBillingLoading("checkout");
+    try {
+      const response = await fetch(`${API_URL}/billing/checkout-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Erro ao iniciar pagamento");
+      window.location.href = data.url;
+    } catch (error) {
+      setToast({ show: true, type: "error", message: error instanceof Error ? error.message : "Erro ao iniciar pagamento" });
+      setBillingLoading(null);
+    }
+  };
+
+  const handleOpenBillingPortal = async () => {
+    setBillingLoading("portal");
+    try {
+      const response = await fetch(`${API_URL}/billing/portal-session`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${localStorage.getItem("token")}` },
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Erro ao abrir portal de pagamento");
+      window.location.href = data.url;
+    } catch (error) {
+      setToast({ show: true, type: "error", message: error instanceof Error ? error.message : "Erro ao abrir portal de pagamento" });
+      setBillingLoading(null);
+    }
+  };
+
   const nameValidation = validateFullName(form.name);
   const passwordChecks = validatePassword(password);
   const isDirty = JSON.stringify(form) !== initialSnapshot.current;
@@ -604,6 +651,28 @@ const Settings = () => {
         <p className="text-sm text-gray-400">
           Gerencie seus dados, endereço, horários e preferências da IA
         </p>
+      </div>
+
+      {/* Assinatura */}
+      <div className="bg-white rounded-lg border border-gray-200 p-5 mb-4">
+        <h2 className="text-sm font-semibold text-gray-900 mb-1">Assinatura</h2>
+        <p className="text-xs text-gray-500 mb-4">Gerencie o pagamento da mensalidade do sistema.</p>
+        <div className="flex flex-wrap gap-3">
+          <button
+            onClick={handleStartCheckout}
+            disabled={billingLoading !== null}
+            className="text-sm font-medium bg-gray-900 text-white rounded-md px-4 py-2 disabled:opacity-60"
+          >
+            {billingLoading === "checkout" ? "Abrindo..." : "Assinar / Atualizar pagamento"}
+          </button>
+          <button
+            onClick={handleOpenBillingPortal}
+            disabled={billingLoading !== null}
+            className="text-sm font-medium border border-gray-300 text-gray-700 rounded-md px-4 py-2 disabled:opacity-60"
+          >
+            {billingLoading === "portal" ? "Abrindo..." : "Gerenciar assinatura"}
+          </button>
+        </div>
       </div>
 
       {/* Seções */}

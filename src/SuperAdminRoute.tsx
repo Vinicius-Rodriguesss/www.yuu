@@ -1,13 +1,12 @@
-// ProtectedRoute.tsx
+// SuperAdminRoute.tsx
 import { useEffect, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { API_URL, clearOwnerSession } from "@/api/client";
+import { API_URL, getOwnerRole, clearOwnerSession } from "@/api/client";
 
-export function ProtectedRoute({ children }: { children: React.ReactNode }) {
-  const [status, setStatus] = useState<"loading" | "valid" | "invalid">("loading");
+export function SuperAdminRoute({ children }: { children: React.ReactNode }) {
+  const [status, setStatus] = useState<"loading" | "valid" | "invalid" | "forbidden">("loading");
 
   useEffect(() => {
-   // Depois de um tempo preciso apagar o token do LocalStorage
     const token = localStorage.getItem("token");
 
     if (!token) {
@@ -24,7 +23,9 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
     })
       .then((res) => {
         if (!res.ok) throw new Error();
-        setStatus("valid");
+        // Guarda rápida no front — o acesso de verdade é reconferido no
+        // backend a cada chamada de /admin/*.
+        setStatus(getOwnerRole() === "super_admin" ? "valid" : "forbidden");
       })
       .catch(() => {
         clearOwnerSession();
@@ -34,6 +35,7 @@ export function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
   if (status === "loading") return <p>Carregando...</p>;
   if (status === "invalid") return <Navigate to="/" replace />;
+  if (status === "forbidden") return <Navigate to="/dashboard" replace />;
 
   return <>{children}</>;
 }

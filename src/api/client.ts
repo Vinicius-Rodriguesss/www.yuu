@@ -7,6 +7,25 @@ export const API_URL = import.meta.env.VITE_API_URL || "http://localhost:3000";
  */
 export const tzOffsetMin = -new Date().getTimezoneOffset();
 
+// Sessão do DONO DO NEGÓCIO / super admin (telas atrás de ProtectedRoute).
+// O role vem junto no login só pra decidir o redirect e dar guarda rápida
+// no front — o acesso de verdade é sempre reconferido no backend.
+export const saveOwnerSession = (token: string, role?: string) => {
+  localStorage.setItem("token", token);
+  if (role) {
+    localStorage.setItem("role", role);
+  } else {
+    localStorage.removeItem("role");
+  }
+};
+
+export const clearOwnerSession = () => {
+  localStorage.removeItem("token");
+  localStorage.removeItem("role");
+};
+
+export const getOwnerRole = () => localStorage.getItem("role");
+
 export const apiFetch = async (path: string, options: RequestInit = {}) => {
   const token = localStorage.getItem("token");
 

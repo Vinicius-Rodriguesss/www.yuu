@@ -11,6 +11,7 @@ import {
  MdInventory2,
 } from "react-icons/md";
 import { HiMenuAlt1 } from "react-icons/hi";
+import { clearOwnerSession } from "@/api/client";
 import "./index.css";
 
 const NavBar = () => {
@@ -50,7 +51,7 @@ const NavBar = () => {
  ];
 
  const handleLogout = () => {
-  localStorage.removeItem("token");
+  clearOwnerSession();
   navigate("/");
  };
 

@@ -3,8 +3,10 @@ import Login from '@/Login'
 import SignUp from './SignUp'
 import ForgotPassword from './ForgotPassword'
 import { ProtectedRoute } from './ProtectedRoute'
+import { SuperAdminRoute } from './SuperAdminRoute'
 import { DashboardLayout } from './DashboardLayout'
 import Dashboard from '@/Pages/Dashboard'
+import AdminDashboard from '@/Pages/Admin'
 import Services from './Pages/Services'
 import Settings from './Pages/Configuracoes'
 import Calendar from './Pages/Calendar'
@@ -22,6 +24,17 @@ const AppRoutes = () => {
       <Route path="/forgot-password" element={<ForgotPassword />} />
       <Route path="/p/:slug" element={<PublicChat />} />
       <Route path="/p/:slug/agenda" element={<Agenda />} />
+
+      {/* Painel do administrador da plataforma — layout próprio, sem NavBar.
+          SuperAdminRoute já valida o token sozinho, sem precisar do ProtectedRoute. */}
+      <Route
+        path="/admin"
+        element={
+          <SuperAdminRoute>
+            <AdminDashboard />
+          </SuperAdminRoute>
+        }
+      />
 
       {/* Rota protegida */}
       {/* Tudo aqui dentro é protegido E usa o layout com Navbar */}

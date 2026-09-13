@@ -18,6 +18,9 @@ import PublicBookingController from "./Controllers/publicBooking.js";
 import ClientAuthController from "./Controllers/clientAuth.js";
 import ContactController from "./Controllers/contact.js";
 import AdvanceOffersController from "./Controllers/advanceOffers.js";
+import AdminController from "./Controllers/admin.js";
+import BillingController from "./Controllers/billing.js";
+import StripeWebhook from "./Services/Stripe/webhook.js";
 import { startReminderJob } from "./Services/Appointments/reminderJob.js";
 
 const app = express();
@@ -35,6 +38,12 @@ app.use(
     credentials: true, // se for usar cookies/sessão futuramente
   })
 );
+
+// Precisa do corpo raw (não parseado) pra verificar a assinatura do Stripe —
+// tem que vir antes do express.json() global, senão o corpo já chega parseado.
+app.post("/webhooks/stripe", express.raw({ type: "application/json" }), (req, res) => {
+  StripeWebhook(req, res);
+});
 
 app.use(express.json());
 
@@ -58,6 +67,8 @@ app.use(PublicBookingController);
 app.use(ClientAuthController);
 app.use(ContactController);
 app.use(AdvanceOffersController);
+app.use(AdminController);
+app.use(BillingController);
 
 const port = Number(process.env.PORT) || 3000;
 

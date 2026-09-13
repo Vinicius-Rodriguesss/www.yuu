@@ -9,6 +9,7 @@ export const usersTable = pgTable("users", {
   email: varchar({ length: 255 }).unique(), // usado para login (2FA), boas-vindas, recuperação e troca de senha
   phone: varchar({ length: 20 }),
   accountType: varchar({ length: 50 }).notNull(),
+  role: varchar({ length: 20 }).default("owner").notNull(), // owner (dono do negócio) | super_admin (operador da plataforma)
   homeService: boolean().notNull(),
   businessType: varchar({ length: 100 }).notNull(),
   aiStyle: varchar("ai_style", { length: 20 }).notNull(),
