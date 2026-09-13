@@ -4,9 +4,13 @@
 // email/senha/nome que você quiser — sem passar pelo cadastro normal, já
 // que o super admin não é um dono de negócio de verdade.
 //
-// Uso: npm run create-admin -- --email=admin@yuu.com --password=SenhaForte123 --name="Admin YuU"
+// Uso interativo (pergunta email, senha e nome passo a passo):
+//   npm run create-admin
+// Uso direto (tudo em uma linha, se preferir):
+//   npm run create-admin -- --email=admin@yuu.com --password=SenhaForte123 --name="Admin YuU"
 import { config } from "dotenv";
 config({ path: "../.env" });
+import { createInterface } from "node:readline/promises";
 import bcrypt from "bcryptjs";
 import { eq } from "drizzle-orm";
 import { db } from "../db/index.js";
@@ -25,13 +29,48 @@ const parseArgs = () => {
   return args;
 };
 
-const run = async () => {
-  const { email, password, name } = parseArgs();
+// Pergunta passo a passo o que faltar (email/senha/nome). A senha aparece
+// visível no terminal — não tem como esconder digitação sem libs extras,
+// mas é uma conta interna, não algo digitado em tela compartilhada.
+//
+// Usa o iterador assíncrono (não rl.question() encadeado): quando a entrada
+// chega tudo de uma vez (ex: colada, ou piped num script), question() perde
+// as linhas que chegam antes de cada chamada ser registrada — o iterador
+// enfileira os eventos de linha corretamente.
+const promptMissing = async (args: Record<string, string>) => {
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  const lines = rl[Symbol.asyncIterator]();
 
-  if (!email || !password) {
-    console.error('Uso: npm run create-admin -- --email=admin@yuu.com --password=SenhaForte123 --name="Admin YuU"');
-    process.exit(1);
+  const ask = async (question: string) => {
+    process.stdout.write(question);
+    const { value, done } = await lines.next();
+    return done ? "" : value.trim();
+  };
+
+  try {
+    let email = args.email;
+    while (!email) {
+      email = await ask("Email: ");
+    }
+
+    let password = args.password;
+    while (!password || password.length < 8) {
+      password = await ask("Senha (mínimo 8 caracteres): ");
+      if (password.length < 8) console.log("  → muito curta, tente de novo.");
+    }
+
+    const name = args.name || (await ask("Nome (opcional, Enter pra pular): "));
+
+    return { email, password, name };
+  } finally {
+    rl.close();
   }
+};
+
+const run = async () => {
+  const argv = parseArgs();
+  const { email, password, name } = await promptMissing(argv);
+
   if (password.length < 8) {
     console.error("A senha precisa ter pelo menos 8 caracteres");
     process.exit(1);

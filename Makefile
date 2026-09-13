@@ -77,9 +77,8 @@ demote-admin: ## Revert a user back to the regular owner role (usage: make demot
 	$(COMPOSE) exec postgres psql -U $${POSTGRES_USER:-yuu} -d $${POSTGRES_DB:-yuu_db} \
 		-c "UPDATE users SET role='owner' WHERE email='$(EMAIL)' RETURNING id, name, email, role;"
 
-create-admin: ## Create (or promote) a super_admin account with any email/password/name you want
-	@test -n "$(EMAIL)" && test -n "$(PASSWORD)" || (echo 'Usage: make create-admin EMAIL=admin@yuu.com PASSWORD=SenhaForte123 [NAME="Admin YuU"]'; exit 1)
-	$(COMPOSE) exec api npm run create-admin -- --email=$(EMAIL) --password=$(PASSWORD) --name="$(NAME)"
+create-admin: ## Create (or promote) a super_admin account — asks for email/password/name step by step
+	$(COMPOSE) exec api npm run create-admin
 
 clean: ## Stop containers and remove volumes (drops the database data!)
 	$(COMPOSE) down -v
