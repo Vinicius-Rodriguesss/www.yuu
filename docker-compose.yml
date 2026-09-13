@@ -12,7 +12,7 @@ services:
 
     volumes:
       - ./backend:/app
-      - /app/node_modules
+      - api_node_modules:/app/node_modules
 
     env_file:
       - .env
@@ -40,7 +40,7 @@ services:
 
     volumes:
       - .:/app
-      - /app/node_modules
+      - frontend_node_modules:/app/node_modules
 
     env_file:
       - .env
@@ -74,3 +74,5 @@ services:
 
 volumes:
   postgres_data:
+  api_node_modules:
+  frontend_node_modules:

@@ -19,9 +19,9 @@ atendimento e painel de administrador da plataforma.
    make up
    ```
 
-3. Crie as tabelas no banco (schema vem de `backend/db/schema/*.ts`):
+3. Aplique as migrations pra criar as tabelas no banco:
    ```
-   docker compose exec api npx drizzle-kit push --force
+   make db-migrate
    ```
 
 4. Crie sua conta de super admin (acesso ao painel `/admin`):
@@ -38,8 +38,20 @@ atendimento e painel de administrador da plataforma.
 ## Se você zerou o banco (`docker compose down -v` ou `make clean`)
 
 O volume do Postgres também é apagado — o banco volta vazio. Repita os passos
-3 e 4 acima (`drizzle-kit push --force` + `make create-admin`) pra reconstruir
+3 e 4 acima (`make db-migrate` + `make create-admin`) pra reconstruir
 o schema e recriar sua conta de admin.
+
+## Depois de um `git pull` (dependências novas)
+
+Se o `package.json` do backend ou do frontend mudou (nova dependência foi
+adicionada), só `make up` **não** reinstala nada — o `node_modules` fica num
+volume separado e não atualiza sozinho. Se a API cair com
+`Cannot find package 'X'`, rode:
+```
+docker compose exec api npm install
+docker compose restart api
+```
+(troque `api` por `frontend` se o erro for do lado do frontend).
 
 ## Comandos úteis (`make help` lista todos)
 
